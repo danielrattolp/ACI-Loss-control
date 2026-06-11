@@ -442,6 +442,7 @@ def calculate_quantity_from_gsv(
     api_gravity: float,
     bsw_pct: float,
     free_water_bbl: float = 0.0,
+    temperature_f: float = 60.0,
     vef: float = 1.0,
     apply_vef: bool = False,
     table: str = "6B",
@@ -449,10 +450,10 @@ def calculate_quantity_from_gsv(
     """Calcula cantidades cuando el dato de entrada ya es GSV bbl @60 °F.
 
     Flujo: GSV_bruto - agua_libre → GSV_neto → NSV (×(1−BS&W)) → m³ → TM.
-    VCF = 1.0 por definicion (ya esta a temperatura de referencia).
+    VCF se calcula desde temperatura para registro documental (no modifica GSV).
     Aplica VEF dividiendo GSV si apply_vef=True, conforme API MPMS 17.1.
     """
-    _, product_group = calculate_vcf_full(api_gravity, 60.0, table)
+    vcf_ref, product_group = calculate_vcf_full(api_gravity, temperature_f, table)
     gsv_net = max(gsv_bbl - free_water_bbl, 0.0)
     gsv = gsv_net
     if apply_vef:
@@ -481,7 +482,7 @@ def calculate_quantity_from_gsv(
         density_15c_kgm3=density_kgm3,
         api=api_gravity,
         bsw_pct=bsw_pct,
-        vcf=1.0,
+        vcf=vcf_ref,      # VCF documental calculado desde temperatura observada
         vef=vef if apply_vef else 1.0,
         vcf_table=table.upper(),
         product_group=product_group,

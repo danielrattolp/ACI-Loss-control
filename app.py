@@ -87,16 +87,16 @@ def calculate_origin(form_data: dict, table: str) -> dict:
     input_mode = form_data.get("origin_input_mode", "gov")
 
     if input_mode == "gsv":
+        temperature_f = float(form_data.get("origin_temperature_f") or 60.0)
         shore = calculate_quantity_from_gsv(
             float(form_data["origin_shore_gsv_bbl"]), api, bsw_pct,
-            free_water_bbl=free_water, table=table,
+            free_water_bbl=free_water, temperature_f=temperature_f, table=table,
         )
         vessel = calculate_quantity_from_gsv(
             float(form_data["origin_vessel_gsv_bbl"]), api, bsw_pct,
-            free_water_bbl=0.0,   # FW already netted in vessel or not applicable
+            free_water_bbl=0.0, temperature_f=temperature_f,
             vef=vessel_vef, apply_vef=True, table=table,
         )
-        temperature_f = 60.0
     else:
         temperature_f = float(form_data["origin_temperature_f"])
         shore = calculate_quantity(
@@ -371,6 +371,9 @@ def wizard_step(operation_id: int, step: int):
                     "bill_of_lading_bbl": as_float("bill_of_lading_bbl"),
                 }
                 if input_mode == "gsv":
+                    temperature_f = as_float("origin_temperature_f", 60)
+                    validate_range("Temperatura", temperature_f, -58, 302)
+                    form_data["origin_temperature_f"] = temperature_f
                     form_data["origin_shore_gsv_bbl"] = as_float("origin_shore_gsv_bbl")
                     form_data["origin_vessel_gsv_bbl"] = as_float("origin_vessel_gsv_bbl")
                 else:

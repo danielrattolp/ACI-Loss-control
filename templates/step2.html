@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Cantidades origen | ACI LATAM{% endblock %}
 {% block content %}
 {% set origin = operation.data.get('origin', {}) %}
@@ -34,12 +34,14 @@
              value="{{ origin.get('api', 35) }}" />
     </label>
 
-    <!-- Temperatura: visible solo en modo GOV -->
-    <label id="tempField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
+    <label id="tempField">
       Temperatura origen °F
       <input class="form-control" name="origin_temperature_f" id="origin_temperature_f"
-             type="number" min="-58" max="302" step="0.1"
+             type="number" min="-58" max="302" step="0.1" required
              value="{{ origin.get('temperature_f', 60) }}" />
+      <span class="field-note" id="tempFieldNote">
+        {% if mode == 'gsv' %}VCF ref. (GSV ya corregido a 60 °F){% endif %}
+      </span>
     </label>
 
     <label>BS&amp;W %
@@ -188,7 +190,7 @@
   function applyMode() {
     var gsv = isGsv.checked;
     // toggle field visibility
-    document.getElementById("tempField").style.display     = gsv ? "none" : "";
+    document.getElementById("tempField").style.display = "";
     document.getElementById("shoreGovField").style.display = gsv ? "none" : "";
     document.getElementById("vesselGovField").style.display= gsv ? "none" : "";
     document.getElementById("shoreGsvField").style.display = gsv ? "" : "none";
@@ -198,9 +200,9 @@
       ? "GSV directo → GSV − FW × (1 − BS&W) = NSV"
       : "GOV × VCF = GSV  |  GSV × (1 − BS&W) = NSV";
     // hide VCF row in gsv mode (VCF=1.0 by definition)
-    document.getElementById("shoreVcfRow").style.opacity  = gsv ? "0.35" : "1";
-    document.getElementById("vesselVcfRow").style.opacity = gsv ? "0.35" : "1";
-    document.getElementById("cmpBlock").style.opacity     = gsv ? "0.35" : "1";
+    document.getElementById("shoreVcfRow").style.opacity  = gsv ? "0.55" : "1";
+    document.getElementById("vesselVcfRow").style.opacity = gsv ? "0.55" : "1";
+    document.getElementById("cmpBlock").style.opacity = "1";
     updatePreview();
   }
 
