@@ -437,6 +437,57 @@ def calculate_vef_17_9(voyages: list[dict]) -> dict:
     }
 
 
+def calculate_quantity_from_gsv(
+    gsv_bbl: float,
+    api_gravity: float,
+    bsw_pct: float,
+    free_water_bbl: float = 0.0,
+    vef: float = 1.0,
+    apply_vef: bool = False,
+    table: str = "6B",
+) -> QuantityResult:
+    """Calcula cantidades cuando el dato de entrada ya es GSV bbl @60 °F.
+
+    Flujo: GSV_bruto - agua_libre → GSV_neto → NSV (×(1−BS&W)) → m³ → TM.
+    VCF = 1.0 por definicion (ya esta a temperatura de referencia).
+    Aplica VEF dividiendo GSV si apply_vef=True, conforme API MPMS 17.1.
+    """
+    _, product_group = calculate_vcf_full(api_gravity, 60.0, table)
+    gsv_net = max(gsv_bbl - free_water_bbl, 0.0)
+    gsv = gsv_net
+    if apply_vef:
+        if vef <= 0:
+            raise ValueError("El VEF debe ser mayor que cero.")
+        gsv /= vef
+    nsv = gsv * (1.0 - bsw_pct / 100.0)
+
+    density_kgm3 = density_60f_from_api(api_gravity)
+    density_sg = density_kgm3 / KG_M3_WATER_60F
+    gsv_m3 = gsv * BBL_TO_M3
+    nsv_m3 = nsv * BBL_TO_M3
+    metric_tons_vacuum = nsv_m3 * density_kgm3 / 1000.0
+    buoyancy_correction = 1.1 / density_kgm3 if density_kgm3 > 0 else 0.0
+    metric_tons_air = metric_tons_vacuum * (1.0 - buoyancy_correction)
+
+    return QuantityResult(
+        gov_bbl=gsv_net,        # GOV≡GSV cuando la entrada ya es a 60 °F
+        gsv_bbl=gsv,
+        nsv_bbl=nsv,
+        gsv_m3_15c=gsv_m3,
+        nsv_m3_15c=nsv_m3,
+        metric_tons_air=metric_tons_air,
+        metric_tons_vacuum=metric_tons_vacuum,
+        density_15c=density_sg,
+        density_15c_kgm3=density_kgm3,
+        api=api_gravity,
+        bsw_pct=bsw_pct,
+        vcf=1.0,
+        vef=vef if apply_vef else 1.0,
+        vcf_table=table.upper(),
+        product_group=product_group,
+    )
+
+
 def difference(first: float, second: float) -> dict:
     """Diferencia absoluta y porcentual (segundo menos primero)."""
     delta = second - first

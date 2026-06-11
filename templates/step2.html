@@ -2,59 +2,119 @@
 {% block title %}Cantidades origen | ACI LATAM{% endblock %}
 {% block content %}
 {% set origin = operation.data.get('origin', {}) %}
+{% set mode = origin.get('input_mode', 'gov') %}
 <form method="post" class="content-panel" id="originForm">
   <div class="section-heading">
     <div>
       <p class="eyebrow">Paso 2 · API MPMS 11.1</p>
       <h1>Cantidades de origen</h1>
     </div>
-    <span class="field-note">GOV × VCF = GSV &nbsp;|&nbsp; GSV × (1 − BS&W) = NSV</span>
+    <!-- Modo de entrada -->
+    <div class="d-flex align-items-center gap-3">
+      <span class="field-note" id="modeNote">
+        {% if mode == 'gsv' %}GSV directo → NSV &nbsp;|&nbsp; GSV − FW × (1 − BS&amp;W) = NSV
+        {% else %}GOV × VCF = GSV &nbsp;|&nbsp; GSV × (1 − BS&amp;W) = NSV{% endif %}
+      </span>
+      <div class="btn-group btn-group-sm" role="group">
+        <input type="radio" class="btn-check" name="origin_input_mode" id="modeGov"
+               value="gov" {% if mode != 'gsv' %}checked{% endif %} />
+        <label class="btn btn-outline-secondary" for="modeGov">GOV + Temp</label>
+        <input type="radio" class="btn-check" name="origin_input_mode" id="modeGsv"
+               value="gsv" {% if mode == 'gsv' %}checked{% endif %} />
+        <label class="btn btn-outline-primary" for="modeGsv">GSV directo</label>
+      </div>
+    </div>
   </div>
 
+  <!-- Fila de parámetros comunes -->
   <div class="form-grid cols-4">
     <label>API gravedad origen
-      <input class="form-control" name="origin_api" type="number"
+      <input class="form-control" name="origin_api" id="origin_api" type="number"
              min="-10" max="100" step="0.01" required
              value="{{ origin.get('api', 35) }}" />
     </label>
-    <label>Temperatura origen °F
-      <input class="form-control" name="origin_temperature_f" type="number"
-             min="-58" max="302" step="0.1" required
+
+    <!-- Temperatura: visible solo en modo GOV -->
+    <label id="tempField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
+      Temperatura origen °F
+      <input class="form-control" name="origin_temperature_f" id="origin_temperature_f"
+             type="number" min="-58" max="302" step="0.1"
              value="{{ origin.get('temperature_f', 60) }}" />
     </label>
+
     <label>BS&amp;W %
-      <input class="form-control" name="origin_bsw_pct" type="number"
+      <input class="form-control" name="origin_bsw_pct" id="origin_bsw_pct" type="number"
              min="0" max="100" step="0.001" required
              value="{{ origin.get('bsw_pct', 0) }}" />
     </label>
+
+    <label>Agua libre / FW bbl
+      <input class="form-control" name="origin_free_water_bbl" id="origin_free_water_bbl"
+             type="number" min="0" step="0.001"
+             value="{{ origin.get('free_water_bbl', 0) }}"
+             placeholder="0.000" />
+      <span class="field-note">Se deduce de GSV/GOV antes de BSW</span>
+    </label>
+
     <label>Bill of Lading bbl @60 °F
-      <input class="form-control" name="bill_of_lading_bbl" type="number"
-             min="0" step="0.001" required
+      <input class="form-control" name="bill_of_lading_bbl" id="bill_of_lading_bbl"
+             type="number" min="0" step="0.001" required
              value="{{ origin.get('bill_of_lading_bbl', 0) }}" />
     </label>
   </div>
 
+  <!-- Mediciones lado tierra y buque -->
   <div class="measurement-pair mt-4">
+
+    <!-- TIERRA -->
     <fieldset>
       <legend>Tierra origen / zarpe</legend>
-      <label>GOV observado bbl
-        <input class="form-control" name="origin_shore_gov_bbl" type="number"
-               min="0" step="0.001" required
+
+      <!-- Modo GOV -->
+      <label id="shoreGovField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
+        GOV observado bbl
+        <input class="form-control" name="origin_shore_gov_bbl" id="origin_shore_gov_bbl"
+               type="number" min="0" step="0.001"
                value="{{ origin.get('shore', {}).get('gov_bbl', 0) }}" />
       </label>
-      <p class="field-note">Tierra no aplica VEF (API MPMS 17.1).</p>
+
+      <!-- Modo GSV -->
+      <label id="shoreGsvField" {% if mode != 'gsv' %}style="display:none"{% endif %}>
+        GSV bbl @60 °F
+        <input class="form-control" name="origin_shore_gsv_bbl" id="origin_shore_gsv_bbl"
+               type="number" min="0" step="0.001"
+               value="{{ origin.get('shore', {}).get('gsv_bbl', 0) }}" />
+        <span class="field-note">Ya corregido a 60 °F · VCF = 1.0</span>
+      </label>
+
+      <p class="field-note mt-1">Tierra no aplica VEF (API MPMS 17.1).</p>
     </fieldset>
+
+    <!-- BUQUE -->
     <fieldset>
       <legend>Buque origen / zarpe</legend>
       <div class="form-grid cols-2">
-        <label>GOV observado bbl
-          <input class="form-control" name="origin_vessel_gov_bbl" type="number"
-                 min="0" step="0.001" required
+
+        <!-- Modo GOV -->
+        <label id="vesselGovField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
+          GOV observado bbl
+          <input class="form-control" name="origin_vessel_gov_bbl" id="origin_vessel_gov_bbl"
+                 type="number" min="0" step="0.001"
                  value="{{ origin.get('vessel', {}).get('gov_bbl', 0) }}" />
         </label>
+
+        <!-- Modo GSV -->
+        <label id="vesselGsvField" {% if mode != 'gsv' %}style="display:none"{% endif %}>
+          GSV bbl @60 °F
+          <input class="form-control" name="origin_vessel_gsv_bbl" id="origin_vessel_gsv_bbl"
+                 type="number" min="0" step="0.001"
+                 value="{{ origin.get('vessel', {}).get('gsv_bbl', 0) }}" />
+          <span class="field-note">VCF = 1.0 · VEF se aplica a este GSV</span>
+        </label>
+
         <label>VEF origen
-          <input class="form-control" name="origin_vessel_vef" type="number"
-                 min="0.8" max="1.2" step="0.000001"
+          <input class="form-control" name="origin_vessel_vef" id="origin_vessel_vef"
+                 type="number" min="0.8" max="1.2" step="0.000001"
                  value="{{ origin.get('vessel', {}).get('vef', 1) }}" />
         </label>
       </div>
@@ -71,7 +131,7 @@
     </fieldset>
   </div>
 
-  <!-- Panel de calculo en tiempo real -->
+  <!-- Panel de cálculo en tiempo real -->
   <div class="calc-preview mt-4" style="grid-template-columns:repeat(3,1fr)">
     <div class="calc-preview-title" style="grid-column:1/-1">
       Vista previa en tiempo real · Tabla <strong id="liveTableLabel">{{ operation.vcf_table or '6B' }}</strong>
@@ -81,7 +141,7 @@
 
     <div class="calc-block">
       <div class="calc-block-label">Tierra origen</div>
-      <div class="calc-vcf">VCF <strong id="shore-vcf">—</strong></div>
+      <div class="calc-vcf" id="shoreVcfRow">VCF <strong id="shore-vcf">—</strong></div>
       <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="shore-nsv">—</strong></div>
       <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="shore-gsv">—</strong></div>
       <div class="calc-row"><span>m³ @15 °C</span><strong id="shore-m3">—</strong></div>
@@ -91,7 +151,7 @@
 
     <div class="calc-block">
       <div class="calc-block-label">Buque origen (VEF aplicado)</div>
-      <div class="calc-vcf">VCF/VEF <strong id="vessel-vcf">—</strong></div>
+      <div class="calc-vcf" id="vesselVcfRow">VCF/VEF <strong id="vessel-vcf">—</strong></div>
       <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="vessel-nsv">—</strong></div>
       <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="vessel-gsv">—</strong></div>
       <div class="calc-row"><span>m³ @15 °C</span><strong id="vessel-m3">—</strong></div>
@@ -99,8 +159,8 @@
       <div class="calc-row"><span>MT vacío</span><strong id="vessel-mtv">—</strong></div>
     </div>
 
-    <!-- Comparativo 4 tablas (como hoja VCF(2.004) del Excel) -->
-    <div class="calc-block">
+    <!-- Cross-check 4 tablas -->
+    <div class="calc-block" id="cmpBlock">
       <div class="calc-block-label">Cross-check · 4 tablas API MPMS 11.1</div>
       <div style="font-size:.68rem;color:var(--muted);margin-bottom:6px">
         Mismo API y temperatura · <em>F.C.V._A-B-C-D (2004)</em>
@@ -117,4 +177,120 @@
 
   {% include '_actions.html' %}
 </form>
+
+<script>
+(function () {
+  "use strict";
+
+  var isGsv = document.querySelector('[name=origin_input_mode][value=gsv]');
+  var isGov = document.querySelector('[name=origin_input_mode][value=gov]');
+
+  function applyMode() {
+    var gsv = isGsv.checked;
+    // toggle field visibility
+    document.getElementById("tempField").style.display     = gsv ? "none" : "";
+    document.getElementById("shoreGovField").style.display = gsv ? "none" : "";
+    document.getElementById("vesselGovField").style.display= gsv ? "none" : "";
+    document.getElementById("shoreGsvField").style.display = gsv ? "" : "none";
+    document.getElementById("vesselGsvField").style.display= gsv ? "" : "none";
+    // note text
+    document.getElementById("modeNote").textContent = gsv
+      ? "GSV directo → GSV − FW × (1 − BS&W) = NSV"
+      : "GOV × VCF = GSV  |  GSV × (1 − BS&W) = NSV";
+    // hide VCF row in gsv mode (VCF=1.0 by definition)
+    document.getElementById("shoreVcfRow").style.opacity  = gsv ? "0.35" : "1";
+    document.getElementById("vesselVcfRow").style.opacity = gsv ? "0.35" : "1";
+    document.getElementById("cmpBlock").style.opacity     = gsv ? "0.35" : "1";
+    updatePreview();
+  }
+
+  isGsv.addEventListener("change", applyMode);
+  isGov.addEventListener("change", applyMode);
+
+  // ── Live preview ──────────────────────────────────────────────────────────
+  function n(id) { return parseFloat(document.getElementById(id).value) || 0; }
+  function fmt(v) {
+    return typeof v === "number"
+      ? v.toLocaleString("es", {minimumFractionDigits:3, maximumFractionDigits:3})
+      : "—";
+  }
+  function set(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = typeof v === "number" ? fmt(v) : v;
+  }
+
+  var BBL_M3 = 0.158987294928;
+
+  function rho60FromApi(api) {
+    return (141.5 / (api + 131.5)) * 999.016;
+  }
+
+  function calcFromGsv(gsv_input, fw, bsw, vef, applyVef) {
+    var gsv_net = Math.max(gsv_input - fw, 0);
+    var gsv = applyVef ? gsv_net / vef : gsv_net;
+    var nsv = gsv * (1 - bsw / 100);
+    return {vcf: 1.0, gsv: gsv, nsv: nsv};
+  }
+
+  function updatePreview() {
+    var api  = n("origin_api");
+    var bsw  = n("origin_bsw_pct");
+    var fw   = n("origin_free_water_bbl");
+    var vef  = n("origin_vessel_vef") || 1;
+    var gsv  = isGsv.checked;
+    var rho  = rho60FromApi(api);
+    var sg   = rho / 999.016;
+
+    document.getElementById("liveDens").textContent =
+      rho.toLocaleString("es", {minimumFractionDigits:2, maximumFractionDigits:2}) + " kg/m³";
+
+    function buildCalc(govOrGsv, applyVef) {
+      if (gsv) {
+        return calcFromGsv(govOrGsv, applyVef ? 0 : fw, bsw, vef, applyVef);
+      }
+      // GOV mode – delegate to wizard.js calcQuantity via inline calc
+      var tf = n("origin_temperature_f");
+      if (typeof calculateVCF6B === "function") {
+        var tbl = document.getElementById("liveTableLabel").textContent.trim();
+        return calcQuantity(govOrGsv, api, tf, bsw, vef, applyVef, tbl);
+      }
+      return null;
+    }
+
+    var shoreInput = gsv ? n("origin_shore_gsv_bbl") : n("origin_shore_gov_bbl");
+    var vesselInput= gsv ? n("origin_vessel_gsv_bbl"): n("origin_vessel_gov_bbl");
+
+    var shore  = buildCalc(shoreInput - (gsv ? fw : 0), false);
+    var vessel = buildCalc(vesselInput, true);
+    if (!shore || !vessel) return;
+
+    function render(prefix, calc) {
+      var gsv_ = calc.gsv;
+      var nsv_ = calc.nsv;
+      var m3   = gsv_ * BBL_M3;
+      var nsv_m3 = nsv_ * BBL_M3;
+      var mt_vac = nsv_m3 * rho / 1000;
+      var mt_air = mt_vac * (1 - 1.1 / rho);
+      set(prefix+"-vcf",  calc.vcf.toFixed(5));
+      set(prefix+"-gsv",  gsv_);
+      set(prefix+"-nsv",  nsv_);
+      set(prefix+"-m3",   m3);
+      set(prefix+"-mt",   mt_air);
+      set(prefix+"-mtv",  mt_vac);
+    }
+    render("shore",  shore);
+    render("vessel", vessel);
+  }
+
+  // Wire up all relevant inputs
+  ["origin_api","origin_bsw_pct","origin_free_water_bbl","origin_vessel_vef",
+   "origin_temperature_f","origin_shore_gov_bbl","origin_vessel_gov_bbl",
+   "origin_shore_gsv_bbl","origin_vessel_gsv_bbl"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("input", updatePreview);
+  });
+
+  applyMode();
+})();
+</script>
 {% endblock %}

@@ -17,6 +17,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 from calculations import (
     BBL_TO_M3,
     calculate_quantity,
+    calculate_quantity_from_gsv,
     calculate_ullage_difference,
     calculate_ullage_phase,
     calculate_vcf_all_tables,
@@ -80,21 +81,40 @@ def require_operation(operation_id: int) -> dict:
 
 def calculate_origin(form_data: dict, table: str) -> dict:
     api = float(form_data["origin_api"])
-    temperature_f = float(form_data["origin_temperature_f"])
     bsw_pct = float(form_data["origin_bsw_pct"])
     vessel_vef = float(form_data["origin_vessel_vef"])
-    shore = calculate_quantity(
-        float(form_data["origin_shore_gov_bbl"]), api, temperature_f, bsw_pct, table=table
-    )
-    vessel = calculate_quantity(
-        float(form_data["origin_vessel_gov_bbl"]),
-        api, temperature_f, bsw_pct,
-        vef=vessel_vef, table=table, apply_vef=True,
-    )
+    free_water = float(form_data.get("origin_free_water_bbl") or 0)
+    input_mode = form_data.get("origin_input_mode", "gov")
+
+    if input_mode == "gsv":
+        shore = calculate_quantity_from_gsv(
+            float(form_data["origin_shore_gsv_bbl"]), api, bsw_pct,
+            free_water_bbl=free_water, table=table,
+        )
+        vessel = calculate_quantity_from_gsv(
+            float(form_data["origin_vessel_gsv_bbl"]), api, bsw_pct,
+            free_water_bbl=0.0,   # FW already netted in vessel or not applicable
+            vef=vessel_vef, apply_vef=True, table=table,
+        )
+        temperature_f = 60.0
+    else:
+        temperature_f = float(form_data["origin_temperature_f"])
+        shore = calculate_quantity(
+            float(form_data["origin_shore_gov_bbl"]) - free_water,
+            api, temperature_f, bsw_pct, table=table,
+        )
+        vessel = calculate_quantity(
+            float(form_data["origin_vessel_gov_bbl"]),
+            api, temperature_f, bsw_pct,
+            vef=vessel_vef, table=table, apply_vef=True,
+        )
+
     return {
         "api": api,
         "temperature_f": temperature_f,
         "bsw_pct": bsw_pct,
+        "free_water_bbl": free_water,
+        "input_mode": input_mode,
         "bill_of_lading_bbl": float(form_data["bill_of_lading_bbl"]),
         "shore": shore.to_dict(),
         "vessel": vessel.to_dict(),
@@ -324,23 +344,30 @@ def wizard_step(operation_id: int, step: int):
             elif step == 2:
                 api_gravity = as_float("origin_api")
                 bsw_pct = as_float("origin_bsw_pct")
-                temperature_f = as_float("origin_temperature_f", 60)
                 vef = as_float("origin_vessel_vef", 1)
+                input_mode = request.form.get("origin_input_mode", "gov")
                 validate_range("API", api_gravity, -10, 100)
                 validate_range("BS&W", bsw_pct, 0, 100)
-                validate_range("Temperatura", temperature_f, -58, 302)
                 validate_range("VEF", vef, 0.8, 1.2)
-                form_floats = {
+                form_data: dict = {
                     "origin_api": api_gravity,
                     "origin_bsw_pct": bsw_pct,
-                    "origin_temperature_f": temperature_f,
                     "origin_vessel_vef": vef,
+                    "origin_input_mode": input_mode,
+                    "origin_free_water_bbl": as_float("origin_free_water_bbl", 0),
                     "bill_of_lading_bbl": as_float("bill_of_lading_bbl"),
-                    "origin_shore_gov_bbl": as_float("origin_shore_gov_bbl"),
-                    "origin_vessel_gov_bbl": as_float("origin_vessel_gov_bbl"),
                 }
+                if input_mode == "gsv":
+                    form_data["origin_shore_gsv_bbl"] = as_float("origin_shore_gsv_bbl")
+                    form_data["origin_vessel_gsv_bbl"] = as_float("origin_vessel_gsv_bbl")
+                else:
+                    temperature_f = as_float("origin_temperature_f", 60)
+                    validate_range("Temperatura", temperature_f, -58, 302)
+                    form_data["origin_temperature_f"] = temperature_f
+                    form_data["origin_shore_gov_bbl"] = as_float("origin_shore_gov_bbl")
+                    form_data["origin_vessel_gov_bbl"] = as_float("origin_vessel_gov_bbl")
                 origin = calculate_origin(
-                    {k: str(v) for k, v in form_floats.items()}, operation["vcf_table"]
+                    {k: str(v) for k, v in form_data.items()}, operation["vcf_table"]
                 )
                 data = operation["data"]
                 data["origin"] = origin
