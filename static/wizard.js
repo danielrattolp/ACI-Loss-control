@@ -225,8 +225,12 @@ function updateUllageTotals(tableId, footerId) {
   rows.forEach(row => {
     const isInitial = footerId === "initialTotals";
     const prefix = isInitial ? "initial" : "final";
-    const tov  = parseFloat(row.querySelector(`[name="${prefix}_tov_bbl[]"]`)?.value) || 0;
-    const fw   = parseFloat(row.querySelector(`[name="${prefix}_free_water_bbl[]"]`)?.value) || 0;
+    // TOV y FW se ingresan en m³ naturales; convertir a bbl para el cálculo
+    const M3_TO_BBL = 1 / BBL_TO_M3;
+    const tovM3 = parseFloat(row.querySelector(`[name="${prefix}_tov_m3[]"]`)?.value) || 0;
+    const fwM3  = parseFloat(row.querySelector(`[name="${prefix}_free_water_m3[]"]`)?.value) || 0;
+    const tov   = tovM3 * M3_TO_BBL;
+    const fw    = fwM3  * M3_TO_BBL;
     const api  = parseFloat(row.querySelector(`[name="${prefix}_api[]"]`)?.value) || 35;
     const tf   = parseFloat(row.querySelector(`[name="${prefix}_temperature_f[]"]`)?.value) || 60;
     const bsw  = parseFloat(row.querySelector(`[name="${prefix}_bsw_pct[]"]`)?.value) || 0;
@@ -255,7 +259,7 @@ function updateUllageTotals(tableId, footerId) {
   const avgApi   = weightedApiGsv > 0 ? weightedApi / weightedApiGsv : 0;
 
   const set = (cls, val) => { const el = footer.querySelector(cls); if (el) el.textContent = val; };
-  set(".ft-tov", fmt(totTov));
+  set(".ft-tov", fmt(totTov));   // bbl (converted from m³)
   set(".ft-fw",  fmt(totFw));
   set(".ft-gov", fmt(govTotal));
   set(".ft-gsv", fmt(totGsv));

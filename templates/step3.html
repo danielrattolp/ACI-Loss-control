@@ -1,64 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Ullage API 11/12 | ACI LATAM{% endblock %}
 {% block content %}
+{% set origin_api  = operation.data.get('origin', {}).get('api', 35) %}
+{% set origin_bsw  = operation.data.get('origin', {}).get('bsw_pct', 0) %}
 <form method="post" class="content-panel" id="arrivalForm">
   <div class="section-heading">
     <div>
       <p class="eyebrow">Paso 3 · API MPMS 11.1 / 12.1.1</p>
       <h1>Ullage inicial y final del buque</h1>
     </div>
-    <span class="field-note">TOV (tabla de aforo) → GOV → GSV (×VCF) → NSV (−BS&amp;W)</span>
+    <span class="field-note">TOV → GOV × VCF = GSV × (1 − BS&amp;W) = NSV</span>
   </div>
 
   <div class="operation-modes">
     <label>
       <input type="radio" name="operation_mode" value="arrival_vef"
              {% if operation.operation_mode in ('arrival_vef', None, '') %}checked{% endif %} />
-      <span>
-        <strong>Solo arribo (OBQ)</strong>
-        <small>Ullage inicial · cantidad a bordo</small>
-      </span>
+      <span><strong>Solo arribo (OBQ)</strong><small>Ullage inicial · cantidad a bordo</small></span>
     </label>
     <label>
       <input type="radio" name="operation_mode" value="delivered_vef"
              {% if operation.operation_mode == 'delivered_vef' %}checked{% endif %} />
-      <span>
-        <strong>Descarga completa</strong>
-        <small>Ullage inicial menos ullage final</small>
-      </span>
+      <span><strong>Descarga completa</strong><small>Ullage inicial menos ullage final</small></span>
     </label>
     <label>
       <input type="radio" name="operation_mode" value="arrival_multi"
              {% if operation.operation_mode == 'arrival_multi' %}checked{% endif %} />
-      <span>
-        <strong>Alije / múltiples destinos</strong>
-        <small>Buque madre hacia receptores</small>
-      </span>
+      <span><strong>Alije / múltiples destinos</strong><small>Buque madre hacia receptores</small></span>
     </label>
   </div>
 
-  <div class="form-grid cols-4 mt-4">
-    <label>Key meeting / hora NOR
-      <input class="form-control" name="key_meeting"
-             value="{{ operation.key_meeting or '' }}" />
-    </label>
-    <label>VEF destino (arribo)
-      <input class="form-control" name="arrival_vef" type="number"
-             min="0.8" max="1.2" step="0.000001"
-             value="{{ operation.data.get('arrival_vef', 1) }}" />
-    </label>
-    <div class="method-note">
-      <strong>API MPMS 12.1.1</strong>
-      <span>Ullage identifica el nivel. TOV proviene de la tabla de aforo/calibración aprobada del buque.</span>
+  <!-- ── Parámetros globales de carga ── -->
+  <div class="content-panel mt-3" style="background:var(--bg-body);padding:14px 18px;border-radius:8px">
+    <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+      <strong style="font-size:.8rem;color:var(--teal2);text-transform:uppercase;letter-spacing:.04em">
+        Parámetros de carga
+      </strong>
+      <!-- Toggle crudo único / por tanque -->
+      <div class="btn-group btn-group-sm ms-auto" role="group" id="cargoModeGroup">
+        <input type="radio" class="btn-check" name="cargo_mode" id="modeGlobal" value="global"
+               {% if not (tank_rows and tank_rows[0].get('per_tank_mode')) %}checked{% endif %} />
+        <label class="btn btn-outline-secondary" for="modeGlobal">Crudo único</label>
+        <input type="radio" class="btn-check" name="cargo_mode" id="modePerTank" value="per_tank"
+               {% if tank_rows and tank_rows[0].get('per_tank_mode') %}checked{% endif %} />
+        <label class="btn btn-outline-primary" for="modePerTank">Crudos independientes (por tanque)</label>
+      </div>
     </div>
-    <div class="method-note">
-      <strong>API MPMS 11.1</strong>
-      <span>VCF se calcula por tanque con API/densidad y temperatura observada (ITS-90).</span>
+
+    <div class="form-grid cols-4" style="gap:12px">
+      <label>VEF destino (arribo)
+        <input class="form-control form-control-sm" name="arrival_vef" type="number"
+               min="0.8" max="1.2" step="0.000001"
+               value="{{ operation.data.get('arrival_vef', 1) }}" />
+      </label>
+      <label>API global
+        <input class="form-control form-control-sm" id="globalApi" type="number"
+               min="-10" max="100" step="0.01"
+               value="{{ origin_api }}" />
+        <span class="field-note" id="globalMode-note">Aplica a todos los tanques</span>
+      </label>
+      <label>BS&amp;W % global
+        <input class="form-control form-control-sm" id="globalBsw" type="number"
+               min="0" max="100" step="0.001"
+               value="{{ origin_bsw }}" />
+      </label>
+      <label>Temperatura global °F
+        <input class="form-control form-control-sm" id="globalTemp" type="number"
+               step="0.1" value="60" />
+        <span class="field-note">Default por tanque (editable)</span>
+      </label>
+    </div>
+
+    <div class="method-note mt-2" style="font-size:.72rem">
+      <strong>m³ obs. → bbl:</strong> 1 m³ = 6.28981 bbl &nbsp;·&nbsp;
+      <strong>API MPMS 12.1.1:</strong> TOV de tabla de aforo · Free Water medido por inspector
     </div>
   </div>
 
   <!-- ── Ullage inicial ── -->
-  <div class="ullage-section mt-4">
+  <div class="ullage-section mt-3">
     <div class="ullage-section-title">
       <h2>Ullage inicial / Before</h2>
       <span>Cantidad del buque al arribo (OBQ)</span>
@@ -67,9 +87,14 @@
       <table class="ullage-grid" id="initialUllageTable">
         <thead>
           <tr>
-            <th>Tanque</th><th>Ref. H</th><th>Ullage</th>
-            <th>TOV tabla bbl</th><th>Free water bbl</th>
-            <th>Temp °F</th><th>API</th><th>BS&amp;W %</th>
+            <th>Tanque</th>
+            <th>Ref. H</th>
+            <th>Ullage</th>
+            <th>TOV m³ obs.</th>
+            <th>FW m³</th>
+            <th>Temp °F</th>
+            <th class="col-api">API</th>
+            <th class="col-bsw">BS&amp;W %</th>
           </tr>
         </thead>
         <tbody>
@@ -80,16 +105,39 @@
                        value="{{ tank.get('reference_height', '') }}" /></td>
             <td><input name="initial_ullage[]" type="number" step="0.001"
                        value="{{ tank.get('initial_ullage', '') }}" /></td>
-            <td><input name="initial_tov_bbl[]" type="number" min="0" step="0.001"
-                       value="{{ tank.get('initial_tov_bbl', '') }}" /></td>
-            <td><input name="initial_free_water_bbl[]" type="number" min="0" step="0.001"
-                       value="{{ tank.get('initial_free_water_bbl', 0) }}" /></td>
-            <td><input name="initial_temperature_f[]" type="number" step="0.1"
+
+            <!-- TOV en m³ naturales -->
+            <td class="tov-cell">
+              <input name="initial_tov_m3[]" type="number" min="0" step="0.0001"
+                     class="tov-m3-input"
+                     value="{{ tank.get('initial_tov_m3', '') if tank.get('initial_tov_m3') else
+                              (tank.get('initial_tov_bbl', '')|float * 0.158987294928)|round(4)
+                              if tank.get('initial_tov_bbl') else '' }}" />
+              <small class="bbl-hint">— bbl</small>
+            </td>
+
+            <!-- Free Water en m³ -->
+            <td class="fw-cell">
+              <input name="initial_free_water_m3[]" type="number" min="0" step="0.0001"
+                     class="fw-m3-input"
+                     value="{{ tank.get('initial_free_water_m3', '') if tank.get('initial_free_water_m3') else
+                              (tank.get('initial_free_water_bbl', 0)|float * 0.158987294928)|round(4)
+                              if tank.get('initial_free_water_bbl') else '' }}" />
+              <small class="bbl-hint">— bbl</small>
+            </td>
+
+            <td><input name="initial_temperature_f[]" type="number" step="0.1" class="temp-input"
                        value="{{ tank.get('initial_temperature_f', 60) }}" /></td>
-            <td><input name="initial_api[]" type="number" step="0.01"
-                       value="{{ tank.get('initial_api', operation.data.get('origin', {}).get('api', 35)) }}" /></td>
-            <td><input name="initial_bsw_pct[]" type="number" min="0" max="100" step="0.001"
-                       value="{{ tank.get('initial_bsw_pct', operation.data.get('origin', {}).get('bsw_pct', 0)) }}" /></td>
+
+            <td class="col-api">
+              <input name="initial_api[]" type="number" step="0.01" class="api-input"
+                     value="{{ tank.get('initial_api', origin_api) }}" />
+            </td>
+            <td class="col-bsw">
+              <input name="initial_bsw_pct[]" type="number" min="0" max="100" step="0.001"
+                     class="bsw-input"
+                     value="{{ tank.get('initial_bsw_pct', origin_bsw) }}" />
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -116,7 +164,7 @@
   </div>
 
   <!-- ── Ullage final ── -->
-  <div class="ullage-section delivered-only mt-4">
+  <div class="ullage-section delivered-only mt-3">
     <div class="ullage-section-title">
       <h2>Ullage final / After</h2>
       <span>Remanente a bordo luego de la descarga (ROB)</span>
@@ -125,9 +173,14 @@
       <table class="ullage-grid" id="finalUllageTable">
         <thead>
           <tr>
-            <th>Tanque</th><th>Ref. H</th><th>Ullage</th>
-            <th>TOV tabla bbl</th><th>Free water bbl</th>
-            <th>Temp °F</th><th>API</th><th>BS&amp;W %</th>
+            <th>Tanque</th>
+            <th>Ref. H</th>
+            <th>Ullage</th>
+            <th>TOV m³ obs.</th>
+            <th>FW m³</th>
+            <th>Temp °F</th>
+            <th class="col-api">API</th>
+            <th class="col-bsw">BS&amp;W %</th>
           </tr>
         </thead>
         <tbody>
@@ -137,16 +190,37 @@
             <td><span class="field-note">{{ tank.get('reference_height', '') }}</span></td>
             <td><input name="final_ullage[]" type="number" step="0.001"
                        value="{{ tank.get('final_ullage', '') }}" /></td>
-            <td><input name="final_tov_bbl[]" type="number" min="0" step="0.001"
-                       value="{{ tank.get('final_tov_bbl', '') }}" /></td>
-            <td><input name="final_free_water_bbl[]" type="number" min="0" step="0.001"
-                       value="{{ tank.get('final_free_water_bbl', 0) }}" /></td>
-            <td><input name="final_temperature_f[]" type="number" step="0.1"
+
+            <td class="tov-cell">
+              <input name="final_tov_m3[]" type="number" min="0" step="0.0001"
+                     class="tov-m3-input"
+                     value="{{ tank.get('final_tov_m3', '') if tank.get('final_tov_m3') else
+                              (tank.get('final_tov_bbl', '')|float * 0.158987294928)|round(4)
+                              if tank.get('final_tov_bbl') else '' }}" />
+              <small class="bbl-hint">— bbl</small>
+            </td>
+
+            <td class="fw-cell">
+              <input name="final_free_water_m3[]" type="number" min="0" step="0.0001"
+                     class="fw-m3-input"
+                     value="{{ tank.get('final_free_water_m3', '') if tank.get('final_free_water_m3') else
+                              (tank.get('final_free_water_bbl', 0)|float * 0.158987294928)|round(4)
+                              if tank.get('final_free_water_bbl') else '' }}" />
+              <small class="bbl-hint">— bbl</small>
+            </td>
+
+            <td><input name="final_temperature_f[]" type="number" step="0.1" class="temp-input"
                        value="{{ tank.get('final_temperature_f', 60) }}" /></td>
-            <td><input name="final_api[]" type="number" step="0.01"
-                       value="{{ tank.get('final_api', operation.data.get('origin', {}).get('api', 35)) }}" /></td>
-            <td><input name="final_bsw_pct[]" type="number" min="0" max="100" step="0.001"
-                       value="{{ tank.get('final_bsw_pct', operation.data.get('origin', {}).get('bsw_pct', 0)) }}" /></td>
+
+            <td class="col-api">
+              <input name="final_api[]" type="number" step="0.01" class="api-input"
+                     value="{{ tank.get('final_api', origin_api) }}" />
+            </td>
+            <td class="col-bsw">
+              <input name="final_bsw_pct[]" type="number" min="0" max="100" step="0.001"
+                     class="bsw-input"
+                     value="{{ tank.get('final_bsw_pct', origin_bsw) }}" />
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -172,24 +246,146 @@
     </div>
   </div>
 
-  <!-- ── Bitácora ── -->
-  <div class="form-grid cols-2 delivered-only mt-4">
-    <label>Bitácora de tiempos (NOR, COSP, inicio/fin bombeo, etc.)
-      <textarea class="form-control" name="time_log" rows="6"
-                placeholder="NOR tendered:
-All Fast:
-Pump Start:
-Pump Stop:
-Hoses Disconnected:
-">{{ operation.time_log or '' }}</textarea>
+  <!-- Key meeting (solo arribo simple) -->
+  <div class="form-grid cols-1 mt-3" style="max-width:400px">
+    <label>Key meeting / hora NOR
+      <input class="form-control" name="key_meeting"
+             value="{{ operation.key_meeting or '' }}" />
     </label>
-    <label>Pumping log (presiones, tasas, paradas)
+  </div>
+
+  <!-- ── Bitácora ── -->
+  <div class="form-grid cols-2 delivered-only mt-3">
+    <label>Bitácora de tiempos
+      <textarea class="form-control" name="time_log" rows="6"
+                placeholder="NOR tendered:&#10;All Fast:&#10;Pump Start:&#10;Pump Stop:&#10;Hoses Disconnected:">{{ operation.time_log or '' }}</textarea>
+    </label>
+    <label>Pumping log
       <textarea class="form-control" name="pumping_log" rows="6"
-                placeholder="Time | Rate (bph) | Pressure (psi) | Comments
-">{{ operation.pumping_log or '' }}</textarea>
+                placeholder="Time | Rate (bph) | Pressure (psi) | Comments">{{ operation.pumping_log or '' }}</textarea>
     </label>
   </div>
 
   {% include '_actions.html' %}
 </form>
+
+<style>
+/* m³ input cells */
+.tov-cell, .fw-cell { min-width: 130px; }
+.tov-cell input, .fw-cell input { width: 100%; margin-bottom: 2px; }
+.bbl-hint { display:block; color: var(--teal2); font-size:.68rem; font-weight:700; padding-left:2px; white-space:nowrap; }
+/* Per-tank columns */
+.col-api, .col-bsw { min-width:70px; }
+.col-api.hidden-col, .col-bsw.hidden-col { display:none; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  var M3_TO_BBL = 6.28981;  // 1 / 0.158987294928
+  var BBL_TO_M3 = 0.158987294928;
+
+  // ── m³ → bbl hints ────────────────────────────────────────────────────────
+  function updateHints(table) {
+    table.querySelectorAll(".tov-cell, .fw-cell").forEach(function (cell) {
+      var inp  = cell.querySelector("input");
+      var hint = cell.querySelector(".bbl-hint");
+      if (!inp || !hint) return;
+      var m3 = parseFloat(inp.value);
+      hint.textContent = isNaN(m3) || m3 === 0
+        ? "— bbl"
+        : "= " + (m3 * M3_TO_BBL).toLocaleString("es",
+            {minimumFractionDigits:3, maximumFractionDigits:3}) + " bbl";
+    });
+  }
+
+  document.querySelectorAll(".tov-m3-input, .fw-m3-input").forEach(function (inp) {
+    inp.addEventListener("input", function () {
+      updateHints(inp.closest("table"));
+    });
+  });
+
+  // ── Global API / BSW / Temp sync ──────────────────────────────────────────
+  var globalApi  = document.getElementById("globalApi");
+  var globalBsw  = document.getElementById("globalBsw");
+  var globalTemp = document.getElementById("globalTemp");
+
+  function isGlobalMode() {
+    return document.getElementById("modeGlobal").checked;
+  }
+
+  function syncGlobal(force) {
+    if (!isGlobalMode() && !force) return;
+    var api  = globalApi.value;
+    var bsw  = globalBsw.value;
+    var temp = globalTemp.value;
+    document.querySelectorAll(".api-input").forEach(function (el) {
+      el.value = api; el.dispatchEvent(new Event("input"));
+    });
+    document.querySelectorAll(".bsw-input").forEach(function (el) {
+      el.value = bsw; el.dispatchEvent(new Event("input"));
+    });
+    document.querySelectorAll(".temp-input").forEach(function (el) {
+      if (isGlobalMode()) { el.value = temp; }
+    });
+  }
+
+  [globalApi, globalBsw, globalTemp].forEach(function (el) {
+    el.addEventListener("input", function () { syncGlobal(false); updateTotals(); });
+  });
+
+  // ── Mode toggle (global / per-tank) ──────────────────────────────────────
+  function applyCargoMode() {
+    var global = isGlobalMode();
+    document.querySelectorAll(".col-api, .col-bsw").forEach(function (el) {
+      el.classList.toggle("hidden-col", global);
+    });
+    document.getElementById("globalMode-note").style.display = global ? "" : "none";
+    if (global) syncGlobal(true);
+    updateTotals();
+  }
+
+  document.getElementById("modeGlobal").addEventListener("change", applyCargoMode);
+  document.getElementById("modePerTank").addEventListener("change", applyCargoMode);
+
+  // ── Live totals (reuse wizard.js updateUllageTotals) ─────────────────────
+  function updateTotals() {
+    if (typeof updateUllageTotals === "function") updateUllageTotals();
+  }
+
+  // Wrap updateUllageTotals to handle m³ → bbl conversion:
+  // wizard.js reads data-tov-bbl attributes; we provide them via dataset updates.
+  // Actually: override the global function to read m³ inputs.
+  var _origUpdate = typeof updateUllageTotals !== "undefined" ? updateUllageTotals : null;
+
+  function patchTotals() {
+    // For each row in each ullage table, populate a derived bbl value that
+    // updateUllageTotals can read.  We store it as a data attribute and
+    // also fill the hidden (renamed) input so the server-side calculation
+    // (which still expects bbl logic) is unaffected.
+    document.querySelectorAll(".ullage-grid tbody tr").forEach(function (row) {
+      var tovM3 = parseFloat(row.querySelector(".tov-m3-input")?.value) || 0;
+      var fwM3  = parseFloat(row.querySelector(".fw-m3-input")?.value)  || 0;
+      row.dataset.tovBbl = (tovM3 * M3_TO_BBL).toFixed(6);
+      row.dataset.fwBbl  = (fwM3  * M3_TO_BBL).toFixed(6);
+    });
+  }
+
+  document.querySelectorAll(".tov-m3-input, .fw-m3-input, .api-input, .bsw-input, .temp-input").forEach(function (el) {
+    el.addEventListener("input", function () {
+      patchTotals();
+      updateTotals();
+      updateHints(el.closest("table"));
+    });
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  applyCargoMode();
+  document.querySelectorAll(".ullage-grid").forEach(updateHints);
+  patchTotals();
+  updateTotals();
+
+})();
+</script>
 {% endblock %}

@@ -144,11 +144,13 @@ def calculate_arrival(data: dict, operation: dict) -> dict:
 
 
 def parse_arrival_tanks() -> list[dict]:
+    M3_TO_BBL = 1.0 / BBL_TO_M3  # 6.28981…
+
     field_names = [
         "tank_name[]", "reference_height[]",
-        "initial_ullage[]", "initial_tov_bbl[]", "initial_free_water_bbl[]",
+        "initial_ullage[]", "initial_tov_m3[]", "initial_free_water_m3[]",
         "initial_temperature_f[]", "initial_api[]", "initial_bsw_pct[]",
-        "final_ullage[]", "final_tov_bbl[]", "final_free_water_bbl[]",
+        "final_ullage[]", "final_tov_m3[]", "final_free_water_m3[]",
         "final_temperature_f[]", "final_api[]", "final_bsw_pct[]",
     ]
     values = {name: request.form.getlist(name) for name in field_names}
@@ -158,18 +160,29 @@ def parse_arrival_tanks() -> list[dict]:
         def numeric(field: str, default: float = 0.0, idx: int = index) -> float:
             raw = values[field][idx].strip() if idx < len(values[field]) else ""
             return float(raw) if raw else default
+
+        # Convert m³ → bbl for TOV and Free Water
+        init_tov_m3 = numeric("initial_tov_m3[]")
+        init_fw_m3  = numeric("initial_free_water_m3[]")
+        final_tov_m3 = numeric("final_tov_m3[]")
+        final_fw_m3  = numeric("final_free_water_m3[]")
+
         tank = {
             "name": values["tank_name[]"][index].strip() or f"Tanque {index + 1}",
             "reference_height": numeric("reference_height[]"),
             "initial_ullage": numeric("initial_ullage[]"),
-            "initial_tov_bbl": numeric("initial_tov_bbl[]"),
-            "initial_free_water_bbl": numeric("initial_free_water_bbl[]"),
+            "initial_tov_m3": init_tov_m3,
+            "initial_free_water_m3": init_fw_m3,
+            "initial_tov_bbl": init_tov_m3 * M3_TO_BBL,
+            "initial_free_water_bbl": init_fw_m3 * M3_TO_BBL,
             "initial_temperature_f": numeric("initial_temperature_f[]", 60),
             "initial_api": numeric("initial_api[]", 35),
             "initial_bsw_pct": numeric("initial_bsw_pct[]"),
             "final_ullage": numeric("final_ullage[]"),
-            "final_tov_bbl": numeric("final_tov_bbl[]"),
-            "final_free_water_bbl": numeric("final_free_water_bbl[]"),
+            "final_tov_m3": final_tov_m3,
+            "final_free_water_m3": final_fw_m3,
+            "final_tov_bbl": final_tov_m3 * M3_TO_BBL,
+            "final_free_water_bbl": final_fw_m3 * M3_TO_BBL,
             "final_temperature_f": numeric("final_temperature_f[]", 60),
             "final_api": numeric("final_api[]", 35),
             "final_bsw_pct": numeric("final_bsw_pct[]"),
