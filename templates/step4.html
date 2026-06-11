@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Destinos | ACI LATAM{% endblock %}
+{% block content %}
+<form method="post" class="content-panel">
+  <div class="section-heading"><div><p class="eyebrow">Paso 4</p><h1>Receptores y destinos</h1></div><button class="btn btn-outline-primary" id="addDestination" type="button">Agregar destino</button></div>
+  <p class="section-help">Buque receptor aplica VEF. Tanque terrestre no aplica VEF y habilita ajuste de linea.</p>
+  <div id="destinationList" class="destination-list">
+    {% for destination in destinations %}
+      {% include '_destination.html' %}
+    {% else %}
+      {% set destination = {} %}{% include '_destination.html' %}
+    {% endfor %}
+  </div>
+  {% include '_actions.html' %}
+</form>
+<template id="destinationTemplate">{% set destination = {} %}{% include '_destination.html' %}</template>
+{% endblock %}
+

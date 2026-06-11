@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Datos iniciales | ACI LATAM{% endblock %}
+{% block content %}
+<form method="post" class="content-panel needs-validation">
+  <div class="section-heading"><div><p class="eyebrow">Paso 1</p><h1>Datos iniciales</h1></div><span>Identificacion y alcance</span></div>
+  <div class="form-grid cols-4">
+    <label>Cliente<input class="form-control" name="client_name" required value="{{ operation.client_name or '' }}" /></label>
+    <label>Tipo de cliente<select class="form-select" name="client_type"><option>Trader</option><option>Armador</option><option>Terminal</option><option>Refineria</option><option>Otro</option></select></label>
+    <label>Puerto<input class="form-control" name="port" required value="{{ operation.port or '' }}" /></label>
+    <label>Referencia externa<input class="form-control" name="external_reference" value="{{ operation.external_reference or '' }}" /></label>
+    <label>Referencia ACI<input class="form-control" name="aci_reference" required value="{{ operation.aci_reference or '' }}" /></label>
+    <label>Nombre del buque<input class="form-control" name="vessel_name" required value="{{ operation.vessel_name or '' }}" /></label>
+    <label>Numero de viaje<input class="form-control" name="voyage_number" value="{{ operation.voyage_number or '' }}" /></label>
+    <label>IMO<input class="form-control" name="imo" pattern="[0-9]{7}" placeholder="7 digitos" value="{{ operation.imo or '' }}" /></label>
+    <label>Inicio<input class="form-control" name="start_date" type="datetime-local" value="{{ operation.start_date or '' }}" /></label>
+    <label>Termino<input class="form-control" name="end_date" type="datetime-local" value="{{ operation.end_date or '' }}" /></label>
+    <label>Producto<input class="form-control" name="product" required value="{{ operation.product or '' }}" /></label>
+    <label>Compania de inspeccion<input class="form-control" name="inspection_company" value="{{ operation.inspection_company or 'ACI LATAM' }}" /></label>
+    <label>Tolerancia aceptada %<input class="form-control" name="tolerance_pct" type="number" min="0" max="10" step="0.001" value="{{ operation.tolerance_pct or 0.25 }}" /></label>
+    <label>Tabla VCF (API MPMS 11.1)
+      <select class="form-select" name="vcf_table">
+        <option value="6A" {% if operation.vcf_table == '6A' %}selected{% endif %}>6A — Crudo / Condensado</option>
+        <option value="6B" {% if not operation.vcf_table or operation.vcf_table == '6B' %}selected{% endif %}>6B — Productos refinados (auto-grupo por densidad)</option>
+        <option value="6C" {% if operation.vcf_table == '6C' %}selected{% endif %}>6C — MTBE / Mezclas especiales</option>
+        <option value="6D" {% if operation.vcf_table == '6D' %}selected{% endif %}>6D — Aceites lubricantes</option>
+      </select>
+      <span class="field-note">6B auto-selecciona: Fuel Oil (API ≤37) · Jet Fuel (37–48) · Transición (48–52) · Gasolina/Nafta (52–100)</span>
+    </label>
+  </div>
+  {% include '_actions.html' %}
+</form>
+{% endblock %}
+

@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Resumen | ACI LATAM{% endblock %}
+{% block content %}
+
+<section class="page-heading compact no-print">
+  <div>
+    <p class="eyebrow">Paso 5 · Resumen operacional</p>
+    <h1>{{ operation.aci_reference or 'Sin referencia' }}</h1>
+    <p style="margin:4px 0 0;color:var(--muted)">
+      {{ operation.vessel_name }} &nbsp;·&nbsp; {{ operation.product }} &nbsp;·&nbsp;
+      {{ operation.port or '—' }} &nbsp;·&nbsp;
+      {{ operation.start_date or '—' }} → {{ operation.end_date or '—' }}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('wizard_step', operation_id=operation.id, step=4) }}">Editar</a>
+    <a class="btn btn-primary" href="{{ url_for('export_pdf', operation_id=operation.id) }}">Exportar PDF</a>
+  </div>
+</section>
+
+<!-- ── KPIs ── -->
+<section class="summary-kpis">
+  <article>
+    <small>Bill of Lading</small>
+    <strong>{{ '%.3f'|format(summary.origin.get('bill_of_lading_bbl', 0)) }}</strong>
+    <span>bbl @60 °F</span>
+  </article>
+  <article>
+    <small>Buque arribo NSV</small>
+    <strong>{{ '%.3f'|format(summary.arrival.get('initial', {}).get('nsv_bbl', 0)) }}</strong>
+    <span>bbl @60 °F · VEF {{ '%.6f'|format(summary.arrival.get('initial', {}).get('vef', 1)) }}</span>
+  </article>
+  <article>
+    <small>Entregado NSV</small>
+    <strong>{{ '%.3f'|format(summary.delivered_total_bbl) }}</strong>
+    <span>{{ '%.3f'|format(summary.delivered_total_m3) }} m³ @15 °C</span>
+  </article>
+  <article>
+    <small>MT aire / vacío</small>
+    <strong>{{ '%.3f'|format(summary.delivered_total_mt_air) }}</strong>
+    <span>{{ '%.3f'|format(summary.delivered_total_mt_vacuum) }} MT vacío</span>
+  </article>
+  <article>
+    <small>Tolerancia aceptada</small>
+    <strong>± {{ operation.tolerance_pct }}%</strong>
+    <span>Tabla VCF {{ operation.vcf_table or '6B' }}</span>
+  </article>
+</section>
+
+<!-- ── Ullage inicial / final ── -->
+{% if summary.arrival.get('initial') %}
+<section class="content-panel mb-3">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">API MPMS 11.1 / 12.1.1</p>
+      <h2>Ullage buque — inicial, final y descargado</h2>
+    </div>
+    <span class="field-note">VEF {{ '%.6f'|format(summary.arrival.get('delivered', {}).get('vef', 1)) }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table balance-table">
+      <thead>
+        <tr>
+          <th>Fase</th><th>TOV bbl</th><th>Free water bbl</th><th>GOV bbl</th>
+          <th>GSV bbl</th><th>NSV bbl</th><th>m³ @15 °C</th>
+          <th>MT aire</th><th>MT vacío</th><th>API pond.</th><th>Dens. kg/m³</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, vals in [
+            ('Inicial',   summary.arrival.initial),
+            ('Final',     summary.arrival.final),
+            ('Descargado',summary.arrival.delivered)
+        ] %}
+        <tr {% if label == 'Descargado' %}style="font-weight:700;background:#edf8f6"{% endif %}>
+          <td>{{ label }}</td>
+          <td>{{ '%.3f'|format(vals.get('tov_bbl', vals.get('gov_bbl', 0))) }}</td>
+          <td>{{ '%.3f'|format(vals.get('free_water_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('gov_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('gsv_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('nsv_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('nsv_m3_15c', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('metric_tons_air', 0)) }}</td>
+          <td>{{ '%.3f'|format(vals.get('metric_tons_vacuum', 0)) }}</td>
+          <td>{{ '%.2f'|format(vals.get('api', 0)) }}</td>
+          <td>{{ '%.2f'|format(vals.get('density_15c_kgm3', 0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Detalle por tanque -->
+  {% set initial_tanks = summary.arrival.get('initial', {}).get('tanks', []) %}
+  {% if initial_tanks %}
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;color:var(--teal2);font-size:.82rem;font-weight:700;padding:4px 0">
+      Ver detalle por tanque ({{ initial_tanks|length }} tanques activos)
+    </summary>
+    <div class="table-responsive mt-2">
+      <table class="table table-sm tank-summary-table">
+        <thead>
+          <tr>
+            <th>Tanque</th><th>Ullage</th><th>TOV bbl</th><th>FW bbl</th>
+            <th>GOV bbl</th><th>API</th><th>VCF</th><th>GSV bbl</th><th>NSV bbl</th><th>MT aire</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in initial_tanks %}
+          <tr>
+            <td><strong>{{ t.name }}</strong></td>
+            <td>{{ '%.3f'|format(t.get('ullage', 0)) }}</td>
+            <td>{{ '%.3f'|format(t.tov_bbl) }}</td>
+            <td>{{ '%.3f'|format(t.free_water_bbl) }}</td>
+            <td>{{ '%.3f'|format(t.gov_bbl) }}</td>
+            <td>{{ '%.2f'|format(t.api) }}</td>
+            <td>{{ '%.5f'|format(t.vcf) }}</td>
+            <td>{{ '%.3f'|format(t.gsv_bbl) }}</td>
+            <td>{{ '%.3f'|format(t.nsv_bbl) }}</td>
+            <td>{{ '%.3f'|format(t.metric_tons_air) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ── Origen ── -->
+{% if summary.origin.get('shore') %}
+<section class="content-panel mb-3">
+  <div class="section-heading">
+    <div><p class="eyebrow">Cantidades de origen</p><h2>Tierra y buque al zarpe</h2></div>
+    <span class="field-note">
+      API {{ '%.2f'|format(summary.origin.get('api', 0)) }} &nbsp;·&nbsp;
+      Temp. {{ '%.1f'|format(summary.origin.get('temperature_f', 60)) }} °F &nbsp;·&nbsp;
+      BS&amp;W {{ '%.3f'|format(summary.origin.get('bsw_pct', 0)) }}%
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table balance-table">
+      <thead>
+        <tr>
+          <th>Concepto</th><th>GOV bbl</th><th>VCF</th><th>GSV bbl</th>
+          <th>NSV bbl</th><th>m³ @15 °C</th><th>MT aire</th><th>MT vacío</th><th>VEF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, src in [('Tierra origen', summary.origin.get('shore', {})), ('Buque origen', summary.origin.get('vessel', {}))] %}
+        <tr>
+          <td><strong>{{ label }}</strong></td>
+          <td>{{ '%.3f'|format(src.get('gov_bbl', 0)) }}</td>
+          <td>{{ '%.5f'|format(src.get('vcf', 0)) }}</td>
+          <td>{{ '%.3f'|format(src.get('gsv_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(src.get('nsv_bbl', 0)) }}</td>
+          <td>{{ '%.3f'|format(src.get('nsv_m3_15c', 0)) }}</td>
+          <td>{{ '%.3f'|format(src.get('metric_tons_air', 0)) }}</td>
+          <td>{{ '%.3f'|format(src.get('metric_tons_vacuum', 0)) }}</td>
+          <td>{{ '%.6f'|format(src.get('vef', 1)) }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background:#f8fbfb">
+          <td><strong>Bill of Lading</strong></td>
+          <td colspan="2">—</td>
+          <td colspan="2"><strong>{{ '%.3f'|format(summary.origin.get('bill_of_lading_bbl', 0)) }} bbl NSV</strong></td>
+          <td colspan="4">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Compendio de balances ── -->
+<section class="content-panel mb-3">
+  <div class="section-heading">
+    <h2>Compendio de balances</h2>
+    <span class="field-note">Tolerancia: ± {{ operation.tolerance_pct }}%</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table balance-table">
+      <thead>
+        <tr>
+          <th>Tramo</th>
+          <th>Base A NSV bbl</th>
+          <th>Base B NSV bbl</th>
+          <th>Diferencia bbl</th>
+          <th>%</th>
+          <th>Estado</th>
+          <th>Causas a revisar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in summary.rows %}
+          {% set abs_pct = row.percentage | abs %}
+          {% if abs_pct <= operation.tolerance_pct %}
+            {% set row_class = 'row-ok' %}
+            {% set badge_class = 'status-ok' %}
+            {% set badge_text = 'OK' %}
+          {% elif abs_pct <= operation.tolerance_pct * 1.5 %}
+            {% set row_class = 'row-warn' %}
+            {% set badge_class = 'status-warn' %}
+            {% set badge_text = 'LÍMITE' %}
+          {% else %}
+            {% set row_class = 'row-alert' %}
+            {% set badge_class = 'status-alert' %}
+            {% set badge_text = 'ALERTA' %}
+          {% endif %}
+          <tr class="{{ row_class }}">
+            <td>{{ row.label }}</td>
+            <td class="text-end">{{ '%.3f'|format(row.first) }}</td>
+            <td class="text-end">{{ '%.3f'|format(row.second) }}</td>
+            <td class="text-end"><strong>{{ '%+.3f'|format(row.difference) }}</strong></td>
+            <td class="text-end"><strong>{{ '%+.3f'|format(row.percentage) }}%</strong></td>
+            <td><span class="status-badge {{ badge_class }}">{{ badge_text }}</span></td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ row.causes }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="analysis-box">
+    <h3>Análisis de desvíos</h3>
+    <p>{{ summary.analysis }}</p>
+  </div>
+</section>
+
+<!-- ── Destinos ── -->
+{% if summary.destinations %}
+<section class="content-panel mb-3">
+  <h2 style="margin-bottom:14px">Destinos / receptores</h2>
+  <div class="table-responsive">
+    <table class="table balance-table">
+      <thead>
+        <tr>
+          <th>Destino</th><th>Tipo</th><th>API</th><th>Dens. kg/m³</th>
+          <th>BS&amp;W %</th><th>VCF</th><th>VEF</th>
+          <th>NSV bbl</th><th>m³ @15 °C</th><th>MT aire</th><th>MT vacío</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in summary.destinations %}
+        <tr>
+          <td><strong>{{ item.name }}</strong><br>
+            <small style="color:var(--muted)">{{ item.port or '' }}</small></td>
+          <td>{{ 'Buque' if item.receiver_type == 'vessel' else 'Tierra' }}</td>
+          <td>{{ '%.2f'|format(item.result.get('api', 0)) }}</td>
+          <td>{{ '%.2f'|format(item.result.get('density_15c_kgm3', 0)) }}</td>
+          <td>{{ '%.3f'|format(item.result.get('bsw_pct', 0)) }}%</td>
+          <td>{{ '%.5f'|format(item.result.get('vcf', 0)) }}</td>
+          <td>{{ '%.6f'|format(item.result.get('vef', 1)) }}</td>
+          <td><strong>{{ '%.3f'|format(item.result.get('delivered_nsv_bbl', 0)) }}</strong></td>
+          <td>{{ '%.3f'|format(item.result.get('nsv_m3_15c', 0)) }}</td>
+          <td>{{ '%.3f'|format(item.result.get('metric_tons_air', 0)) }}</td>
+          <td>{{ '%.3f'|format(item.result.get('metric_tons_vacuum', 0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Info operacional ── -->
+<section class="content-panel mb-3">
+  <h2 style="margin-bottom:14px">Datos de la operación</h2>
+  <div class="form-grid cols-4" style="font-size:.85rem">
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Cliente</span><br>{{ operation.client_name or '—' }} ({{ operation.client_type or '—' }})</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Buque / IMO</span><br>{{ operation.vessel_name or '—' }} / {{ operation.imo or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Viaje / Puerto</span><br>{{ operation.voyage_number or '—' }} / {{ operation.port or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Compañía inspección</span><br>{{ operation.inspection_company or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Ref. externa</span><br>{{ operation.external_reference or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Key meeting</span><br>{{ operation.key_meeting or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Producto</span><br>{{ operation.product or '—' }}</div>
+    <div><span style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase">Tabla VCF / Tolerancia</span><br>{{ operation.vcf_table or '6B' }} / ±{{ operation.tolerance_pct }}%</div>
+  </div>
+  {% if operation.time_log or operation.pumping_log %}
+  <div class="form-grid cols-2 mt-4" style="font-size:.82rem">
+    {% if operation.time_log %}
+    <div>
+      <p style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase;margin:0 0 6px">Bitácora de tiempos</p>
+      <pre style="background:#f8fbfb;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:.8rem;white-space:pre-wrap">{{ operation.time_log }}</pre>
+    </div>
+    {% endif %}
+    {% if operation.pumping_log %}
+    <div>
+      <p style="color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase;margin:0 0 6px">Pumping log</p>
+      <pre style="background:#f8fbfb;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:.8rem;white-space:pre-wrap">{{ operation.pumping_log }}</pre>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

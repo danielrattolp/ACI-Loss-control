@@ -1,0 +1,5 @@
+<div class="form-actions">
+  {% if step > 1 %}<a class="btn btn-outline-secondary" href="{{ url_for('wizard_step', operation_id=operation.id, step=step-1) }}">Anterior</a>{% endif %}
+  <button class="btn btn-primary" type="submit">Guardar y continuar</button>
+</div>
+

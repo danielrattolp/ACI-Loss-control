@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Operaciones | ACI LATAM{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">ACI LATAM</p>
+    <h1>Operaciones de cantidad</h1>
+    <p style="color:var(--muted);margin:4px 0 0">
+      Wizard API MPMS — origen, arribo, alijes, terminales y conciliación final.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('new_operation') }}">
+    <button class="btn btn-primary" type="submit">+ Nueva operación</button>
+  </form>
+</section>
+
+<section class="content-panel">
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead style="background:var(--navy);color:white">
+        <tr>
+          <th style="background:var(--navy);color:white">ID</th>
+          <th style="background:var(--navy);color:white">Ref. ACI</th>
+          <th style="background:var(--navy);color:white">Cliente</th>
+          <th style="background:var(--navy);color:white">Buque</th>
+          <th style="background:var(--navy);color:white">Producto</th>
+          <th style="background:var(--navy);color:white">Puerto</th>
+          <th style="background:var(--navy);color:white">Inicio</th>
+          <th style="background:var(--navy);color:white">Estado</th>
+          <th style="background:var(--navy);color:white"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in operations %}
+          <tr>
+            <td style="color:var(--muted);font-size:.82rem">{{ item.id }}</td>
+            <td><strong>{{ item.aci_reference or '—' }}</strong></td>
+            <td>{{ item.client_name or '—' }}</td>
+            <td>{{ item.vessel_name or '—' }}
+              {% if item.imo %}<br><small style="color:var(--muted)">IMO {{ item.imo }}</small>{% endif %}
+            </td>
+            <td>{{ item.product or '—' }}</td>
+            <td>{{ item.port or '—' }}</td>
+            <td style="font-size:.82rem">{{ (item.start_date or '—')[:10] }}</td>
+            <td>
+              <span class="status-badge {% if item.status == 'complete' %}status-ok{% else %}status-badge-draft{% endif %}">
+                {{ 'Completa' if item.status == 'complete' else 'Borrador' }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('wizard_step', operation_id=item.id, step=item.current_step if item.current_step < 5 else 4) }}">
+                  Abrir
+                </a>
+                {% if item.status == 'complete' %}
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{{ url_for('summary', operation_id=item.id) }}">Resumen</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('delete_operation', operation_id=item.id) }}"
+                      onsubmit="return confirm('¿Eliminar operación {{ item.id }}?')">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">✕</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center text-secondary py-5">
+              No hay operaciones. Crea una nueva para comenzar.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

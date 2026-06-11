@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Historial VEF | ACI LATAM{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Trazabilidad</p>
+    <h1>Historial de VEF por buque</h1>
+    <p style="color:var(--muted);margin:4px 0 0">Vessel Experience Factor — API MPMS 17.1</p>
+  </div>
+</section>
+
+<section class="content-panel mb-3">
+  <form method="get" class="d-flex gap-2 align-items-end" style="max-width:460px;margin-bottom:18px">
+    <label style="flex:1">
+      <span style="color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase">Nombre del buque</span>
+      <input class="form-control" name="vessel" value="{{ vessel }}"
+             placeholder="Buscar por nombre exacto..." />
+    </label>
+    <button class="btn btn-primary" type="submit">Buscar</button>
+  </form>
+
+  {% if vessel %}
+    {% if history %}
+      <div class="table-responsive">
+        <table class="table balance-table">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>VEF</th><th>Fase</th>
+              <th>Ref. ACI</th><th>Puerto</th><th>Producto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in history %}
+            <tr>
+              <td>{{ h.recorded_at[:16] }}</td>
+              <td><strong>{{ '%.6f'|format(h.vef) }}</strong></td>
+              <td>
+                <span class="status-badge {% if h.phase == 'origin' %}status-ok{% else %}status-warn{% endif %}">
+                  {{ 'Origen' if h.phase == 'origin' else 'Arribo' }}
+                </span>
+              </td>
+              <td>{{ h.aci_reference or '—' }}</td>
+              <td>{{ h.port or '—' }}</td>
+              <td>{{ h.product or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% set vefs = history | map(attribute='vef') | list %}
+      {% set avg = (vefs | sum) / (vefs | length) %}
+      <div class="analysis-box mt-3">
+        <h3>Estadísticas — {{ vessel }}</h3>
+        <p>
+          Registros: <strong>{{ history | length }}</strong> &nbsp;·&nbsp;
+          Promedio VEF: <strong>{{ '%.6f'|format(avg) }}</strong> &nbsp;·&nbsp;
+          Mín: <strong>{{ '%.6f'|format(vefs | min) }}</strong> &nbsp;·&nbsp;
+          Máx: <strong>{{ '%.6f'|format(vefs | max) }}</strong>
+        </p>
+      </div>
+    {% else %}
+      <p class="text-secondary py-4">No hay registros de VEF para <strong>{{ vessel }}</strong>.</p>
+    {% endif %}
+  {% else %}
+    <p class="text-secondary">Ingrese el nombre del buque para ver su historial de VEF.</p>
+  {% endif %}
+</section>
+{% endblock %}
