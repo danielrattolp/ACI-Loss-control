@@ -235,6 +235,208 @@ def calculate_quantity(
     )
 
 
+# Dixon Q-test critical values per API MPMS 17.9 Appendix F Table F.1 (alpha=5%).
+# n=9 (0.512) and n=10 (0.477) confirmed from VEF.xlsx; others from Dixon (1951) 5%-significance table.
+# Formula variant switches by n:
+#   r10: (r2-r1)/(rn-r1)            for n = 3–7
+#   r21: (r2-r1)/(r(n-1)-r1)        for n = 8–10
+#   r22: (r3-r1)/(r(n-2)-r1)        for n = 11–13
+#   r23: (r3-r1)/(r(n-3)-r1)        for n = 14–30
+# Upper side is the mirror: (rn-r(n-k)) / (rn-r(k+1))
+_DIXON_CRITICAL: dict[int, float] = {
+    3: 0.941, 4: 0.765, 5: 0.642, 6: 0.560, 7: 0.507,
+    8: 0.554, 9: 0.512, 10: 0.477,
+    11: 0.576, 12: 0.546, 13: 0.521,
+    14: 0.546, 15: 0.525, 16: 0.507, 17: 0.490,
+    18: 0.475, 19: 0.462, 20: 0.450,
+}
+
+
+def _dixon_critical(n: int) -> float:
+    if n in _DIXON_CRITICAL:
+        return _DIXON_CRITICAL[n]
+    if n < 3:
+        return 1.0
+    return _DIXON_CRITICAL[20]
+
+
+def _dixon_q(sorted_vlrs: list[float]) -> tuple[float, float]:
+    """Calcula RL y RH del test Dixon segun el rango de n (API MPMS 17.9 Apendice F)."""
+    n = len(sorted_vlrs)
+    r = sorted_vlrs
+    if n < 3:
+        return 0.0, 0.0
+    if n <= 7:
+        # r10: (r2-r1)/(rn-r1) — (r3-r2)/(rn-r1) para el lado alto
+        span = r[-1] - r[0]
+        if span == 0:
+            return 0.0, 0.0
+        rl = (r[1] - r[0]) / span
+        rh = (r[-1] - r[-2]) / span
+    elif n <= 10:
+        # r21: (r2-r1)/(r(n-1)-r1) y espejo superior
+        denom_l = r[-2] - r[0]
+        denom_h = r[-1] - r[1]
+        if denom_l == 0 or denom_h == 0:
+            return 0.0, 0.0
+        rl = (r[1] - r[0]) / denom_l
+        rh = (r[-1] - r[-2]) / denom_h
+    elif n <= 13:
+        # r22: (r3-r1)/(r(n-2)-r1) y espejo
+        denom_l = r[-3] - r[0]
+        denom_h = r[-1] - r[2]
+        if denom_l == 0 or denom_h == 0:
+            return 0.0, 0.0
+        rl = (r[2] - r[0]) / denom_l
+        rh = (r[-1] - r[-3]) / denom_h
+    else:
+        # r23: (r3-r1)/(r(n-3)-r1) y espejo
+        denom_l = r[-4] - r[0]
+        denom_h = r[-1] - r[2]
+        if denom_l == 0 or denom_h == 0:
+            return 0.0, 0.0
+        rl = (r[2] - r[0]) / denom_l
+        rh = (r[-1] - r[-4]) / denom_h
+    return round(rl, 6), round(rh, 6)
+
+
+def calculate_vef_17_9(voyages: list[dict]) -> dict:
+    """Calcula el VEF conforme API MPMS Chapter 17.9.
+
+    Cada viaje en ``voyages`` debe tener:
+      ship_figure  : float  – Figura buque (TCV zarpe/arribo, bbl)
+      shore_figure : float  – Figura tierra (B/L u outturn, bbl)
+      reject_flags : list[str] – razones de pre-rechazo si aplica:
+                     "gross_error", "drydock", "lightering", "structural"
+                     (se ignoran si la lista esta vacia)
+
+    Retorna un dict con:
+      vef               : float  – Factor experiencia final
+      sufficient        : bool   – True si hay >= 6 viajes calificados
+      qualifying_count  : int
+      ship_total        : float  – Suma figuras buque calificadas
+      shore_total       : float  – Suma figuras tierra calificadas
+      preliminary_mean  : float  – Media VLR pre-filtrado (Paso 0)
+      band_lower/upper  : float  – Banda ±0.30% sobre media paso 0
+      grubbs_iterations : list[dict]
+      voyages           : list[dict] – cada viaje con vlr y status
+      warnings          : list[str]
+    """
+    result_voyages = []
+    warnings: list[str] = []
+
+    # ── Paso 0: calcular VLR y aplicar pre-rechazos ──────────────────────────
+    valid_for_mean: list[dict] = []
+    for i, v in enumerate(voyages):
+        ship = float(v.get("ship_figure", 0) or 0)
+        shore = float(v.get("shore_figure", 0) or 0)
+        flags: list[str] = v.get("reject_flags") or []
+        entry = {**v, "index": i, "ship_figure": ship, "shore_figure": shore,
+                 "vlr": 0.0, "status": "qualifying", "reject_reason": ""}
+        if shore <= 0:
+            entry["status"] = "rejected_initial"
+            entry["reject_reason"] = "Figura tierra = 0"
+        elif ship <= 0:
+            entry["status"] = "rejected_initial"
+            entry["reject_reason"] = "Figura buque = 0"
+        elif flags:
+            entry["status"] = "rejected_initial"
+            entry["reject_reason"] = "; ".join(
+                {"gross_error": "Error grosero (±2%)", "drydock": "Primer viaje post-dique",
+                 "lightering": "Operacion lightering", "structural": "Mod. estructural prev."
+                 }.get(f, f) for f in flags
+            )
+        else:
+            entry["vlr"] = ship / shore
+            valid_for_mean.append(entry)
+        result_voyages.append(entry)
+
+    # ── Paso 1: media preliminar → banda ±0.30% ──────────────────────────────
+    step1_ship = sum(e["ship_figure"] for e in valid_for_mean)
+    step1_shore = sum(e["shore_figure"] for e in valid_for_mean)
+    preliminary_mean = step1_ship / step1_shore if step1_shore else 1.0
+    band_lower = preliminary_mean * 0.997
+    band_upper = preliminary_mean * 1.003
+
+    step2_candidates: list[dict] = []
+    for entry in valid_for_mean:
+        vlr = entry["vlr"]
+        if not (band_lower <= vlr <= band_upper):
+            entry["status"] = "rejected_band"
+            entry["reject_reason"] = (
+                f"VLR {vlr:.6f} fuera de banda [{band_lower:.6f}, {band_upper:.6f}]"
+            )
+        else:
+            step2_candidates.append(entry)
+
+    # ── Paso 2: test Dixon iterativo (API MPMS 17.9 Apendice F) ─────────────
+    grubbs_iterations: list[dict] = []
+    working_set = step2_candidates[:]
+    while len(working_set) >= 6:
+        n = len(working_set)
+        sorted_set = sorted(working_set, key=lambda x: x["vlr"])
+        vlr_list = [e["vlr"] for e in sorted_set]
+        rl, rh = _dixon_q(vlr_list)
+        critical = _dixon_critical(n)
+        iteration = {
+            "n": n, "rl": rl, "rh": rh, "critical": critical,
+            "r1": round(vlr_list[0], 6), "rn": round(vlr_list[-1], 6),
+            "eliminated": None,
+        }
+        if rh > critical:
+            eliminated = sorted_set[-1]
+            eliminated["status"] = "rejected_grubbs"
+            eliminated["reject_reason"] = (
+                f"Dixon RH={rh:.6f} > {critical} (n={n}); VLR={vlr_list[-1]:.6f} eliminado"
+            )
+            working_set.remove(eliminated)
+            iteration["eliminated"] = eliminated["index"]
+            iteration["eliminated_side"] = "high"
+        elif rl > critical:
+            eliminated = sorted_set[0]
+            eliminated["status"] = "rejected_grubbs"
+            eliminated["reject_reason"] = (
+                f"Dixon RL={rl:.6f} > {critical} (n={n}); VLR={vlr_list[0]:.6f} eliminado"
+            )
+            working_set.remove(eliminated)
+            iteration["eliminated"] = eliminated["index"]
+            iteration["eliminated_side"] = "low"
+        else:
+            grubbs_iterations.append({**iteration, "decision": "sin eliminaciones"})
+            break
+        iteration["decision"] = (
+            f"VLR {'superior' if iteration.get('eliminated_side') == 'high' else 'inferior'} eliminado"
+        )
+        grubbs_iterations.append(iteration)
+
+    # ── Resultado final ────────────────────────────────────────────────────────
+    # working_set contiene los viajes que pasaron el test Dixon; son la fuente de verdad.
+    ship_total = sum(e["ship_figure"] for e in working_set)
+    shore_total = sum(e["shore_figure"] for e in working_set)
+    vef = ship_total / shore_total if shore_total else 1.0
+    sufficient = len(working_set) >= 6
+
+    if not sufficient:
+        warnings.append(
+            f"Solo {len(working_set)} viajes calificados. API MPMS 17.9 requiere minimo 6."
+        )
+
+    return {
+        "vef": round(vef, 6),
+        "sufficient": sufficient,
+        "qualifying_count": len(working_set),
+        "total_voyages": len(voyages),
+        "ship_total": round(ship_total, 3),
+        "shore_total": round(shore_total, 3),
+        "preliminary_mean": round(preliminary_mean, 6),
+        "band_lower": round(band_lower, 6),
+        "band_upper": round(band_upper, 6),
+        "grubbs_iterations": grubbs_iterations,
+        "voyages": result_voyages,
+        "warnings": warnings,
+    }
+
+
 def difference(first: float, second: float) -> dict:
     """Diferencia absoluta y porcentual (segundo menos primero)."""
     delta = second - first

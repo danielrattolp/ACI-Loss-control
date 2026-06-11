@@ -21,19 +21,25 @@ from calculations import (
     calculate_ullage_phase,
     calculate_vcf_all_tables,
     calculate_vcf_full,
+    calculate_vef_17_9,
     difference,
 )
 from models import (
+    add_vef_voyage,
     create_operation,
+    delete_vef_voyage,
     get_destinations,
+    get_distinct_vessels,
     get_operation,
     get_vef_history,
+    get_vef_voyages,
     init_db,
     list_operations,
     register_client_and_vessel,
     record_vef,
     replace_destinations,
     update_operation,
+    update_vef_voyage,
 )
 
 
@@ -489,6 +495,77 @@ def vef_history_page():
     vessel = request.args.get("vessel", "")
     history = get_vef_history(vessel, limit=50) if vessel else []
     return render_template("vef_history.html", vessel=vessel, history=history)
+
+
+@app.get("/vessels/vef-calculator")
+def vef_calculator_page():
+    vessel = request.args.get("vessel", "")
+    voyages = get_vef_voyages(vessel, limit=20) if vessel else []
+    vessels = get_distinct_vessels()
+    return render_template(
+        "vef_calculator.html",
+        vessel=vessel,
+        voyages=voyages,
+        vessels=vessels,
+    )
+
+
+@app.post("/vessels/vef-calculator/voyage/add")
+def vef_voyage_add():
+    vessel = request.form.get("vessel_name", "").strip()
+    if not vessel:
+        flash("Nombre de buque requerido.")
+        return redirect(url_for("vef_calculator_page"))
+    data = {
+        "voyage_number": request.form.get("voyage_number", "").strip(),
+        "voyage_date": request.form.get("voyage_date", ""),
+        "port": request.form.get("port", "").strip(),
+        "cargo": request.form.get("cargo", "").strip(),
+        "ship_figure": request.form.get("ship_figure", "0"),
+        "shore_figure": request.form.get("shore_figure", "0"),
+        "obq_rob": request.form.get("obq_rob", "0"),
+        "reject_flags": request.form.getlist("reject_flags"),
+        "notes": request.form.get("notes", "").strip(),
+    }
+    add_vef_voyage(vessel, data)
+    return redirect(url_for("vef_calculator_page", vessel=vessel))
+
+
+@app.post("/vessels/vef-calculator/voyage/<int:voyage_id>/delete")
+def vef_voyage_delete(voyage_id: int):
+    vessel = request.form.get("vessel_name", "")
+    delete_vef_voyage(voyage_id)
+    return redirect(url_for("vef_calculator_page", vessel=vessel))
+
+
+@app.post("/vessels/vef-calculator/voyage/<int:voyage_id>/update")
+def vef_voyage_update(voyage_id: int):
+    vessel = request.form.get("vessel_name", "")
+    data = {
+        "voyage_number": request.form.get("voyage_number", "").strip(),
+        "voyage_date": request.form.get("voyage_date", ""),
+        "port": request.form.get("port", "").strip(),
+        "cargo": request.form.get("cargo", "").strip(),
+        "ship_figure": request.form.get("ship_figure", "0"),
+        "shore_figure": request.form.get("shore_figure", "0"),
+        "obq_rob": request.form.get("obq_rob", "0"),
+        "reject_flags": request.form.getlist("reject_flags"),
+        "notes": request.form.get("notes", "").strip(),
+    }
+    update_vef_voyage(voyage_id, data)
+    return redirect(url_for("vef_calculator_page", vessel=vessel))
+
+
+@app.post("/api/vef-calculate")
+def api_vef_calculate():
+    """Calcula VEF per API MPMS 17.9 sobre un conjunto de viajes (JSON)."""
+    data = request.get_json(silent=True) or {}
+    voyages = data.get("voyages", [])
+    try:
+        result = calculate_vef_17_9(voyages)
+        return jsonify({"ok": True, **result})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 # ---------------------------------------------------------------------------

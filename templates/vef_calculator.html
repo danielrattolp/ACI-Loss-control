@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block title %}Calculadora VEF 17.9 | ACI LATAM{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">API MPMS Chapter 17.9</p>
+    <h1>Calculadora de VEF</h1>
+    <p style="color:var(--muted);margin:4px 0 0">
+      Vessel Experience Factor — Suma figuras buque / Suma figuras tierra (viajes calificados)
+    </p>
+  </div>
+</section>
+
+<!-- Selector de buque -->
+<section class="content-panel mb-3">
+  <form method="get" class="d-flex gap-2 align-items-end flex-wrap" style="margin-bottom:18px">
+    <label style="min-width:260px;flex:1">
+      <span class="field-label">Nombre del buque</span>
+      <input class="form-control" name="vessel" id="vesselInput" value="{{ vessel }}"
+             list="vesselsList" placeholder="Escriba o seleccione un buque..." autocomplete="off" />
+      <datalist id="vesselsList">
+        {% for v in vessels %}<option value="{{ v }}">{% endfor %}
+      </datalist>
+    </label>
+    <button class="btn btn-primary" type="submit">Cargar</button>
+  </form>
+
+  {% if not vessel %}
+    <p class="text-secondary">Seleccione o escriba un nombre de buque para gestionar sus viajes.</p>
+  {% endif %}
+</section>
+
+{% if vessel %}
+<!-- Panel principal -->
+<div class="row g-3">
+
+  <!-- Columna izquierda: tabla de viajes + formulario agregar -->
+  <div class="col-lg-7">
+    <section class="content-panel">
+      <div class="section-heading mb-3">
+        <div>
+          <p class="eyebrow">Buque: {{ vessel }}</p>
+          <h2 style="font-size:1.1rem;margin:0">Historial de viajes (máx. 20)</h2>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#addVoyageForm">
+          + Agregar viaje
+        </button>
+      </div>
+
+      <!-- Formulario agregar viaje (colapsable) -->
+      <div class="collapse mb-3" id="addVoyageForm">
+        <form method="post" action="{{ url_for('vef_voyage_add') }}" class="voyage-add-form">
+          <input type="hidden" name="vessel_name" value="{{ vessel }}" />
+          <div class="form-grid cols-3" style="gap:10px">
+            <label class="span-1">Viaje #
+              <input class="form-control form-control-sm" name="voyage_number" placeholder="V/51" />
+            </label>
+            <label class="span-1">Fecha
+              <input class="form-control form-control-sm" name="voyage_date" type="date" />
+            </label>
+            <label class="span-1">Puerto
+              <input class="form-control form-control-sm" name="port" placeholder="ESMERALDAS" />
+            </label>
+            <label class="span-3">Carga / producto
+              <input class="form-control form-control-sm" name="cargo" placeholder="ORIENTE C.O." />
+            </label>
+            <label class="span-1">Figura buque (bbl TCV)
+              <input class="form-control form-control-sm" name="ship_figure" type="number"
+                     step="0.001" min="0" required placeholder="51719" />
+            </label>
+            <label class="span-1">Figura tierra (bbl)
+              <input class="form-control form-control-sm" name="shore_figure" type="number"
+                     step="0.001" min="0" required placeholder="51744" />
+            </label>
+            <label class="span-1">OBQ / ROB (bbl)
+              <input class="form-control form-control-sm" name="obq_rob" type="number"
+                     step="0.001" min="0" value="0" />
+            </label>
+          </div>
+          <div class="mt-2">
+            <span class="field-label d-block mb-1">Razones de pre-rechazo (Secc. 5.2)</span>
+            <div class="d-flex gap-3 flex-wrap">
+              <label class="d-flex align-items-center gap-1" style="font-size:.8rem">
+                <input type="checkbox" name="reject_flags" value="drydock" />
+                Primer viaje post-dique
+              </label>
+              <label class="d-flex align-items-center gap-1" style="font-size:.8rem">
+                <input type="checkbox" name="reject_flags" value="lightering" />
+                Operación lightering
+              </label>
+              <label class="d-flex align-items-center gap-1" style="font-size:.8rem">
+                <input type="checkbox" name="reject_flags" value="structural" />
+                Mod. estructural previa
+              </label>
+              <label class="d-flex align-items-center gap-1" style="font-size:.8rem">
+                <input type="checkbox" name="reject_flags" value="gross_error" />
+                Error grosero (&gt;±2%)
+              </label>
+            </div>
+          </div>
+          <label class="mt-2 d-block">Notas
+            <input class="form-control form-control-sm" name="notes" placeholder="Observaciones opcionales" />
+          </label>
+          <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-primary btn-sm" type="submit">Guardar viaje</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#addVoyageForm">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tabla de viajes -->
+      {% if voyages %}
+      <div class="table-responsive">
+        <table class="table balance-table" id="voyagesTable" style="font-size:.82rem">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fecha</th>
+              <th>Viaje / Puerto</th>
+              <th>Carga</th>
+              <th style="text-align:right">Fig. Buque</th>
+              <th style="text-align:right">Fig. Tierra</th>
+              <th style="text-align:right">VLR</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in voyages %}
+            {% set vlr = v.ship_figure / v.shore_figure if v.shore_figure > 0 else 0 %}
+            <tr class="voyage-row" data-id="{{ v.id }}"
+                data-ship="{{ v.ship_figure }}" data-shore="{{ v.shore_figure }}"
+                data-flags="{{ v.reject_flags | tojson }}"
+                data-vlr="{{ vlr }}">
+              <td>{{ loop.index }}</td>
+              <td>{{ v.voyage_date or '—' }}</td>
+              <td>
+                <strong>{{ v.voyage_number or '—' }}</strong><br/>
+                <small style="color:var(--muted)">{{ v.port or '—' }}</small>
+              </td>
+              <td>{{ v.cargo or '—' }}</td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">
+                {{ '{:,.3f}'.format(v.ship_figure) }}
+              </td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">
+                {{ '{:,.3f}'.format(v.shore_figure) }}
+              </td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums" class="vlr-cell">
+                {% if v.shore_figure > 0 %}
+                  {{ '%.6f'|format(vlr) }}
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if v.reject_flags %}
+                  <span class="status-badge status-alert" title="{{ v.reject_flags | join(', ') }}">
+                    Pre-rechazado
+                  </span>
+                {% else %}
+                  <span class="status-badge status-ok voyage-status-chip" id="status-{{ v.id }}">
+                    Pendiente
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post"
+                      action="{{ url_for('vef_voyage_delete', voyage_id=v.id) }}"
+                      onsubmit="return confirm('Eliminar este viaje?')" style="display:inline">
+                  <input type="hidden" name="vessel_name" value="{{ vessel }}" />
+                  <button class="btn btn-sm btn-outline-danger" type="submit"
+                          style="padding:1px 7px;font-size:.72rem">✕</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="totals-row">
+              <td colspan="4"><strong>TOTAL (todos)</strong></td>
+              <td style="text-align:right" id="foot-ship">—</td>
+              <td style="text-align:right" id="foot-shore">—</td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+        <p class="text-secondary py-3">No hay viajes registrados para <strong>{{ vessel }}</strong>.
+          Use el botón <em>+ Agregar viaje</em> para comenzar.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- Columna derecha: resultado VEF -->
+  <div class="col-lg-5">
+    <section class="content-panel" id="vefResultPanel">
+      <div class="section-heading mb-3">
+        <div>
+          <p class="eyebrow">API MPMS 17.9</p>
+          <h2 style="font-size:1.1rem;margin:0">Resultado del cálculo</h2>
+        </div>
+        <button class="btn btn-primary btn-sm" id="calcVefBtn" {% if not voyages %}disabled{% endif %}>
+          Calcular VEF
+        </button>
+      </div>
+
+      <div id="vefResultBody">
+        <p class="text-secondary" style="font-size:.85rem">
+          Presione <strong>Calcular VEF</strong> para ejecutar el algoritmo API MPMS 17.9
+          sobre los viajes registrados.
+        </p>
+      </div>
+    </section>
+
+    <!-- Nota informativa -->
+    <section class="content-panel mt-3" style="background:var(--bg-body)">
+      <h3 style="font-size:.78rem;font-weight:700;color:var(--teal2);margin-bottom:8px">
+        Algoritmo API MPMS 17.9
+      </h3>
+      <ol style="font-size:.75rem;color:var(--muted);padding-left:1.2em;line-height:1.7">
+        <li><strong>Pre-rechazo</strong>: dique, lightering, mod. estructural, error grosero (&gt;±2%)</li>
+        <li><strong>Media preliminar</strong>: Σfig.buque / Σfig.tierra de viajes válidos</li>
+        <li><strong>Banda ±0.30%</strong>: excluye viajes con VLR fuera de [media×0.997, media×1.003]</li>
+        <li><strong>Test Grubbs (Tabla F.1)</strong>: eliminación iterativa de outliers (RL/RH vs. crítico)</li>
+        <li><strong>VEF final</strong>: Σ buque calificado / Σ tierra calificado. Mín. 6 viajes.</li>
+      </ol>
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  // ── Tabla totales pie ────────────────────────────────────────────────────
+  function updateFooter() {
+    var rows = document.querySelectorAll(".voyage-row");
+    var ship = 0, shore = 0;
+    rows.forEach(function (r) {
+      ship  += parseFloat(r.dataset.ship  || 0);
+      shore += parseFloat(r.dataset.shore || 0);
+    });
+    var fs = document.getElementById("foot-ship");
+    var fsh = document.getElementById("foot-shore");
+    if (fs)  fs.textContent  = ship.toLocaleString("es", {minimumFractionDigits:3, maximumFractionDigits:3});
+    if (fsh) fsh.textContent = shore.toLocaleString("es", {minimumFractionDigits:3, maximumFractionDigits:3});
+  }
+
+  // ── Calcular VEF ─────────────────────────────────────────────────────────
+  var calcBtn = document.getElementById("calcVefBtn");
+  if (calcBtn) {
+    calcBtn.addEventListener("click", function () {
+      var rows = document.querySelectorAll(".voyage-row");
+      var voyages = [];
+      rows.forEach(function (r, i) {
+        var flags = JSON.parse(r.dataset.flags || "[]");
+        voyages.push({
+          ship_figure:  parseFloat(r.dataset.ship  || 0),
+          shore_figure: parseFloat(r.dataset.shore || 0),
+          reject_flags: flags,
+          _rowId: r.dataset.id,
+          _index: i,
+        });
+      });
+
+      calcBtn.disabled = true;
+      calcBtn.textContent = "Calculando…";
+
+      fetch("/api/vef-calculate", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({voyages: voyages}),
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        calcBtn.disabled = false;
+        calcBtn.textContent = "Recalcular VEF";
+        if (!data.ok) {
+          document.getElementById("vefResultBody").innerHTML =
+            '<p class="text-danger">Error: ' + data.error + '</p>';
+          return;
+        }
+        renderResult(data, voyages);
+      })
+      .catch(function (err) {
+        calcBtn.disabled = false;
+        calcBtn.textContent = "Calcular VEF";
+        console.error(err);
+      });
+    });
+  }
+
+  function fmt(n, dec) {
+    return (typeof n === "number" ? n : parseFloat(n)).toLocaleString("es", {
+      minimumFractionDigits: dec || 3, maximumFractionDigits: dec || 3
+    });
+  }
+
+  function renderResult(data, voyages) {
+    // Actualizar chips de estado en la tabla
+    data.voyages.forEach(function (v, i) {
+      var rowId = voyages[i] ? voyages[i]._rowId : null;
+      if (!rowId) return;
+      var chip = document.getElementById("status-" + rowId);
+      if (!chip) return;
+      var statusMap = {
+        qualifying:       {cls: "status-ok",   label: "Califica"},
+        rejected_initial: {cls: "status-alert", label: "Rechazado"},
+        rejected_band:    {cls: "status-warn",  label: "Fuera banda"},
+        rejected_grubbs:  {cls: "status-warn",  label: "Grubbs"},
+      };
+      var s = statusMap[v.status] || {cls: "status-alert", label: v.status};
+      chip.className = "status-badge " + s.cls + " voyage-status-chip";
+      chip.textContent = s.label;
+      chip.title = v.reject_reason || "";
+    });
+
+    // Panel de resultado
+    var vefClass = data.sufficient ? "status-ok" : "status-alert";
+    var vefLabel = data.sufficient ? "VEF válido" : "Insuficiente (< 6 viajes)";
+
+    var html = '<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px">';
+
+    html += '<div class="kpi-card kpi-highlight" style="grid-column:1/-1">';
+    html += '<div class="kpi-label">VEF calculado</div>';
+    html += '<div class="kpi-value" style="font-size:2rem;letter-spacing:.04em">' + data.vef.toFixed(6) + '</div>';
+    html += '<div class="kpi-sub"><span class="status-badge ' + vefClass + '">' + vefLabel + '</span></div>';
+    html += '</div>';
+
+    html += '<div class="kpi-card"><div class="kpi-label">Viajes calificados</div>';
+    html += '<div class="kpi-value">' + data.qualifying_count + ' / ' + data.total_voyages + '</div></div>';
+
+    html += '<div class="kpi-card"><div class="kpi-label">Media preliminar VLR</div>';
+    html += '<div class="kpi-value" style="font-size:1.1rem">' + data.preliminary_mean.toFixed(6) + '</div></div>';
+
+    html += '<div class="kpi-card"><div class="kpi-label">Σ Fig. Buque (califican)</div>';
+    html += '<div class="kpi-value">' + fmt(data.ship_total) + ' bbl</div></div>';
+
+    html += '<div class="kpi-card"><div class="kpi-label">Σ Fig. Tierra (califican)</div>';
+    html += '<div class="kpi-value">' + fmt(data.shore_total) + ' bbl</div></div>';
+
+    html += '</div>';
+
+    // Banda ±0.30%
+    html += '<div class="field-note mb-2">Banda ±0.30%: [' +
+      data.band_lower.toFixed(6) + ', ' + data.band_upper.toFixed(6) + ']</div>';
+
+    // Iteraciones Grubbs
+    if (data.grubbs_iterations && data.grubbs_iterations.length > 0) {
+      html += '<details open><summary style="font-weight:700;font-size:.8rem;cursor:pointer;margin-bottom:6px">Test Grubbs — ' + data.grubbs_iterations.length + ' iteración(es)</summary>';
+      html += '<table class="table" style="font-size:.75rem"><thead><tr>';
+      html += '<th>n</th><th>RL</th><th>RH</th><th>Crítico (F.1)</th><th>Decisión</th>';
+      html += '</tr></thead><tbody>';
+      data.grubbs_iterations.forEach(function (it) {
+        var rlOk = it.rl <= it.critical;
+        var rhOk = it.rh <= it.critical;
+        html += '<tr>';
+        html += '<td>' + it.n + '</td>';
+        html += '<td style="' + (!rlOk ? 'color:var(--red);font-weight:700' : '') + '">' + it.rl.toFixed(6) + '</td>';
+        html += '<td style="' + (!rhOk ? 'color:var(--red);font-weight:700' : '') + '">' + it.rh.toFixed(6) + '</td>';
+        html += '<td>' + it.critical + '</td>';
+        html += '<td>' + (it.decision || '—') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></details>';
+    } else {
+      html += '<p class="field-note">Test Grubbs: sin eliminaciones.</p>';
+    }
+
+    // Advertencias
+    if (data.warnings && data.warnings.length > 0) {
+      html += '<div class="alert alert-warning mt-2" style="font-size:.8rem">';
+      data.warnings.forEach(function (w) { html += '<div>⚠ ' + w + '</div>'; });
+      html += '</div>';
+    }
+
+    document.getElementById("vefResultBody").innerHTML = html;
+  }
+
+  updateFooter();
+})();
+</script>
+{% endblock %}

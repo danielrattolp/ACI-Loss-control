@@ -83,6 +83,21 @@ def init_db() -> None:
         result_json TEXT NOT NULL DEFAULT '{}',
         FOREIGN KEY(operation_id) REFERENCES operations(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS vef_voyages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vessel_name TEXT NOT NULL,
+        voyage_number TEXT,
+        voyage_date TEXT,
+        port TEXT,
+        cargo TEXT,
+        ship_figure REAL NOT NULL DEFAULT 0,
+        shore_figure REAL NOT NULL DEFAULT 0,
+        obq_rob REAL DEFAULT 0,
+        reject_flags TEXT NOT NULL DEFAULT '[]',
+        notes TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS vef_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         vessel_name TEXT NOT NULL,
@@ -220,6 +235,88 @@ def record_vef(operation_id: int, vessel_name: str, vef: float, phase: str) -> N
             "INSERT INTO vef_history (vessel_name, operation_id, vef, phase) VALUES (?, ?, ?, ?)",
             (vessel_name, operation_id, vef, phase),
         )
+
+
+def add_vef_voyage(vessel_name: str, data: dict) -> int:
+    """Agrega un viaje al historial VEF de un buque."""
+    with database() as connection:
+        cursor = connection.execute(
+            """INSERT INTO vef_voyages
+               (vessel_name, voyage_number, voyage_date, port, cargo,
+                ship_figure, shore_figure, obq_rob, reject_flags, notes, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM vef_voyages WHERE vessel_name = ?))""",
+            (
+                vessel_name,
+                data.get("voyage_number", ""),
+                data.get("voyage_date", ""),
+                data.get("port", ""),
+                data.get("cargo", ""),
+                float(data.get("ship_figure", 0) or 0),
+                float(data.get("shore_figure", 0) or 0),
+                float(data.get("obq_rob", 0) or 0),
+                json.dumps(data.get("reject_flags") or []),
+                data.get("notes", ""),
+                vessel_name,
+            ),
+        )
+        return int(cursor.lastrowid)
+
+
+def update_vef_voyage(voyage_id: int, data: dict) -> None:
+    """Actualiza los campos de un viaje VEF."""
+    with database() as connection:
+        connection.execute(
+            """UPDATE vef_voyages SET
+               voyage_number=?, voyage_date=?, port=?, cargo=?,
+               ship_figure=?, shore_figure=?, obq_rob=?,
+               reject_flags=?, notes=?
+               WHERE id=?""",
+            (
+                data.get("voyage_number", ""),
+                data.get("voyage_date", ""),
+                data.get("port", ""),
+                data.get("cargo", ""),
+                float(data.get("ship_figure", 0) or 0),
+                float(data.get("shore_figure", 0) or 0),
+                float(data.get("obq_rob", 0) or 0),
+                json.dumps(data.get("reject_flags") or []),
+                data.get("notes", ""),
+                voyage_id,
+            ),
+        )
+
+
+def delete_vef_voyage(voyage_id: int) -> None:
+    with database() as connection:
+        connection.execute("DELETE FROM vef_voyages WHERE id = ?", (voyage_id,))
+
+
+def get_vef_voyages(vessel_name: str, limit: int = 20) -> list[dict]:
+    """Devuelve hasta los ultimos N viajes VEF de un buque, mas recientes primero."""
+    if not vessel_name:
+        return []
+    with database() as connection:
+        rows = connection.execute(
+            """SELECT * FROM vef_voyages WHERE vessel_name = ?
+               ORDER BY sort_order DESC LIMIT ?""",
+            (vessel_name, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["reject_flags"] = json.loads(item.get("reject_flags") or "[]")
+        result.append(item)
+    return result
+
+
+def get_distinct_vessels() -> list[str]:
+    """Lista de nombres de buques con al menos un viaje VEF registrado."""
+    with database() as connection:
+        rows = connection.execute(
+            "SELECT DISTINCT vessel_name FROM vef_voyages ORDER BY vessel_name"
+        ).fetchall()
+    return [row["vessel_name"] for row in rows]
 
 
 def get_vef_history(vessel_name: str, limit: int = 20) -> list[dict]:
