@@ -286,10 +286,12 @@
 
   function rho60(api) { return (141.5 / (api + 131.5)) * 999.016; }
 
+  // ρ@T = ρ@60°F × VCF(T→60°F)
+  // VCF < 1 when T > 60°F (less dense when warmer), > 1 when T < 60°F (denser when cooler)
   function vcfAtTemp(api, tf, tbl) {
     if (typeof calculateVCF !== "function") return 1;
     var r = calculateVCF(api, tf, tbl);
-    return r ? r.vcf : 1;
+    return (r && r.vcf) ? r.vcf : 1;
   }
 
   function updatePreview() {
@@ -299,12 +301,13 @@
     var vef     = n("origin_vessel_vef") || 1;
     var bl      = n("bill_of_lading_bbl");
     var gsvMode = isGsv.checked;
-    var tbl     = document.getElementById("liveTableLabel").textContent.trim();
+    var tbl     = document.getElementById("liveTableLabel").textContent.trim() || "6B";
 
     var r60 = rho60(api);
-    // density @15°C (59°F) and @20°C (68°F) via CTL inverse
-    var r15 = r60 / vcfAtTemp(api, 59,  tbl);
-    var r20 = r60 / vcfAtTemp(api, 68,  tbl);
+    // ρ@15°C (59°F): oil is cooler → denser → VCF(59°F) > 1 → ρ15 > ρ60
+    var r15 = r60 * vcfAtTemp(api, 59, tbl);
+    // ρ@20°C (68°F): oil is warmer → less dense → VCF(68°F) < 1 → ρ20 < ρ60
+    var r20 = r60 * vcfAtTemp(api, 68, tbl);
 
     set("liveDens",   r60, 2);
     set("liveDens15", r15, 2);
@@ -338,21 +341,24 @@
     var blCalc = {vcf: null, gsv: bl, nsv: bl * (1 - bsw / 100)};
 
     function render(prefix, calc) {
-      var g      = calc.gsv;
-      var nsv    = calc.nsv;
-      var m3     = g   * BBL_M3_15C;
-      var nsv_m3 = nsv * BBL_M3_15C;
-      var mt_vac = nsv_m3 * r15 / 1000;
+      var g      = calc.gsv  || 0;
+      var nsv    = calc.nsv  || 0;
+      // m³@15°C via MPMS 11.5.1 factor
+      var m3_gsv = g   * BBL_M3_15C;
+      var m3_nsv = nsv * BBL_M3_15C;
+      // MT vacuum = m³@15°C × ρ@15°C / 1000  (NSV basis)
+      var mt_vac = m3_nsv * r15 / 1000;
+      // MT air buoyancy correction: MT_air = MT_vac × (1 − 1.1/ρ@60°F)
       var mt_air = mt_vac * (1 - 1.1 / r60);
       if (calc.vcf !== null && calc.vcf !== undefined)
-        set(prefix+"-vcf", calc.vcf.toFixed ? calc.vcf.toFixed(5) : "—");
-      set(prefix+"-gsv",  g);
-      set(prefix+"-nsv",  nsv);
-      set(prefix+"-m3",   m3);
-      set(prefix+"-d15",  r15, 2);
-      set(prefix+"-d20",  r20, 2);
-      set(prefix+"-mt",   mt_air);
-      set(prefix+"-mtv",  mt_vac);
+        set(prefix+"-vcf", (typeof calc.vcf.toFixed === "function") ? calc.vcf.toFixed(5) : "—");
+      set(prefix+"-gsv",  g,      2);   // 2 decimales para BBL
+      set(prefix+"-nsv",  nsv,    2);   // 2 decimales para BBL
+      set(prefix+"-m3",   m3_gsv, 3);
+      set(prefix+"-d15",  r15,    4);   // g/cm³ x1000 → 4 dec para kg/m³ es suficiente
+      set(prefix+"-d20",  r20,    4);
+      set(prefix+"-mt",   mt_air, 3);
+      set(prefix+"-mtv",  mt_vac, 3);
     }
 
     render("bl",         blCalc);
