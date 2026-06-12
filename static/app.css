@@ -338,6 +338,8 @@ legend {
 .calc-row span { color: var(--muted); }
 .calc-row strong { font-weight: 700; font-size: .9rem; font-variant-numeric: tabular-nums; }
 .calc-row.highlight strong { color: var(--teal2); font-size: 1rem; }
+.calc-row-gross { opacity: .72; }
+.calc-row-gross span { font-style: italic; }
 .calc-vcf {
   display: inline-flex;
   align-items: center;
