@@ -283,6 +283,8 @@
 
   // MPMS 11.5.1 factor: BBL@60°F → m³@15°C
   var BBL_M3_15C = 0.1589199955042947;
+  // Factor de masa ρ@15°C / ρ@60°F según hoja "Factores" del Excel base
+  var RHO15_MASS_FACTOR = 1.0004284708;
 
   function rho60(api) { return (141.5 / (api + 131.5)) * 999.016; }
 
@@ -346,10 +348,12 @@
       // m³@15°C via MPMS 11.5.1 factor
       var m3_gsv = g   * BBL_M3_15C;
       var m3_nsv = nsv * BBL_M3_15C;
-      // MT vacuum = m³@15°C × ρ@15°C / 1000  (NSV basis)
-      var mt_vac = m3_nsv * r15 / 1000;
-      // MT air buoyancy correction: MT_air = MT_vac × (1 − 1.1/ρ@60°F)
-      var mt_air = mt_vac * (1 - 1.1 / r60);
+      // MT vacuum = m³@15°C × ρ@15°C(masa) / 1000  (NSV basis)
+      // Factor masa = ρ@60°F × 1.0004284708 per hoja Factores del Excel
+      var r15m = r60 * RHO15_MASS_FACTOR;
+      var mt_vac = m3_nsv * r15m / 1000;
+      // MT aire: corrección flotabilidad → MT_air = MT_vac × (1 − 1.1/ρ@15°C)
+      var mt_air = mt_vac * (1 - 1.1 / r15m);
       if (calc.vcf !== null && calc.vcf !== undefined)
         set(prefix+"-vcf", (typeof calc.vcf.toFixed === "function") ? calc.vcf.toFixed(5) : "—");
       set(prefix+"-gsv",  g,      2);   // 2 decimales para BBL
