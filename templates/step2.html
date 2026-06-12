@@ -2,26 +2,16 @@
 {% block title %}Cantidades origen | ACI LATAM{% endblock %}
 {% block content %}
 {% set origin = operation.data.get('origin', {}) %}
-{% set mode = origin.get('input_mode', 'gov') %}
+{% set mode = 'gsv' %}
 <form method="post" class="content-panel" id="originForm">
+  <input type="hidden" name="origin_input_mode" value="gsv" />
   <div class="section-heading">
     <div>
       <p class="eyebrow">Paso 2 · API MPMS 11.1 / 11.5.1</p>
       <h1>Cantidades de origen</h1>
     </div>
     <div class="d-flex align-items-center gap-3">
-      <span class="field-note" id="modeNote">
-        {% if mode == 'gsv' %}GSV directo: (GSV − FW) × (1 − BS&amp;W) = NSV
-        {% else %}GOV × VCF = GSV &nbsp;|&nbsp; GSV × (1 − BS&amp;W) = NSV{% endif %}
-      </span>
-      <div class="btn-group btn-group-sm" role="group">
-        <input type="radio" class="btn-check" name="origin_input_mode" id="modeGov"
-               value="gov" {% if mode != 'gsv' %}checked{% endif %} />
-        <label class="btn btn-outline-secondary" for="modeGov">GOV + Temp</label>
-        <input type="radio" class="btn-check" name="origin_input_mode" id="modeGsv"
-               value="gsv" {% if mode == 'gsv' %}checked{% endif %} />
-        <label class="btn btn-outline-primary" for="modeGsv">GSV directo</label>
-      </div>
+      <span class="field-note">GSV directo: (GSV − FW) × (1 − BS&amp;W) = NSV</span>
     </div>
   </div>
 
@@ -212,16 +202,6 @@
             VEF ≠ VCF: VCF corrige temperatura (MPMS 11.1);<br>VEF corrige experiencia de buque (MPMS 17.9)
           </span>
         </label>
-        {% if vef_history %}
-          <div class="vef-chip-list mt-2">
-            <span style="font-size:.65rem;color:var(--muted);font-weight:700">Histórico:</span>
-            {% for h in vef_history %}
-              <span class="vef-chip" title="{{ h.aci_reference or '' }} · {{ h.product or '' }}">
-                {{ '%.6f'|format(h.vef) }} <span>{{ h.phase }} · {{ h.recorded_at[:10] }}</span>
-              </span>
-            {% endfor %}
-          </div>
-        {% endif %}
       </div>
       <div class="origin-card-results">
         <div class="calc-vcf" id="vesselVcfRow" style="color:var(--teal2)">VEF <strong id="vessel-vcf">—</strong></div>
@@ -277,26 +257,9 @@
 (function () {
   "use strict";
 
-  var isGsv = document.querySelector('[name=origin_input_mode][value=gsv]');
-  var isGov = document.querySelector('[name=origin_input_mode][value=gov]');
-
-  function applyMode() {
-    var gsv = isGsv.checked;
-    document.getElementById("shoreGovField").style.display  = gsv ? "none" : "";
-    document.getElementById("vesselGovField").style.display = gsv ? "none" : "";
-    document.getElementById("shoreGsvField").style.display  = gsv ? "" : "none";
-    document.getElementById("vesselGsvField").style.display = gsv ? "" : "none";
-    document.getElementById("shoreVcfRow").style.display     = gsv ? "none" : "";
-    document.getElementById("vesselRawVcfRow").style.display = gsv ? "none" : "";
-    document.getElementById("modeNote").textContent = gsv
-      ? "GSV directo: (GSV − FW) \xd7 (1 − BS&W) = NSV"
-      : "GOV \xd7 VCF = GSV  |  GSV \xd7 (1 − BS&W) = NSV";
-    document.getElementById("tempFieldNote").textContent = gsv ? "Referencial \xb7 VCF documental" : "";
-    updatePreview();
-  }
-
-  isGsv.addEventListener("change", applyMode);
-  isGov.addEventListener("change", applyMode);
+  // Modo fijo: GSV directo
+  document.getElementById("shoreVcfRow").style.display     = "none";
+  document.getElementById("vesselRawVcfRow").style.display = "none";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function n(id) { return parseFloat(document.getElementById(id).value) || 0; }
@@ -332,7 +295,6 @@
     var fw      = n("origin_free_water_bbl");
     var vef     = n("origin_vessel_vef") || 1;
     var bl      = n("bill_of_lading_bbl");
-    var gsvMode = isGsv.checked;
     var tbl     = document.getElementById("liveTableLabel").textContent.trim() || "6B";
 
     var r60 = rho60(api);
@@ -362,26 +324,14 @@
       var g = Math.max(gsvVal - fw_val, 0);
       return {vcf: null, gsv: g, nsv: g * (1 - bsw / 100)};
     }
-    function fromGov(gov, applyVef) {
-      if (typeof calculateVCF6B !== "function") return null;
-      return calcQuantity(gov, api, n("origin_temperature_f"), bsw, vef, applyVef, tbl);
-    }
 
-    var shoreInput  = gsvMode ? n("origin_shore_gsv_bbl")  : n("origin_shore_gov_bbl");
-    var vesselInput = gsvMode ? n("origin_vessel_gsv_bbl") : n("origin_vessel_gov_bbl");
+    var shoreInput  = n("origin_shore_gsv_bbl");
+    var vesselInput = n("origin_vessel_gsv_bbl");
 
-    var shore, vesselRaw, vesselVef;
-    if (gsvMode) {
-      shore      = fromGsv(shoreInput, fw);
-      vesselRaw  = fromGsv(vesselInput, 0);
-      vesselVef  = fromGsv(vesselInput / vef, 0);
-      vesselVef.vcf = vef;
-    } else {
-      shore     = fromGov(shoreInput - fw, false);
-      vesselRaw = fromGov(vesselInput, false);
-      vesselVef = fromGov(vesselInput, true);
-    }
-    if (!shore || !vesselRaw || !vesselVef) return;
+    var shore     = fromGsv(shoreInput, fw);
+    var vesselRaw = fromGsv(vesselInput, 0);
+    var vesselVef = fromGsv(vesselInput / vef, 0);
+    vesselVef.vcf = vef;
 
     var blCalc = {vcf: null, gsv: bl, nsv: bl * (1 - bsw / 100)};
 
@@ -448,7 +398,7 @@
     el.value = ""; el.dataset.auto = "1"; updatePreview();
   });
 
-  applyMode();
+  updatePreview();
 })();
 </script>
 {% endblock %}
