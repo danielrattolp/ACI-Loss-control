@@ -95,16 +95,19 @@
         </label>
       </div>
       <div class="origin-card-results">
-        <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="bl-nsv">—</strong></div>
-        <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="bl-gsv">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (bruto)</span><strong id="bl-m3">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (neto)</span><strong id="bl-m3n">—</strong></div>
-        <div class="calc-row"><span>ρ @15 °C kg/m³</span><strong id="bl-d15">—</strong></div>
-        <div class="calc-row"><span>ρ @20 °C kg/m³</span><strong id="bl-d20">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT vacío (bruto)</span><strong id="bl-mtvg">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT aire (bruto)</span><strong id="bl-mtg">—</strong></div>
-        <div class="calc-row"><span>MT vacío (neto)</span><strong id="bl-mtv">—</strong></div>
-        <div class="calc-row"><span>MT aire (neto)</span><strong id="bl-mt">—</strong></div>
+        <div class="res-head">
+          <span></span><span class="res-col-lbl">BRUTO</span><span class="res-col-lbl">NETO</span>
+          <button type="button" class="res-reset-btn" onclick="resetCard(this)">↺</button>
+        </div>
+        <div class="res-row"><span>BBL @60°F</span><input class="rv" id="bl-gsv"><input class="rv rv-key" id="bl-nsv"></div>
+        <div class="res-row"><span>m³ @15°C</span><input class="rv" id="bl-m3"><input class="rv" id="bl-m3n"></div>
+        <div class="res-row"><span>MT Vacío</span><input class="rv" id="bl-mtvg"><input class="rv" id="bl-mtv"></div>
+        <div class="res-row res-row-key"><span>MT Aire</span><input class="rv" id="bl-mtg"><input class="rv rv-key" id="bl-mt"></div>
+        <div class="res-row res-row-dens">
+          <span>ρ kg/m³</span>
+          <div class="res-dens-cell"><span>@15°C</span><input class="rv" id="bl-d15"></div>
+          <div class="res-dens-cell"><span>@20°C</span><input class="rv" id="bl-d20"></div>
+        </div>
       </div>
     </div>
 
@@ -118,18 +121,7 @@
                  value="{{ origin.get('terminal_name', '') }}"
                  placeholder="Nombre del terminal o FPSO" />
         </label>
-
-        <!-- GOV mode -->
-        <label id="shoreGovField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
-          GOV observado bbl
-          <input class="form-control" name="origin_shore_gov_bbl" id="origin_shore_gov_bbl"
-                 type="number" min="0" step="0.001"
-                 value="{{ origin.get('shore', {}).get('gov_bbl', 0) }}" />
-        </label>
-
-        <!-- GSV mode -->
-        <label id="shoreGsvField" {% if mode != 'gsv' %}style="display:none"{% endif %}>
-          GSV bbl @60 °F
+        <label>GSV bbl @60°F
           <input class="form-control" name="origin_shore_gsv_bbl" id="origin_shore_gsv_bbl"
                  type="number" min="0" step="0.001"
                  value="{{ origin.get('shore', {}).get('gsv_bbl', 0) }}" />
@@ -137,17 +129,19 @@
         <p class="field-note mt-1" style="font-size:.65rem">Tierra no aplica VEF · API MPMS 17.1</p>
       </div>
       <div class="origin-card-results">
-        <div class="calc-vcf" id="shoreVcfRow">VCF <strong id="shore-vcf">—</strong></div>
-        <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="shore-nsv">—</strong></div>
-        <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="shore-gsv">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (bruto)</span><strong id="shore-m3">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (neto)</span><strong id="shore-m3n">—</strong></div>
-        <div class="calc-row"><span>ρ @15 °C kg/m³</span><strong id="shore-d15">—</strong></div>
-        <div class="calc-row"><span>ρ @20 °C kg/m³</span><strong id="shore-d20">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT vacío (bruto)</span><strong id="shore-mtvg">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT aire (bruto)</span><strong id="shore-mtg">—</strong></div>
-        <div class="calc-row"><span>MT vacío (neto)</span><strong id="shore-mtv">—</strong></div>
-        <div class="calc-row"><span>MT aire (neto)</span><strong id="shore-mt">—</strong></div>
+        <div class="res-head">
+          <span></span><span class="res-col-lbl">BRUTO</span><span class="res-col-lbl">NETO</span>
+          <button type="button" class="res-reset-btn" onclick="resetCard(this)">↺</button>
+        </div>
+        <div class="res-row"><span>BBL @60°F</span><input class="rv" id="shore-gsv"><input class="rv rv-key" id="shore-nsv"></div>
+        <div class="res-row"><span>m³ @15°C</span><input class="rv" id="shore-m3"><input class="rv" id="shore-m3n"></div>
+        <div class="res-row"><span>MT Vacío</span><input class="rv" id="shore-mtvg"><input class="rv" id="shore-mtv"></div>
+        <div class="res-row res-row-key"><span>MT Aire</span><input class="rv" id="shore-mtg"><input class="rv rv-key" id="shore-mt"></div>
+        <div class="res-row res-row-dens">
+          <span>ρ kg/m³</span>
+          <div class="res-dens-cell"><span>@15°C</span><input class="rv" id="shore-d15"></div>
+          <div class="res-dens-cell"><span>@20°C</span><input class="rv" id="shore-d20"></div>
+        </div>
       </div>
     </div>
 
@@ -155,33 +149,26 @@
     <div class="origin-card">
       <div class="origin-card-header">Buque s/VEF</div>
       <div class="origin-card-inputs">
-        <!-- GOV mode -->
-        <label id="vesselGovField" {% if mode == 'gsv' %}style="display:none"{% endif %}>
-          GOV observado bbl
-          <input class="form-control" name="origin_vessel_gov_bbl" id="origin_vessel_gov_bbl"
-                 type="number" min="0" step="0.001"
-                 value="{{ origin.get('vessel', {}).get('gov_bbl', 0) }}" />
-        </label>
-        <!-- GSV mode -->
-        <label id="vesselGsvField" {% if mode != 'gsv' %}style="display:none"{% endif %}>
-          GSV bbl @60 °F
+        <label>GSV bbl @60°F
           <input class="form-control" name="origin_vessel_gsv_bbl" id="origin_vessel_gsv_bbl"
                  type="number" min="0" step="0.001"
                  value="{{ origin.get('vessel', {}).get('gsv_bbl', 0) }}" />
         </label>
       </div>
       <div class="origin-card-results">
-        <div class="calc-vcf" id="vesselRawVcfRow">VCF <strong id="vessel-raw-vcf">—</strong></div>
-        <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="vessel-raw-nsv">—</strong></div>
-        <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="vessel-raw-gsv">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (bruto)</span><strong id="vessel-raw-m3">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (neto)</span><strong id="vessel-raw-m3n">—</strong></div>
-        <div class="calc-row"><span>ρ @15 °C kg/m³</span><strong id="vessel-raw-d15">—</strong></div>
-        <div class="calc-row"><span>ρ @20 °C kg/m³</span><strong id="vessel-raw-d20">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT vacío (bruto)</span><strong id="vessel-raw-mtvg">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT aire (bruto)</span><strong id="vessel-raw-mtg">—</strong></div>
-        <div class="calc-row"><span>MT vacío (neto)</span><strong id="vessel-raw-mtv">—</strong></div>
-        <div class="calc-row"><span>MT aire (neto)</span><strong id="vessel-raw-mt">—</strong></div>
+        <div class="res-head">
+          <span></span><span class="res-col-lbl">BRUTO</span><span class="res-col-lbl">NETO</span>
+          <button type="button" class="res-reset-btn" onclick="resetCard(this)">↺</button>
+        </div>
+        <div class="res-row"><span>BBL @60°F</span><input class="rv" id="vessel-raw-gsv"><input class="rv rv-key" id="vessel-raw-nsv"></div>
+        <div class="res-row"><span>m³ @15°C</span><input class="rv" id="vessel-raw-m3"><input class="rv" id="vessel-raw-m3n"></div>
+        <div class="res-row"><span>MT Vacío</span><input class="rv" id="vessel-raw-mtvg"><input class="rv" id="vessel-raw-mtv"></div>
+        <div class="res-row res-row-key"><span>MT Aire</span><input class="rv" id="vessel-raw-mtg"><input class="rv rv-key" id="vessel-raw-mt"></div>
+        <div class="res-row res-row-dens">
+          <span>ρ kg/m³</span>
+          <div class="res-dens-cell"><span>@15°C</span><input class="rv" id="vessel-raw-d15"></div>
+          <div class="res-dens-cell"><span>@20°C</span><input class="rv" id="vessel-raw-d20"></div>
+        </div>
       </div>
     </div>
 
@@ -204,17 +191,20 @@
         </label>
       </div>
       <div class="origin-card-results">
-        <div class="calc-vcf" id="vesselVcfRow" style="color:var(--teal2)">VEF <strong id="vessel-vcf">—</strong></div>
-        <div class="calc-row highlight"><span>NSV bbl @60 °F</span><strong id="vessel-nsv">—</strong></div>
-        <div class="calc-row"><span>GSV bbl @60 °F</span><strong id="vessel-gsv">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (bruto)</span><strong id="vessel-m3">—</strong></div>
-        <div class="calc-row"><span>m³ @15 °C (neto)</span><strong id="vessel-m3n">—</strong></div>
-        <div class="calc-row"><span>ρ @15 °C kg/m³</span><strong id="vessel-d15">—</strong></div>
-        <div class="calc-row"><span>ρ @20 °C kg/m³</span><strong id="vessel-d20">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT vacío (bruto)</span><strong id="vessel-mtvg">—</strong></div>
-        <div class="calc-row calc-row-gross"><span>MT aire (bruto)</span><strong id="vessel-mtg">—</strong></div>
-        <div class="calc-row"><span>MT vacío (neto)</span><strong id="vessel-mtv">—</strong></div>
-        <div class="calc-row"><span>MT aire (neto)</span><strong id="vessel-mt">—</strong></div>
+        <div class="res-head">
+          <span id="vessel-vcf-badge" style="font-size:.65rem;color:var(--teal2);font-weight:700">VEF —</span>
+          <span class="res-col-lbl">BRUTO</span><span class="res-col-lbl">NETO</span>
+          <button type="button" class="res-reset-btn" onclick="resetCard(this)">↺</button>
+        </div>
+        <div class="res-row"><span>BBL @60°F</span><input class="rv" id="vessel-gsv"><input class="rv rv-key" id="vessel-nsv"></div>
+        <div class="res-row"><span>m³ @15°C</span><input class="rv" id="vessel-m3"><input class="rv" id="vessel-m3n"></div>
+        <div class="res-row"><span>MT Vacío</span><input class="rv" id="vessel-mtvg"><input class="rv" id="vessel-mtv"></div>
+        <div class="res-row res-row-key"><span>MT Aire</span><input class="rv" id="vessel-mtg"><input class="rv rv-key" id="vessel-mt"></div>
+        <div class="res-row res-row-dens">
+          <span>ρ kg/m³</span>
+          <div class="res-dens-cell"><span>@15°C</span><input class="rv" id="vessel-d15"></div>
+          <div class="res-dens-cell"><span>@20°C</span><input class="rv" id="vessel-d20"></div>
+        </div>
       </div>
     </div>
 
@@ -263,26 +253,42 @@
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function n(id) { return parseFloat(document.getElementById(id).value) || 0; }
+  // set(): para <input class="rv"> respeta override manual; ignora si data-manual="1"
   function set(id, v, dec) {
     var el = document.getElementById(id);
     if (!el) return;
+    if (el.dataset.manual === "1") return;
     if (typeof v === "number") {
       dec = dec === undefined ? 3 : dec;
-      el.textContent = v.toLocaleString("es", {minimumFractionDigits:dec, maximumFractionDigits:dec});
+      var txt = v.toLocaleString("es", {minimumFractionDigits:dec, maximumFractionDigits:dec});
+      if (el.tagName === "INPUT") el.value = txt; else el.textContent = txt;
     } else {
-      el.textContent = v || "—";
+      if (el.tagName === "INPUT") el.value = v || ""; else el.textContent = v || "—";
     }
   }
 
-  // MPMS 11.5.1 factor: BBL@60°F → m³@15°C
+  // Marcar input como editado manualmente
+  function markManual(el) {
+    el.dataset.manual = "1";
+    el.classList.add("is-manual");
+  }
+
+  // Resetear todos los .rv de un card al calculado
+  window.resetCard = function(btn) {
+    var card = btn.closest(".origin-card-results");
+    card.querySelectorAll(".rv").forEach(function(el) {
+      el.dataset.manual = "0";
+      el.classList.remove("is-manual");
+      el.value = "";
+    });
+    updatePreview();
+  };
+
   var BBL_M3_15C = 0.1589199955042947;
-  // Factor de masa ρ@15°C / ρ@60°F según hoja "Factores" del Excel base
   var RHO15_MASS_FACTOR = 1.0004284708;
 
   function rho60(api) { return (141.5 / (api + 131.5)) * 999.016; }
 
-  // ρ@T = ρ@60°F × VCF(T→60°F)
-  // VCF < 1 when T > 60°F (less dense when warmer), > 1 when T < 60°F (denser when cooler)
   function vcfAtTemp(api, tf, tbl) {
     if (typeof calculateVCF !== "function") return 1;
     var r = calculateVCF(api, tf, tbl);
@@ -290,79 +296,60 @@
   }
 
   function updatePreview() {
-    var api     = n("origin_api");
-    var bsw     = n("origin_bsw_pct");
-    var fw      = n("origin_free_water_bbl");
-    var vef     = n("origin_vessel_vef") || 1;
-    var bl      = n("bill_of_lading_bbl");
-    var tbl     = document.getElementById("liveTableLabel").textContent.trim() || "6B";
+    var api = n("origin_api");
+    var bsw = n("origin_bsw_pct");
+    var fw  = n("origin_free_water_bbl");
+    var vef = n("origin_vessel_vef") || 1;
+    var bl  = n("bill_of_lading_bbl");
+    var tbl = document.getElementById("liveTableLabel").textContent.trim() || "6B";
 
-    var r60 = rho60(api);
-    // ρ@15°C y @20°C: calculado desde CTL, sobreescribible con valor certificado
+    var r60     = rho60(api);
     var r15calc = r60 * vcfAtTemp(api, 59, tbl);
     var r20calc = r60 * vcfAtTemp(api, 68, tbl);
 
+    // Densidad global: auto desde CTL o ingresada manualmente
     var inp15 = document.getElementById("input_rho15");
     var inp20 = document.getElementById("input_rho20");
-
-    // Auto-llenar si el campo está vacío o marcado como auto
-    if (inp15 && (!inp15.value || inp15.dataset.auto === "1")) {
-      inp15.value = r15calc.toFixed(4);
-      inp15.dataset.auto = "1";
-    }
-    if (inp20 && (!inp20.value || inp20.dataset.auto === "1")) {
-      inp20.value = r20calc.toFixed(4);
-      inp20.dataset.auto = "1";
-    }
-
+    if (inp15 && inp15.dataset.auto !== "0") { inp15.value = r15calc.toFixed(4); inp15.dataset.auto = "1"; }
+    if (inp20 && inp20.dataset.auto !== "0") { inp20.value = r20calc.toFixed(4); inp20.dataset.auto = "1"; }
     var r15 = (inp15 && inp15.value) ? parseFloat(inp15.value) : r15calc;
     var r20 = (inp20 && inp20.value) ? parseFloat(inp20.value) : r20calc;
 
     set("liveDens", r60, 2);
 
+    // VEF badge en card Buque c/VEF
+    var vefBadge = document.getElementById("vessel-vcf-badge");
+    if (vefBadge) vefBadge.textContent = "VEF " + vef.toFixed(6);
+
     function fromGsv(gsvVal, fw_val) {
       var g = Math.max(gsvVal - fw_val, 0);
-      return {vcf: null, gsv: g, nsv: g * (1 - bsw / 100)};
+      return {gsv: g, nsv: g * (1 - bsw / 100)};
     }
 
-    var shoreInput  = n("origin_shore_gsv_bbl");
-    var vesselInput = n("origin_vessel_gsv_bbl");
-
-    var shore     = fromGsv(shoreInput, fw);
-    var vesselRaw = fromGsv(vesselInput, 0);
-    var vesselVef = fromGsv(vesselInput / vef, 0);
-    vesselVef.vcf = vef;
-
-    var blCalc = {vcf: null, gsv: bl, nsv: bl * (1 - bsw / 100)};
+    var shore     = fromGsv(n("origin_shore_gsv_bbl"), fw);
+    var vesselRaw = fromGsv(n("origin_vessel_gsv_bbl"), 0);
+    var vesselVef = fromGsv(n("origin_vessel_gsv_bbl") / vef, 0);
+    var blCalc    = {gsv: bl, nsv: bl * (1 - bsw / 100)};
 
     function render(prefix, calc) {
-      var g   = calc.gsv || 0;
-      var nsv = calc.nsv || 0;
-      // m³@15°C vía factor MPMS 11.5.1
-      var m3g = g   * BBL_M3_15C;   // bruto (GSV basis)
-      var m3n = nsv * BBL_M3_15C;   // neto  (NSV basis)
-      // Factor masa ρ@15°C = ρ@60°F × 1.0004284708 (hoja Factores Excel)
+      var g    = calc.gsv || 0;
+      var nsv  = calc.nsv || 0;
+      var m3g  = g   * BBL_M3_15C;
+      var m3n  = nsv * BBL_M3_15C;
       var r15m = r60 * RHO15_MASS_FACTOR;
-      // MT vacío bruto y neto
+      var air_f = 1 - 1.1 / r15m;
       var mtv_g = m3g * r15m / 1000;
       var mtv_n = m3n * r15m / 1000;
-      // MT aire: corrección flotabilidad (1 − 1.1/ρ@15°C)
-      var air_f = 1 - 1.1 / r15m;
-      var mta_g = mtv_g * air_f;
-      var mta_n = mtv_n * air_f;
-
-      if (calc.vcf !== null && calc.vcf !== undefined)
-        set(prefix+"-vcf", (typeof calc.vcf.toFixed === "function") ? calc.vcf.toFixed(5) : "—");
-      set(prefix+"-gsv",  g,     2);
-      set(prefix+"-nsv",  nsv,   2);
-      set(prefix+"-m3",   m3g,   3);
-      set(prefix+"-m3n",  m3n,   3);
-      set(prefix+"-d15",  r15,   4);
-      set(prefix+"-d20",  r20,   4);
-      set(prefix+"-mtvg", mtv_g, 3);
-      set(prefix+"-mtg",  mta_g, 3);
-      set(prefix+"-mtv",  mtv_n, 3);
-      set(prefix+"-mt",   mta_n, 3);
+      set(prefix+"-gsv",  g,          2);
+      set(prefix+"-nsv",  nsv,        2);
+      set(prefix+"-m3",   m3g,        3);
+      set(prefix+"-m3n",  m3n,        3);
+      set(prefix+"-mtvg", mtv_g,      3);
+      set(prefix+"-mtv",  mtv_n,      3);
+      set(prefix+"-mtg",  mtv_g * air_f, 3);
+      set(prefix+"-mt",   mtv_n * air_f, 3);
+      set(prefix+"-d15",  r15,        4);
+      set(prefix+"-d20",  r20,        4);
     }
 
     render("bl",         blCalc);
@@ -371,31 +358,30 @@
     render("vessel",     vesselVef);
   }
 
+  // Listeners inputs de cálculo
   ["origin_api","origin_bsw_pct","origin_free_water_bbl","origin_vessel_vef",
-   "origin_temperature_f","origin_shore_gov_bbl","origin_vessel_gov_bbl",
-   "origin_shore_gsv_bbl","origin_vessel_gsv_bbl","bill_of_lading_bbl"].forEach(function(id) {
+   "origin_temperature_f","origin_shore_gsv_bbl","origin_vessel_gsv_bbl",
+   "bill_of_lading_bbl"].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("input", updatePreview);
   });
 
-  // Densidades certificadas: al editar manualmente, marcar como "manual"
+  // Densidad global manual
   ["input_rho15","input_rho20"].forEach(function(id) {
     var el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener("input", function() {
-      el.dataset.auto = "0";
-      updatePreview();
-    });
+    el.addEventListener("input", function() { el.dataset.auto = "0"; updatePreview(); });
   });
-
-  // Botones ↺: limpiar valor y recalcular desde CTL
   document.getElementById("resetRho15").addEventListener("click", function() {
-    var el = document.getElementById("input_rho15");
-    el.value = ""; el.dataset.auto = "1"; updatePreview();
+    var el = document.getElementById("input_rho15"); el.value = ""; el.dataset.auto = "1"; updatePreview();
   });
   document.getElementById("resetRho20").addEventListener("click", function() {
-    var el = document.getElementById("input_rho20");
-    el.value = ""; el.dataset.auto = "1"; updatePreview();
+    var el = document.getElementById("input_rho20"); el.value = ""; el.dataset.auto = "1"; updatePreview();
+  });
+
+  // Marcar como manual cuando el usuario edita directamente un resultado
+  document.querySelectorAll(".rv").forEach(function(el) {
+    el.addEventListener("input", function() { markManual(el); });
   });
 
   updatePreview();
