@@ -116,6 +116,8 @@ def calculate_origin(form_data: dict, table: str) -> dict:
         "free_water_bbl": free_water,
         "input_mode": input_mode,
         "terminal_name": form_data.get("origin_terminal_name", "").strip(),
+        "rho15": float(form_data["origin_rho15"]) if form_data.get("origin_rho15") else None,
+        "rho20": float(form_data["origin_rho20"]) if form_data.get("origin_rho20") else None,
         "bill_of_lading_bbl": float(form_data["bill_of_lading_bbl"]),
         "shore": shore.to_dict(),
         "vessel": vessel.to_dict(),

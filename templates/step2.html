@@ -59,17 +59,35 @@
 
     <div class="origin-global-densities">
       <span class="field-note" style="font-size:.65rem;font-weight:700;color:var(--teal2)">
-        MPMS 11.1 · ρ calculadas
+        Densidades · Auto-MPMS 11.1 o ingreso certificado
       </span>
-      <div style="font-size:.75rem;color:var(--muted)">
+      <div style="font-size:.72rem;color:var(--muted);margin-bottom:2px">
         ρ @60 °F: <strong id="liveDens">—</strong> kg/m³
       </div>
-      <div style="font-size:.75rem;color:var(--muted)">
-        ρ @15 °C: <strong id="liveDens15">—</strong> kg/m³
-      </div>
-      <div style="font-size:.75rem;color:var(--muted)">
-        ρ @20 °C: <strong id="liveDens20">—</strong> kg/m³
-      </div>
+      <label style="font-size:.72rem;margin-bottom:3px">
+        ρ @15 °C kg/m³
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="form-control form-control-sm" id="input_rho15"
+                 name="origin_rho15" type="number" min="600" max="1100" step="0.0001"
+                 placeholder="Auto CTL"
+                 value="{{ origin.get('rho15', '') or '' }}"
+                 style="font-size:.72rem;padding:2px 5px" />
+          <button type="button" id="resetRho15" title="Recalcular desde API"
+                  style="background:none;border:none;color:var(--teal2);cursor:pointer;font-size:.9rem;padding:0">↺</button>
+        </div>
+      </label>
+      <label style="font-size:.72rem">
+        ρ @20 °C kg/m³
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="form-control form-control-sm" id="input_rho20"
+                 name="origin_rho20" type="number" min="600" max="1100" step="0.0001"
+                 placeholder="Auto CTL"
+                 value="{{ origin.get('rho20', '') or '' }}"
+                 style="font-size:.72rem;padding:2px 5px" />
+          <button type="button" id="resetRho20" title="Recalcular desde API"
+                  style="background:none;border:none;color:var(--teal2);cursor:pointer;font-size:.9rem;padding:0">↺</button>
+        </div>
+      </label>
     </div>
   </div>
 
@@ -306,14 +324,27 @@
     var tbl     = document.getElementById("liveTableLabel").textContent.trim() || "6B";
 
     var r60 = rho60(api);
-    // ρ@15°C (59°F): oil is cooler → denser → VCF(59°F) > 1 → ρ15 > ρ60
-    var r15 = r60 * vcfAtTemp(api, 59, tbl);
-    // ρ@20°C (68°F): oil is warmer → less dense → VCF(68°F) < 1 → ρ20 < ρ60
-    var r20 = r60 * vcfAtTemp(api, 68, tbl);
+    // ρ@15°C y @20°C: calculado desde CTL, sobreescribible con valor certificado
+    var r15calc = r60 * vcfAtTemp(api, 59, tbl);
+    var r20calc = r60 * vcfAtTemp(api, 68, tbl);
 
-    set("liveDens",   r60, 2);
-    set("liveDens15", r15, 2);
-    set("liveDens20", r20, 2);
+    var inp15 = document.getElementById("input_rho15");
+    var inp20 = document.getElementById("input_rho20");
+
+    // Auto-llenar si el campo está vacío o marcado como auto
+    if (inp15 && (!inp15.value || inp15.dataset.auto === "1")) {
+      inp15.value = r15calc.toFixed(4);
+      inp15.dataset.auto = "1";
+    }
+    if (inp20 && (!inp20.value || inp20.dataset.auto === "1")) {
+      inp20.value = r20calc.toFixed(4);
+      inp20.dataset.auto = "1";
+    }
+
+    var r15 = (inp15 && inp15.value) ? parseFloat(inp15.value) : r15calc;
+    var r20 = (inp20 && inp20.value) ? parseFloat(inp20.value) : r20calc;
+
+    set("liveDens", r60, 2);
 
     function fromGsv(gsvVal, fw_val) {
       var g = Math.max(gsvVal - fw_val, 0);
@@ -376,6 +407,26 @@
    "origin_shore_gsv_bbl","origin_vessel_gsv_bbl","bill_of_lading_bbl"].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("input", updatePreview);
+  });
+
+  // Densidades certificadas: al editar manualmente, marcar como "manual"
+  ["input_rho15","input_rho20"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", function() {
+      el.dataset.auto = "0";
+      updatePreview();
+    });
+  });
+
+  // Botones ↺: limpiar valor y recalcular desde CTL
+  document.getElementById("resetRho15").addEventListener("click", function() {
+    var el = document.getElementById("input_rho15");
+    el.value = ""; el.dataset.auto = "1"; updatePreview();
+  });
+  document.getElementById("resetRho20").addEventListener("click", function() {
+    var el = document.getElementById("input_rho20");
+    el.value = ""; el.dataset.auto = "1"; updatePreview();
   });
 
   applyMode();
