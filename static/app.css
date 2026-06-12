@@ -230,6 +230,64 @@ legend {
 .method-note span { color: var(--muted); }
 
 /* ── Live calc preview ── */
+/* ── Origin step 4-column layout ── */
+.origin-global-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr auto;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  align-items: start;
+}
+.origin-global-densities {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  background: #f0fafa;
+  border-radius: 4px;
+  border: 1px solid #b9d8d8;
+  min-width: 130px;
+}
+.origin-4col {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.origin-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.origin-card-header {
+  background: var(--teal2);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 8px 12px;
+}
+.origin-card-inputs {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.origin-card-results {
+  padding: 10px 12px;
+  display: grid;
+  gap: 5px;
+  background: #f0fafa;
+  flex: 1;
+}
+
 .calc-preview {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -457,6 +515,8 @@ legend {
   .destination-head { grid-template-columns: 1fr 1fr; }
   .wizard-step { font-size: .78rem; }
   .calc-preview { grid-template-columns: 1fr; }
+  .origin-4col { grid-template-columns: repeat(2, 1fr); }
+  .origin-global-bar { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 650px) {
   .app-header { padding: 10px 14px; }
