@@ -60,47 +60,135 @@ const PRODUCTS = [
 ];
 
 // ===== CHECKLISTS DATA =====
+// Full audit checklist — API MPMS Loss Control Inspector Evaluation
+// Format: { section, norm, intro, items: [{q, pq}] }
 const CHECKLIST_VESSEL = [
-  { section: 'Documentación y Certificados', items: [
-    'Certificados del buque vigentes (IOPP, Load Line, Safety)',
-    'Manual de Calibración de Tanques (ullage tables) a bordo',
-    'Certificado de calibración del equipo de medición (cinta/UTI)',
-    'Certificados de calibración de termómetros',
-    'Procedimientos de medición y muestreo disponibles',
-    'Plan de estiba (stowage plan) actualizado',
-  ]},
-  { section: 'Equipos de Medición', items: [
-    'Equipo UTI/cinta ullage en buenas condiciones y calibrado',
-    'Termómetros calibrados disponibles para todos los tanques',
-    'Detector de gas operativo',
-    'Medidor de densidad / hidrómetro disponible',
-    'Tubería de muestreo limpia y operativa',
-    'Recipientes de muestreo limpios y sellados',
-  ]},
-  { section: 'Estado de Tanques de Carga', items: [
-    'Registros de tanques vacíos o pre-cargados verificados',
-    'Free water medida y documentada en todos los tanques',
-    'Válvulas de tanques en posición correcta',
-    'Tapas de boca de hombre aseguradas (no relevantes a la operación)',
-    'Sistema de alarmas de nivel operativo',
-    'Trim y escora del buque registrados y aceptables',
-  ]},
-  { section: 'Manifolds y Sistema de Bombeo', items: [
-    'Manifold limpio, sin contaminación residual',
-    'Conexión ISGOTT asegurada y sin fugas',
-    'Válvulas de manifold en posición operativa verificada',
-    'Sistema de bombas de carga verificado',
-    'Bomba de stripping operativa',
-    'Líneas de vapor disponibles (si aplica)',
-  ]},
-  { section: 'Seguridad y Comunicaciones', items: [
-    'MSDS del producto a bordo',
-    'Sistema de detección de gas en manifold operativo',
-    'Comunicación canal VHF establecida con terminal/alijador',
-    'Carta de acuerdo de operación firmada (ISGOTT checklist)',
-    'Personal de guardia en manifold durante la operación',
-    'Linea de emergencia de parada (ESD) verificada',
-  ]},
+  { section:'1 — Pre-embarco y Documentación Previa', norm:'API MPMS Cap. 17.1 / 17.2',
+    intro:'Antes de subir al buque, el inspector debe reunir y revisar toda la documentación de calibración y antecedentes del cargamento. Esta etapa define la calidad de toda la medición posterior.',
+    items:[
+      {q:'¿Verificó y revisó las tablas de calibración del buque (ullage/innage tables) antes de iniciar mediciones?', pq:'Las tablas de capacidad del buque son la base de todo cálculo de volumen a bordo. Si el inspector usa tablas desactualizadas o incorrectas, cada volumen calculado será erróneo. Cap. 2.8A exige tablas emitidas por organismo reconocido y vigentes. Un error en la tabla es un <b>ERROR SISTEMÁTICO</b>: sesga la ship\'s figure en la misma dirección en todos los tanques.'},
+      {q:'¿Solicitó el ullage report del viaje anterior para controlar el historial VEF del buque?', pq:'El VEF (Cap. 17.09) se construye con ≥6 viajes. Revisar el historial permite anticipar si el buque tiene <b>sesgo sistemático documentado</b> y si debe aplicarse VEF para corregirlo. Sin este contexto, el inspector no puede evaluar si la diferencia actual es normal o anómala.'},
+      {q:'¿Confirmó la identidad y certificación del Ship\'s Officer responsable de las mediciones?', pq:'Cap. 17.1 exige que las mediciones sean realizadas o supervisadas por personal competente. Una firma de persona no autorizada puede invalidar el documento legalmente en una disputa arbitral.'},
+      {q:'¿Verificó la vigencia y calibración de los instrumentos de medición del buque (cintas, termómetros)?', pq:'Instrumentos no calibrados son fuente de <b>ERROR SISTEMÁTICO</b>. Una cinta con desgaste en el gancho introduce un error constante en cada lectura de ullage. API MPMS Cap. 3.1 exige que las cintas cumplan estándares de precisión verificables.'},
+      {q:'¿Portaba sus propios instrumentos calibrados y vigentes (cinta, termómetro, densímetro, pasta detectora)?', pq:'El inspector independiente debe realizar mediciones propias para comparar. Si solo acepta las lecturas del buque sin verificación independiente, su función pierde valor. La diferencia entre la cinta del buque y la del inspector es la primera alerta de error sistemático instrumental.'},
+      {q:'¿Registró las condiciones ambientales al inicio (viento, estado del mar, lista del buque)?', pq:'Condiciones de mal tiempo y oleaje generan <b>ERRORES NO SISTEMÁTICOS (aleatorios)</b>: la superficie del líquido oscila dificultando lecturas estables. Si las condiciones superan límites de Cap. 3.1, las mediciones son menos confiables y deben documentarse.'},
+    ]},
+  { section:'2 — Seguridad y Acceso a Bordo', norm:'API MPMS Cap. 17.1 / ISGOTT 6ª Ed.',
+    intro:'La seguridad no es solo un requisito regulatorio: un incidente a bordo puede interrumpir la operación, crear responsabilidades legales y afectar la validez de la documentación.',
+    items:[
+      {q:'¿Utilizó EPP completo al embarcar y durante toda la operación (casco, chaleco, zapatos, guantes, lentes)?', pq:'ISGOTT y las políticas de terminal exigen EPP específico. El incumplimiento puede resultar en retiro del buque, interrumpiendo la operación.'},
+      {q:'¿Firmó el registro de ingreso al buque siguiendo el procedimiento ISPS/SMS?', pq:'El código ISPS exige registro de toda persona que ingresa. Este registro también protege al inspector: documenta su presencia y el período exacto de servicio.'},
+      {q:'¿Verificó condiciones gas-free antes de abrir manholes o hatches de medición?', pq:'La apertura de tanques puede liberar vapores inflamables o tóxicos (H₂S en crudos amargos). ISGOTT Cap. 7 y API RP 500 exigen verificación con detector de gases antes de abrir.'},
+      {q:'¿Usó detector de gases personal al acceder a cubierta de carga durante la operación?', pq:'Un detector personal (4-gas: O₂, LEL, CO, H₂S) es equipo mínimo. Sin él, el inspector no puede detectar atmósfera peligrosa.'},
+      {q:'¿Coordinó con el oficial de guardia cada acceso a cubierta de carga y tanques?', pq:'El oficial controla válvulas, purgas y movimiento de carga. Un inspector que actúa sin coordinación puede interferir con maniobras activas.'},
+    ]},
+  { section:'3 — Medición Ullage Antes de Descarga (OBQ)', norm:'API MPMS Cap. 3.1 / 3.2 / 17.6',
+    intro:'La medición inicial establece el volumen On Board Quantity. Es la base del cálculo de cantidad descargada. Errores aquí se propagan directamente a la ship\'s figure final.',
+    items:[
+      {q:'¿Midió todos los tanques del plan de descarga sin excepción, incluyendo los declarados vacíos?', pq:'Omitir un tanque deja su contenido sin contabilizar. Cap. 17.6 exige medición completa de todos los tanques, incluyendo los declarados vacíos, para confirmar OBQ residual.'},
+      {q:'¿Aplicó corrección por trim y escora a cada tanque usando las tablas de corrección del buque?', pq:'<b>ERROR SISTEMÁTICO CLÁSICO</b>: si no se aplica trim correction, tanques de popa quedan sobreestimados y los de proa subestimados, sesgando el total en una dirección consistente. Cap. 3.2 detalla el procedimiento obligatorio.'},
+      {q:'¿Realizó mínimo 2 mediciones por tanque, reconciliando diferencias > 3 mm?', pq:'Una sola medición puede estar afectada por oleaje o parallax (<b>ERROR NO SISTEMÁTICO</b>). La repetición reduce incertidumbre aleatoria. Cap. 3.1 recomienda dos lecturas coincidentes dentro de 3 mm.'},
+      {q:'¿Verificó que la cinta se posicionó en el datum plate o punto de referencia correcto para cada tanque?', pq:'Medir desde un punto diferente al datum introduce un <b>ERROR SISTEMÁTICO</b> por diferencia de altura. El inspector debe confirmar que usa el mismo punto que figura en las tablas de calibración del tanque.'},
+      {q:'¿Midió agua libre con pasta detectora en cada tanque (free water measurement)?', pq:'El agua libre no es parte del producto entregado. Cap. 10.4 exige su medición y sustracción del GOV.'},
+      {q:'¿Obtuvo la firma del Ship\'s Officer en cada lectura de ullage al momento de la medición?', pq:'La firma simultánea tiene valor legal diferente a una firma posterior. Cap. 17.1 establece que las mediciones deben ser witnessed por todas las partes.'},
+      {q:'¿Verificó que trim y escora del buque se encontraban dentro de los límites de las tablas de corrección?', pq:'Las tablas de corrección tienen rangos de validez. Si el buque está fuera del rango, las correcciones pierden precisión.'},
+    ]},
+  { section:'4 — Toma de Muestras', norm:'API MPMS Cap. 8.1 / 8.2 / 8.3',
+    intro:'La muestra determina la calidad que define el valor del cargamento. Una muestra no representativa puede llevar a disputas de millones de dólares.',
+    items:[
+      {q:'¿Seleccionó y aplicó el método de muestreo correcto según el tipo de producto y operación?', pq:'Cap. 8.1 establece métodos distintos: running sample para crudos en movimiento, spot para tanques estáticos. Usar el método incorrecto genera muestra sesgada — <b>ERROR SISTEMÁTICO en la calidad</b>.'},
+      {q:'¿Tomó la muestra del nivel o zona correcta (superior, media, inferior o all-levels según el producto)?', pq:'Los crudos tienen estratificación: el API puede variar 2–3 grados entre el fondo y la superficie.'},
+      {q:'¿Usó frascos limpios, secos, etiquetados correctamente antes de la toma?', pq:'Contaminación del envase o etiqueta errónea puede hacer que la muestra de un buque sea analizada como la de otro.'},
+      {q:'¿Documentó número de muestra, tanque, hora, método y responsable en el formulario oficial?', pq:'La trazabilidad es la cadena de custodia de la muestra. Sin documentación completa, la muestra no puede defenderse como representativa ante un arbitraje.'},
+      {q:'¿Selló y custodió correctamente las muestras hasta su entrega al laboratorio?', pq:'Una muestra sin sello puede haber sido adulterada. Temperatura de almacenamiento incorrecta puede alterar la composición.'},
+      {q:'¿Retuvo una muestra dirimente (referee sample) identificada y sellada por todas las partes?', pq:'La muestra dirimente es el árbitro en caso de resultado disputado. Cap. 8.1 exige retenerla por el tiempo mínimo contractual (usualmente 90 días).'},
+    ]},
+  { section:'5 — Temperatura y Gravedad API', norm:'API MPMS Cap. 7.1 / 9.1',
+    intro:'Temperatura y API determinan el VCF. Un error de 1°F o 0.1 en API puede cambiar el VCF en 0.0001–0.0003, equivalente a cientos de barriles en un cargamento grande.',
+    items:[
+      {q:'¿Midió temperatura en cada tanque con termómetro calibrado en tres zonas (superior, media, inferior)?', pq:'Cap. 7.1 exige medición por zonas para temperatura representativa. Tomar solo la temperatura superficial sobrestima el promedio en crudos recién cargados — <b>ERROR SISTEMÁTICO</b>.'},
+      {q:'¿Registró la temperatura observada en las unidades correctas (°F o °C según el formato del ullage report)?', pq:'La confusión de unidades entre °F y °C produce un VCF completamente erróneo.'},
+      {q:'¿Determinó la gravedad API a 60°F con densímetro calibrado sobre muestra representativa?', pq:'Un API incorrecto de solo 0.5 grados puede cambiar el VCF en 0.0005, equivalente a ~100 Bbl en un cargamento de 200,000 Bbl.'},
+      {q:'¿Aplicó corrección de temperatura al densímetro según ASTM Tables 1 y 3?', pq:'Si el densímetro se sumerge en muestra a 80°F, la lectura debe corregirse a 60°F. No aplicar esta corrección introduce un <b>ERROR SISTEMÁTICO</b>.'},
+      {q:'¿Verificó coherencia entre el API determinado en campo y el certificado de calidad del cargamento cargado?', pq:'Si el API difiere más de 0.3 grados del certificado de origen, debe investigarse antes de usar los valores.'},
+    ]},
+  { section:'6 — Cálculo VCF / CTL', norm:'API MPMS Cap. 11.1 — Tablas 6A/6B/6C/6D',
+    intro:'El VCF convierte el GOV al GSV estándar a 60°F. Es el cálculo más crítico: un VCF erróneo afecta directamente el volumen facturado en todo el cargamento.',
+    items:[
+      {q:'¿Seleccionó la tabla CTL correcta según el producto (6A crudo, 6B refinados, 6C MTBE, 6D lubricantes)?', pq:'Cada tabla usa una función de expansión térmica diferente. Usar 6B para un crudo puede generar diferencias de VCF de 0.0005–0.001 — <b>ERROR SISTEMÁTICO</b> que afecta todo el cargamento.'},
+      {q:'¿Ingresó correctamente el API@60°F y la temperatura observada como entradas a la tabla?', pq:'El VCF es función de dos variables: API y temperatura. Cualquier error en las entradas produce VCF incorrecto.'},
+      {q:'¿Verificó el VCF calculado contra el valor del Ship\'s Officer, documentando diferencias > 0.0001?', pq:'Diferencia de 0.0001 en VCF sobre 200,000 GOV Bbl = 20 Bbl. Si supera 0.0002, debe identificarse la causa.'},
+      {q:'¿Registró GOV, VCF y GSV correctamente en el ullage report (GOV × VCF = GSV)?', pq:'Errores de transcripción son errores sistemáticos evitables. El auditor debe poder verificar cada GSV independientemente.'},
+      {q:'¿Recalculó al menos un tanque completo de forma independiente antes de firmar el ullage report?', pq:'El Ship\'s Officer puede usar software con tablas mal programadas. El inspector debe tener su propio cálculo para detectar discrepancias.'},
+    ]},
+  { section:'7 — Sellado de Líneas y Válvulas', norm:'API MPMS Cap. 17.6 / 17.1',
+    intro:'El sellado garantiza la integridad del cargamento entre medición inicial y final. Válvulas no selladas permiten transferencias no autorizadas.',
+    items:[
+      {q:'¿Selló válvulas de interconexión entre tanques y líneas no activas antes del inicio de la descarga?', pq:'Las válvulas de interconexión permiten transferir producto entre tanques sin que el inspector lo detecte. Los sellos son la barrera física que previene esta manipulación.'},
+      {q:'¿Registró los números de cada sello colocado y verificó el estado de sellos preexistentes?', pq:'El registro de números crea un rastro auditable. Si un sello aparece roto al finalizar, hay evidencia de apertura no autorizada.'},
+      {q:'¿Verificó que slop tanks y tanques no declarados estuvieran sellados o aislados?', pq:'Los slop tanks contienen residuos de lavado. Si quedan conectados al sistema de descarga, pueden mezclar slops con el producto.'},
+      {q:'¿Inspeccionó el estado de la línea de carga y manifold antes de conectar el brazo de descarga?', pq:'El volumen en la línea de carga entre los tanques y el manifold (line fill) debe cuantificarse.'},
+      {q:'¿Cuantificó y documentó correctamente el volumen de line displacement o drenaje de línea?', pq:'El line displacement es la cantidad de producto en las líneas del buque. Sin documentación aparece como diferencia inexplicable.'},
+    ]},
+  { section:'8 — Monitoreo Durante la Descarga', norm:'API MPMS Cap. 17.6 / Cap. 5',
+    intro:'La presencia continua del inspector garantiza que la operación transcurrió conforme al plan. Ausencias no documentadas debilitan la validez de todo el ullage report.',
+    items:[
+      {q:'¿Permaneció a bordo o en zona de muelle durante toda la operación sin abandonar sin relevo?', pq:'Si el inspector se ausenta sin documentarlo, no puede certificar lo ocurrido en ese período. Cap. 17.1 es explícito: el inspector debe estar presente durante la operación.'},
+      {q:'¿Registró hora exacta de inicio, todas las pausas y hora de término de la descarga?', pq:'En disputas de demurrage, el tiempo de descarga documentado tiene valor económico directo.'},
+      {q:'¿Monitoreó periódicamente los niveles en los tanques activos para detectar cambios inesperados?', pq:'Una caída repentina de ullage en un tanque no activo indica transferencia no declarada. El monitoreo periódico (cada 30–60 min) es la herramienta para detectar anomalías.'},
+      {q:'¿Registró presión en manifold y tasa de flujo durante la operación si había instrumentos disponibles?', pq:'La presión y flujo en el manifold permiten calcular el volumen transferido de forma independiente.'},
+      {q:'¿Verificó que no se bombearon slops, agua de lastre o residuos hacia el sistema durante la descarga?', pq:'En operaciones fraudulentas se ha documentado la inyección de agua o slops a la línea de carga para inflar el volumen aparentemente entregado.'},
+      {q:'¿Confirmó que solo se descargaron los tanques incluidos en el plan de descarga acordado?', pq:'Descargar tanques adicionales puede incluir producto de otro consignatario o slops.'},
+    ]},
+  { section:'9 — Medición Ullage Después de Descarga (ROB)', norm:'API MPMS Cap. 3.1 / 3.2 / 17.6',
+    intro:'La medición final determina el Remain On Board y por diferencia con la medición inicial la cantidad descargada. Debe ejecutarse con igual rigurosidad.',
+    items:[
+      {q:'¿Midió todos los tanques después de la descarga, incluyendo los declarados como vacíos?', pq:'Los tanques "vacíos" pueden contener residuos (ROB) que deben documentarse.'},
+      {q:'¿Aplicó la misma metodología (mismo punto de referencia, corrección de trim) que en la medición inicial?', pq:'La consistencia metodológica es fundamental: los errores sistemáticos se cancelan al calcular la diferencia SOLO SI ambas mediciones usan el mismo método.'},
+      {q:'¿Midió el agua libre final con pasta detectora y la comparó con la medición inicial?', pq:'El agua libre final menos la inicial da la variación durante la descarga. Un aumento significativo puede indicar que se descargó agua junto con el producto.'},
+      {q:'¿Aplicó corrección de trim y escora final, verificando que esté dentro del rango de tablas?', pq:'El trim cambia significativamente durante la descarga (de cargado a en lastre). Ignorar este cambio es un <b>ERROR SISTEMÁTICO</b> clásico.'},
+      {q:'¿Obtuvo la firma del Ship\'s Officer en el ullage report final antes de desembarcar?', pq:'Sin la firma del Ship\'s Officer, el documento no tiene validez bilateral.'},
+      {q:'¿Calculó la ship\'s figure y la comparó con la shore figure antes de firmar?', pq:'La comparación debe hacerse mientras el inspector está a bordo. Una vez que el buque zarpa, la posibilidad de investigación se cierra.'},
+    ]},
+  { section:'10 — Análisis de Diferencia y Tolerancia', norm:'API MPMS Cap. 17.9 (VEF) / Cap. 12.1 / Cap. 13',
+    intro:'El análisis de diferencia es la conclusión técnica de toda la operación. Determina si la discrepancia entre shore y ship es dentro de lo esperable, o si indica un problema real.',
+    items:[
+      {q:'¿Calculó la diferencia porcentual correctamente: (Shore − Ship) / Ship × 100?', pq:'La fórmula puede variar según el contrato (shore o ship como base). Una inversión del denominador cambia el signo y magnitud.'},
+      {q:'¿Aplicó el VEF documentado del buque si estaba disponible y era estadísticamente válido (≥ 6 viajes)?', pq:'El VEF corrige el <b>ERROR SISTEMÁTICO</b> del buque. Cap. 17.09 exige mínimo 6 viajes para que sea estadísticamente representativo.'},
+      {q:'¿Verificó si la diferencia cae dentro del rango de tolerancia aplicable a la operación?', pq:'Tolerancias: Shore-Ship en terminal ≤ 0.20% (con VEF) o ≤ 0.50% (sin VEF); STS ≤ 0.30%.'},
+      {q:'¿Documentó la metodología completa para llegar a la figura acordada (VEF, tablas, ajustes aplicados)?', pq:'En arbitrajes bajo FOSFA, GAFTA o ICSID, la ausencia de metodología documentada es usualmente fatal.'},
+      {q:'¿Identificó y documentó posibles causas técnicas si la diferencia supera la tolerancia aceptable?', pq:'Una diferencia excesiva puede tener causas legítimas o indicar manipulación. El inspector debe documentar su análisis causal.'},
+    ]},
+  { section:'11 — Errores: Sistemáticos vs. No Sistemáticos', norm:'API MPMS Cap. 13.1 / 13.2',
+    intro:'API MPMS Cap. 13 es el marco estadístico de toda la medición de petróleo. Distinguir entre error sistemático y aleatorio es fundamental para saber si una diferencia es real o variación normal.',
+    items:[
+      {q:'¿Analizó si las diferencias históricas del buque muestran patrón consistente en la misma dirección (error sistemático)?', pq:'<b>ERROR SISTEMÁTICO (Bias)</b>: ocurre siempre en la misma dirección y magnitud similar. El VEF es el mecanismo para cuantificar y corregir este sesgo. <b>Un error sistemático no desaparece promediando más mediciones.</b>'},
+      {q:'¿Identificó fuentes de error aleatorio (no sistemático) que pudieron influir en esta operación?', pq:'<b>ERROR NO SISTEMÁTICO (Aleatorio)</b>: varía aleatoriamente alrededor de cero, sin dirección fija. Causas: oleaje, parallax, variación en posición del termómetro. <b>A diferencia del sistemático, el error aleatorio SE REDUCE promediando múltiples mediciones.</b>'},
+      {q:'¿Verificó precisión vs. exactitud del instrumental, distinguiendo sesgo (exactitud) de imprecisión (repetibilidad)?', pq:'<b>PRECISIÓN</b> = consistencia de mediciones repetidas (error aleatorio). <b>EXACTITUD</b> = qué tan cerca está el promedio del valor verdadero (error sistemático). Ambos tipos deben evaluarse.'},
+      {q:'¿Evaluó si las tablas de calibración del buque son fuente de error sistemático (edad, deformaciones)?', pq:'Con el tiempo, los tanques se deforman por presión y corrosión. Sin recalibración, toda medición acumula un ERROR SISTEMÁTICO. Buques con más de 10–15 años sin recalibración son sospechosos.'},
+      {q:'¿Documentó si la diferencia observada es consistente con la incertidumbre de medición esperada?', pq:'Cap. 12.2 y 13.2: <b>Incertidumbre total = √(sesgo² + aleatoria²)</b>. En condiciones normales, la incertidumbre de medición de buque es ±0.15–0.30%.'},
+      {q:'¿Distinguió si la diferencia tiene características de error aleatorio (varía sin dirección fija) o sistemático (constante)?', pq:'Si es ALEATORIA → mejorar condiciones, repetir, promediar. Si es SISTEMÁTICA → investigar causa raíz y aplicar VEF o solicitar recalibración.'},
+    ]},
+  { section:'12 — Documentación y Certificados', norm:'API MPMS Cap. 17.1 / 17.2',
+    intro:'Los documentos que emite el inspector son el producto final de su trabajo. Su calidad, completitud y oportunidad determinan si la operación quedó bien documentada para cualquier reclamación futura.',
+    items:[
+      {q:'¿Emitió el Certificate of Quantity (COQ) con todos los datos requeridos (GOV, VCF, GSV, método, fecha, firmas)?', pq:'El COQ es el documento primario de custody transfer. Campos vacíos o ilegibles invalidan el documento como evidencia.'},
+      {q:'¿Emitió el Certificate of Quality (CQL) con resultados de laboratorio o referencia al certificado de origen?', pq:'En la mayoría de los contratos el precio se ajusta por calidad. Sin CQL no hay base documentada para reclamar desvíos.'},
+      {q:'¿El ullage report final fue firmado por todas las partes presentes?', pq:'Un ullage report con una sola firma tiene valor unilateral. La firma multilateral convierte el documento en un acuerdo sobre los hechos medidos.'},
+      {q:'¿Emitió Letter of Protest cuando correspondía (diferencia excesiva, negativa a firmar, irregularidades)?', pq:'El LoP reserva el derecho a reclamar. Si el inspector omite emitirlo cuando corresponde, puede interpretarse como aceptación.'},
+      {q:'¿Entregó copia de todos los documentos al Ship\'s Officer y representantes antes de desembarcar?', pq:'La entrega in-situ crea un registro reconocido por todas las partes.'},
+      {q:'¿Reportó a Loss Control/cliente dentro del plazo establecido con informe completo y preciso?', pq:'Muchos contratos tienen plazos de reclamación de 30–60 días. Un reporte tardío puede hacer que el cliente pierda el derecho contractual.'},
+      {q:'¿Archivó correctamente toda la documentación original con número de operación?', pq:'Los documentos de custody transfer deben conservarse por el tiempo contractual (usualmente 3–5 años).'},
+    ]},
+  { section:'13 — Conducta Profesional', norm:'API Código de Ética / Política ACI LATAM',
+    intro:'La imparcialidad del inspector es el fundamento de su valor. Un inspector percibido como parcial invalida toda su documentación.',
+    items:[
+      {q:'¿Actuó con imparcialidad e independencia frente a las presiones del buque y de la terminal?', pq:'Un inspector que reporta solo lo favorable al cliente pierde credibilidad ante la contraparte. La objetividad incluye reportar hechos adversos al cliente.'},
+      {q:'¿Comunicó en tiempo real a Loss Control cualquier irregularidad o hallazgo adverso?', pq:'Algunas situaciones requieren decisión inmediata del cliente. Un reporte solo al finalizar puede llegar demasiado tarde.'},
+      {q:'¿Registró todas las acciones relevantes en el diario de operaciones con hora exacta?', pq:'El log de campo es la memoria objetiva. Entradas vagas, sin hora o incompletas no sirven como evidencia.'},
+      {q:'¿Se negó a aceptar instrucciones del buque o terminal que contravenían los procedimientos API MPMS?', pq:'La negativa a proceder incorrectamente debe documentarse indicando quién solicitó la desviación.'},
+      {q:'¿El informe final es internamente coherente (valores del cuerpo del informe coinciden con los certificados emitidos)?', pq:'Inconsistencias internas sugieren errores de transcripción o, en casos graves, alteración de documentos.'},
+    ]},
 ];
 
 const CHECKLIST_TERMINAL = [
@@ -239,7 +327,12 @@ function initModuleData(type) {
 function makeChecklistData(template) {
   return template.map(sec => ({
     section: sec.section,
-    items: sec.items.map(text => ({ text, val: '', comment: '' })),
+    norm: sec.norm || '',
+    intro: sec.intro || '',
+    items: sec.items.map(item => {
+      const isObj = typeof item === 'object';
+      return { text: isObj ? item.q : item, pq: isObj ? item.pq : '', val: '', comment: '' };
+    }),
   }));
 }
 
@@ -2000,50 +2093,176 @@ function buildChecklist(d, mod, ctx) {
   const template = mod.includes('terminal') ? CHECKLIST_TERMINAL
                  : mod.includes('alijador') ? CHECKLIST_LIGHTER
                  : CHECKLIST_VESSEL;
-  const sections = d.items && d.items.length ? d.items : template.map(s => ({
-    section: s.section,
-    items: s.items.map(text => ({ text, val: '', comment: '' })),
-  }));
+  // Migrate old format (plain text items, 5 sections) to new rich format (13 sections with pq)
+  const isOldFormat = d.items && d.items.length && (!d.items[0].norm && !d.items[0].intro);
+  const sections = (d.items && d.items.length && !isOldFormat) ? d.items : makeChecklistData(template);
 
-  const total = sections.reduce((s, sec) => s + sec.items.length, 0);
-  const done  = sections.reduce((s, sec) => s + sec.items.filter(i => i.val).length, 0);
-  const pct = total ? Math.round(done / total * 100) : 0;
+  // Scoring: C=2, P=1, N=0, na=excluded
+  let totPts = 0, totMax = 0, cCount = 0, pCount = 0, nCount = 0, naCount = 0;
+  sections.forEach(sec => sec.items.forEach(item => {
+    if (item.val === 'c')  { totPts += 2; totMax += 2; cCount++; }
+    else if (item.val === 'p') { totPts += 1; totMax += 2; pCount++; }
+    else if (item.val === 'n') { totMax += 2; nCount++; }
+    else if (item.val === 'na') { naCount++; }
+  }));
+  const pct = totMax > 0 ? Math.round(totPts / totMax * 100) : null;
+  const verdict = pct === null ? 'Sin evaluar' : pct >= 80 ? 'SATISFACTORIO' : pct >= 60 ? 'REGULAR' : 'DEFICIENTE';
+  const verdictColor = pct === null ? 'var(--muted)' : pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+  const luzR = pct !== null && pct < 60  ? '#ef4444' : '#333';
+  const luzA = pct !== null && pct >= 60 && pct < 80 ? '#fbbf24' : '#333';
+  const luzV = pct !== null && pct >= 80 ? '#4ade80' : '#333';
 
   return `
-    <div class="module-title">✅ ${MODULE_META[mod]?.label || 'Checklist'}</div>
-    <div class="module-subtitle">Auditoría de operación — ${done}/${total} ítems completados (${pct}%)</div>
-    <div style="background:var(--line2);height:6px;border-radius:3px;margin-bottom:20px">
-      <div style="background:var(--amber);height:100%;border-radius:3px;width:${pct}%;transition:width .3s"></div>
-    </div>
-    <div class="card">
-      <div class="form-row">
+    <div class="module-title">✅ ${MODULE_META[mod]?.label || 'Checklist'} — Auditoría Inspector</div>
+
+    <!-- CABECERA CON SEMÁFORO -->
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:24px;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;flex:1">
         <div class="field">
-          <label class="field-label">Inspector / Auditor</label>
+          <label class="field-label">Inspector auditado</label>
           <input class="field-input" value="${d.inspector||''}" placeholder="Nombre del inspector" data-action="save-field" data-ctx="${ctx}" data-field="inspector">
+        </div>
+        <div class="field">
+          <label class="field-label">Auditor Loss Control</label>
+          <input class="field-input" value="${d.auditor||''}" placeholder="Nombre del auditor" data-action="save-field" data-ctx="${ctx}" data-field="auditor">
         </div>
         <div class="field">
           <label class="field-label">Fecha de auditoría</label>
           <input class="field-input" type="date" value="${d.date||''}" data-action="save-field" data-ctx="${ctx}" data-field="date">
         </div>
+        <div class="field">
+          <label class="field-label">Producto</label>
+          <input class="field-input" value="${d.producto||''}" placeholder="Crudo / producto refinado" data-action="save-field" data-ctx="${ctx}" data-field="producto">
+        </div>
+      </div>
+      <!-- Semáforo de calificación -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;min-width:110px">
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <div style="width:18px;height:18px;border-radius:50%;background:${luzR};box-shadow:${luzR!=='#333'?'0 0 8px '+luzR:'none'}"></div>
+          <div style="width:18px;height:18px;border-radius:50%;background:${luzA};box-shadow:${luzA!=='#333'?'0 0 8px '+luzA:'none'}"></div>
+          <div style="width:18px;height:18px;border-radius:50%;background:${luzV};box-shadow:${luzV!=='#333'?'0 0 8px '+luzV:'none'}"></div>
+        </div>
+        <div style="font-size:26px;font-weight:700;color:${verdictColor};font-family:monospace">${pct !== null ? pct+'%' : '—'}</div>
+        <div style="font-size:11px;font-weight:700;color:${verdictColor};letter-spacing:.05em">${verdict}</div>
+        <div style="font-size:10px;color:var(--muted)">${totPts}/${totMax} pts</div>
       </div>
     </div>
-    ${sections.map((sec, si) => `
-      <div class="card">
-        <div class="checklist-section-title">${sec.section}</div>
-        ${sec.items.map((item, ii) => `
-          <div class="checklist-item">
-            <div class="checklist-item-text">${item.text}</div>
-            <div class="checklist-options">
-              <button class="chk-opt yes ${item.val==='yes'?'sel':''}" data-action="chk-set" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}" data-val="yes">S</button>
-              <button class="chk-opt no ${item.val==='no'?'sel':''}" data-action="chk-set" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}" data-val="no">N</button>
-              <button class="chk-opt na ${item.val==='na'?'sel':''}" data-action="chk-set" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}" data-val="na">N/A</button>
-            </div>
-            ${item.val === 'no' ? `
-              <div class="checklist-comment-field" style="width:100%;margin-top:4px">
-                <input class="field-input" style="font-size:11px" placeholder="Comentario / corrección..." value="${item.comment||''}" data-action="chk-comment" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}">
-              </div>` : ''}
-          </div>`).join('')}
-      </div>`).join('')}`;
+
+    <!-- LEYENDA -->
+    <div style="display:flex;gap:16px;align-items:center;padding:8px 4px;margin-bottom:8px;font-size:12px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--green);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">C</span> <b>Cumple</b> (2 pts)</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--amber);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">P</span> <b>Parcial</b> (1 pt)</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--red);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">N</span> <b>No cumple</b> (0 pts)</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#ccc;border:2px solid #aaa;display:inline-flex;align-items:center;justify-content:center;color:#666;font-weight:700;font-size:9px">N/A</span> No aplica</span>
+      <span style="color:var(--muted);font-size:11px">| ${cCount} C · ${pCount} P · ${nCount} N · ${naCount} N/A | ▶ Clic en la pregunta para ver explicación</span>
+    </div>
+
+    <!-- SECCIONES -->
+    ${sections.map((sec, si) => {
+      let sPts = 0, sMax = 0;
+      sec.items.forEach(it => {
+        if (it.val === 'c')  { sPts += 2; sMax += 2; }
+        else if (it.val === 'p') { sPts += 1; sMax += 2; }
+        else if (it.val === 'n') { sMax += 2; }
+      });
+      const sPct = sMax > 0 ? Math.round(sPts / sMax * 100) : null;
+      const sBg = sPct === null ? 'var(--steel)' : sPct >= 80 ? 'var(--green)' : sPct >= 60 ? 'var(--amber)' : 'var(--red)';
+      return `
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+        <div style="background:var(--panel2);padding:12px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--white);margin-bottom:4px">${sec.section}</div>
+            ${sec.intro ? `<div style="font-size:11px;color:rgba(255,255,255,.55);line-height:1.5;max-width:700px">${sec.intro}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+            <span style="background:${sBg};color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;white-space:nowrap">${sec.norm || ''}</span>
+            ${sPct !== null ? `<span style="color:rgba(255,255,255,.6);font-size:10px">${sPts}/${sMax} pts (${sPct}%)</span>` : ''}
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f0f2f4">
+            <th style="width:32px;text-align:center;padding:7px 8px;color:var(--muted);font-size:10px">#</th>
+            <th style="text-align:left;padding:7px 8px;color:var(--muted);font-size:10px">Pregunta de Auditoría — clic para ver explicación ▼</th>
+            <th style="width:40px;text-align:center;padding:7px 4px;color:var(--green);font-size:10px">C</th>
+            <th style="width:40px;text-align:center;padding:7px 4px;color:var(--amber);font-size:10px">P</th>
+            <th style="width:40px;text-align:center;padding:7px 4px;color:var(--red);font-size:10px">N</th>
+            <th style="width:40px;text-align:center;padding:7px 4px;color:var(--muted);font-size:10px">—</th>
+            <th style="text-align:left;padding:7px 8px;color:var(--muted);font-size:10px;min-width:160px">Hallazgo / evidencia</th>
+          </tr></thead>
+          <tbody>
+            ${sec.items.map((item, ii) => {
+              const rowBg = item.val === 'c' ? '#f0faf1' : item.val === 'n' ? '#fdf2f2' : item.val === 'p' ? '#fffcf0' : '';
+              const circleBtn = (val, color, label) => {
+                const sel = item.val === val;
+                return `<td style="text-align:center;padding:8px 4px;background:${rowBg}">
+                  <button style="width:28px;height:28px;border-radius:50%;border:2px solid ${sel?color:'#ddd'};background:${sel?color:'transparent'};color:${sel?'#fff':color};font-weight:700;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .13s"
+                    data-action="chk-set" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}" data-val="${val}">${label}</button>
+                </td>`;
+              };
+              return `<tr style="border-bottom:1px solid var(--line2)">
+                <td style="text-align:center;color:var(--muted);font-size:11px;padding:10px 8px;background:${rowBg};vertical-align:top">${ii+1}</td>
+                <td style="padding:10px 8px;background:${rowBg};vertical-align:top">
+                  <div style="color:var(--ink);cursor:pointer;line-height:1.5" data-action="chk-toggle-pq" data-si="${si}" data-ii="${ii}">»&nbsp;${item.text}</div>
+                  ${item.pq ? `<div id="pq-${si}-${ii}" style="display:none;margin-top:8px;padding:10px 12px;background:#fff9ee;border-left:3px solid var(--amber);border-radius:0 var(--r) var(--r) 0;font-size:11px;color:var(--ink);line-height:1.65">${item.pq}</div>` : ''}
+                </td>
+                ${circleBtn('c', 'var(--green)', 'C')}
+                ${circleBtn('p', 'var(--amber)', 'P')}
+                ${circleBtn('n', 'var(--red)',   'N')}
+                ${circleBtn('na','#9ca3af',      '—')}
+                <td style="padding:8px;background:${rowBg};vertical-align:top">
+                  <input style="width:100%;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font-size:11px;background:#fff" placeholder="…" value="${escHtml(item.comment||'')}" data-action="chk-comment" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}">
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }).join('')}
+
+    <!-- RESUMEN POR SECCIÓN -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px">Resumen por Categoría</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--panel2)">
+          <th style="text-align:left;padding:8px 12px;color:var(--muted);font-size:10px;text-transform:uppercase">Categoría</th>
+          <th style="padding:8px 12px;color:var(--muted);font-size:10px;text-transform:uppercase">Evaluados</th>
+          <th style="padding:8px 12px;color:var(--muted);font-size:10px;text-transform:uppercase">Puntos</th>
+          <th style="padding:8px 12px;color:var(--muted);font-size:10px;text-transform:uppercase">%</th>
+          <th style="padding:8px 12px;color:var(--muted);font-size:10px;text-transform:uppercase">Estado</th>
+        </tr></thead>
+        <tbody>
+          ${sections.map(sec => {
+            let sp = 0, sm = 0, se = 0;
+            sec.items.forEach(it => {
+              if (it.val === 'c')  { sp += 2; sm += 2; se++; }
+              else if (it.val === 'p') { sp += 1; sm += 2; se++; }
+              else if (it.val === 'n') { sm += 2; se++; }
+            });
+            const rp = sm > 0 ? Math.round(sp / sm * 100) : null;
+            const est = rp === null ? '—' : rp >= 80 ? '🟢 OK' : rp >= 60 ? '🟡 Regular' : '🔴 Deficiente';
+            return `<tr style="border-bottom:1px solid var(--line2)">
+              <td style="padding:9px 12px;font-size:12px">${sec.section.replace(/^\d+ — /,'')}</td>
+              <td style="padding:9px 12px;text-align:center;color:var(--muted)">${se}</td>
+              <td style="padding:9px 12px;text-align:center;font-family:monospace">${sp}/${sm}</td>
+              <td style="padding:9px 12px;text-align:center;font-weight:700;color:${rp===null?'var(--muted)':rp>=80?'var(--green)':rp>=60?'var(--amber)':'var(--red)'}">${rp !== null ? rp+'%' : '—'}</td>
+              <td style="padding:9px 12px">${est}</td>
+            </tr>`;
+          }).join('')}
+          <tr style="background:var(--panel);font-weight:700">
+            <td style="padding:10px 12px;color:var(--amber)">TOTAL</td>
+            <td style="padding:10px 12px;text-align:center;color:var(--amber)">—</td>
+            <td style="padding:10px 12px;text-align:center;color:var(--amber);font-family:monospace">${totPts}/${totMax}</td>
+            <td style="padding:10px 12px;text-align:center;color:${verdictColor};font-size:15px">${pct !== null ? pct+'%' : '—'}</td>
+            <td style="padding:10px 12px;color:${verdictColor}">${verdict}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Observaciones Generales</div>
+      <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Hallazgos, incumplimientos relevantes, acciones correctivas recomendadas…" data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
 }
 
 // ===== DATA SAVE HELPERS =====
@@ -2150,6 +2369,10 @@ function handleClick(e) {
   else if (a === 'dr-add-row') drAddRow(el.dataset.ctx);
   else if (a === 'dr-rm-row') drRmRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'chk-set') chkSet(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.dataset.val);
+  else if (a === 'chk-toggle-pq') {
+    const pqEl = document.getElementById(`pq-${el.dataset.si}-${el.dataset.ii}`);
+    if (pqEl) pqEl.style.display = pqEl.style.display === 'none' ? 'block' : 'none';
+  }
   else if (a === 'delete-op') deleteOp(el.dataset.id);
   else if (a === 'edit-op') editOp(el.dataset.id);
   else if (a === 'save-alijo-vessel-name' || a === 'save-alijo-vessel-imo') {/* handled by input */}
@@ -2411,12 +2634,26 @@ function drRmRow(ctx, idx) {
 }
 
 // ===== CHECKLIST =====
+function chkTemplate(mod) {
+  return mod?.includes('terminal') ? CHECKLIST_TERMINAL
+       : mod?.includes('alijador') ? CHECKLIST_LIGHTER
+       : CHECKLIST_VESSEL;
+}
+function chkMigrateIfNeeded(ref, mod) {
+  // Migrate old 5-section format to new rich 13-section format
+  const isOld = ref.data.items && ref.data.items.length &&
+                !ref.data.items[0].norm && !ref.data.items[0].intro;
+  if (isOld || !ref.data.items || !ref.data.items.length) {
+    ref.data.items = makeChecklistData(chkTemplate(mod));
+  }
+}
 function chkSet(ctx, si, ii, val) {
   const c = decodeCtx(ctx);
   const ref = getModuleRef(c);
   if (!ref) return;
-  if (!ref.data.items) return;
-  const current = ref.data.items[si]?.items[ii]?.val;
+  chkMigrateIfNeeded(ref, c.mod);
+  if (!ref.data.items?.[si]?.items?.[ii]) return;
+  const current = ref.data.items[si].items[ii].val;
   ref.data.items[si].items[ii].val = current === val ? '' : val;
   ref.save(); render();
 }
@@ -2424,6 +2661,7 @@ function chkComment(ctx, si, ii, val) {
   const c = decodeCtx(ctx);
   const ref = getModuleRef(c);
   if (!ref) return;
+  chkMigrateIfNeeded(ref, c.mod);
   if (ref.data.items?.[si]?.items?.[ii]) ref.data.items[si].items[ii].comment = val;
   ref.save();
 }
