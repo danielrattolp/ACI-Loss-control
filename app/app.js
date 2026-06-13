@@ -280,7 +280,7 @@ function buildLayout() {
     <div class="layout">
       ${buildSidebar(ops, op)}
       <div class="main">
-        ${state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
+        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
       </div>
     </div>
     ${state.modal ? buildModal() : ''}
@@ -290,7 +290,15 @@ function buildLayout() {
 function buildSidebar(ops, currentOp) {
   return `
     <div class="sidebar">
-      <div class="sidebar-section">Operaciones</div>
+      <div style="padding:12px 10px 4px">
+        <div class="sidebar-item ${state.view==='consultor'?'active':''}" data-action="open-consultor">
+          <span class="icon">🤖</span> Consultor IA
+        </div>
+        <div class="sidebar-item ${state.view==='home'&&!currentOp?'active':''}" data-action="go-home">
+          <span class="icon">🏠</span> Operaciones
+        </div>
+      </div>
+      <div class="sidebar-section" style="margin-top:8px">Recientes</div>
       <div class="sidebar-ops">
         ${ops.length === 0 ? '<div style="padding:16px;font-size:12px;color:var(--muted);text-align:center">Sin operaciones</div>' : ''}
         ${ops.map(op => `
@@ -302,6 +310,127 @@ function buildSidebar(ops, currentOp) {
         `).join('')}
       </div>
     </div>`;
+}
+
+// ===== CONSULTOR IA =====
+function buildConsultorView() {
+  const msgs = state.chatHistory || [];
+  const isLoading = state.chatLoading;
+  return `
+    <div style="display:flex;flex-direction:column;height:100%;max-height:calc(100vh - 54px)">
+      <div style="padding:24px 28px 0;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+          <div style="background:var(--amber);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🤖</div>
+          <div>
+            <div style="font-size:18px;font-weight:700;color:var(--ink)">Consultor IA — ACI Loss Control</div>
+            <div style="font-size:12px;color:var(--muted)">Asistente especializado en control de pérdidas, API MPMS, VEF y operaciones petroleras</div>
+          </div>
+          <div style="margin-left:auto">
+            <button class="btn btn-secondary btn-sm" data-action="chat-clear">Limpiar chat</button>
+          </div>
+        </div>
+        <hr class="divider" style="margin-top:16px;margin-bottom:0">
+      </div>
+
+      <div id="chat-messages" style="flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px">
+        ${msgs.length === 0 ? `
+          <div style="margin:auto;text-align:center;max-width:420px;opacity:.7">
+            <div style="font-size:40px;margin-bottom:12px">🛢️</div>
+            <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:6px">Consultor especializado en operaciones</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.6">
+              Haz preguntas sobre control de pérdidas, cálculos de VEF, API MPMS, reconciliación de figuras,
+              ullage, operaciones STS, normativas ISGOTT y cualquier aspecto técnico de la industria petrolera.
+            </div>
+            <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+              ${[
+                '¿Cómo se calcula el VEF?',
+                '¿Qué es el ullage y cómo se mide?',
+                '¿Criterios de varianza aceptable?',
+                '¿Procedimiento operación STS?',
+              ].map(q => `<button class="btn btn-secondary btn-sm" data-action="chat-suggest" data-q="${q}">${q}</button>`).join('')}
+            </div>
+          </div>
+        ` : msgs.map(m => buildChatMsg(m)).join('')}
+        ${isLoading ? `
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:var(--amber);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+            <div style="background:var(--white);border:1px solid var(--line);border-radius:0 var(--rmd) var(--rmd) var(--rmd);padding:10px 14px">
+              <div class="chat-typing"><span></span><span></span><span></span></div>
+            </div>
+          </div>` : ''}
+      </div>
+
+      <div style="padding:14px 28px 20px;flex-shrink:0;border-top:1px solid var(--line2);background:var(--white)">
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <textarea id="chat-input" class="field-textarea"
+            style="flex:1;min-height:44px;max-height:120px;resize:none;font-size:13px"
+            placeholder="Escribe tu consulta sobre operaciones petroleras…"
+            ${isLoading ? 'disabled' : ''}></textarea>
+          <button class="btn btn-primary" data-action="chat-send" style="height:44px;padding:0 20px" ${isLoading ? 'disabled' : ''}>
+            ${isLoading ? '…' : 'Enviar ↵'}
+          </button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">
+          Requiere Flask en localhost:5000 con <code>ANTHROPIC_API_KEY</code> configurada.
+          &nbsp;·&nbsp; Presiona Enter para enviar, Shift+Enter para nueva línea.
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildChatMsg(m) {
+  const isUser = m.role === 'user';
+  return `
+    <div style="display:flex;gap:10px;align-items:flex-start;${isUser?'flex-direction:row-reverse':''}">
+      <div style="background:${isUser?'var(--sea)':'var(--amber)'};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;color:white;font-weight:700">
+        ${isUser ? '👤' : '🤖'}
+      </div>
+      <div style="max-width:78%;background:${isUser?'var(--sea)':'var(--white)'};color:${isUser?'white':'var(--ink)'};border:1px solid ${isUser?'var(--sea)':'var(--line)'};border-radius:${isUser?'var(--rmd) 0':'0 var(--rmd)'} var(--rmd) var(--rmd);padding:10px 14px;font-size:13px;line-height:1.6;white-space:pre-wrap">${escHtml(m.content)}</div>
+    </div>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function chatSend() {
+  const input = document.getElementById('chat-input');
+  const text = input?.value?.trim();
+  if (!text || state.chatLoading) return;
+
+  if (!state.chatHistory) state.chatHistory = [];
+  state.chatHistory.push({ role: 'user', content: text });
+  state.chatLoading = true;
+  input.value = '';
+  render();
+  scrollChatToBottom();
+
+  try {
+    const res = await fetch('http://localhost:5000/api/consultar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: state.chatHistory }),
+    });
+    const data = await res.json();
+    if (data.reply) {
+      state.chatHistory.push({ role: 'assistant', content: data.reply });
+    } else {
+      state.chatHistory.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'Error desconocido.') });
+    }
+  } catch (err) {
+    state.chatHistory.push({ role: 'assistant', content: '⚠️ No se pudo conectar con el servidor Flask (localhost:5000). Asegúrate de que esté corriendo.' });
+  }
+
+  state.chatLoading = false;
+  render();
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  setTimeout(() => {
+    const el = document.getElementById('chat-messages');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
 }
 
 // ===== HOME =====
@@ -1111,6 +1240,12 @@ function initEvents() {
   document.addEventListener('click', handleClick);
   document.addEventListener('change', handleChange);
   document.addEventListener('input', handleInput);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && document.activeElement?.id === 'chat-input') {
+      e.preventDefault();
+      chatSend();
+    }
+  });
 }
 
 function handleClick(e) {
@@ -1121,6 +1256,10 @@ function handleClick(e) {
   const a = el.dataset.action;
 
   if (a === 'go-home') { state.view='home'; state.currentOpId=null; render(); }
+  else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
+  else if (a === 'chat-send') { chatSend(); }
+  else if (a === 'chat-clear') { state.chatHistory=[]; state.chatLoading=false; render(); }
+  else if (a === 'chat-suggest') { const q=el.dataset.q; if(q){ if(!state.chatHistory)state.chatHistory=[]; const inp=document.getElementById('chat-input'); if(inp){inp.value=q;} else {state.chatHistory.push({role:'user',content:q});state.chatLoading=true;render();scrollChatToBottom();chatSend.call({_preset:q});} } }
   else if (a === 'open-new-op') { state.modal='new-op-1'; state.modalData={}; render(); }
   else if (a === 'open-op') { state.view='op'; state.currentOpId=el.dataset.id; state.currentModule=null; state.currentAlijoIdx=0; render(); }
   else if (a === 'close-modal') { state.modal=null; render(); }

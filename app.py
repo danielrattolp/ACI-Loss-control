@@ -52,6 +52,27 @@ DEFAULT_TANK_NAMES = [
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "aci-latam-local-development"
 
+_CORS_ORIGINS = {"http://localhost:3030", "http://127.0.0.1:3030"}
+
+@app.after_request
+def add_cors(response):
+    origin = request.headers.get("Origin", "")
+    if origin in _CORS_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response
+
+@app.route("/api/consultar", methods=["OPTIONS"])
+def api_consultar_preflight():
+    resp = app.make_response("")
+    origin = request.headers.get("Origin", "")
+    if origin in _CORS_ORIGINS:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Access-Control-Allow-Methods"] = "POST,OPTIONS"
+    return resp, 204
+
 
 # ---------------------------------------------------------------------------
 # Utilidades
