@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BT Online | ACI LATAM</title>
+  <link rel="icon" href="/favicon.ico?v=3" sizes="any"/>
+  <link rel="icon" href="/assets/favicon.png?v=3" type="image/png"/>
+  <link rel="stylesheet" href="/bt/bt.css"/>
+</head>
+<body class="locked">
+
+<!-- ═══ Access Gate ═══════════════════════════════════════════════════════ -->
+<section class="access-gate" id="accessGate">
+  <div class="access-card">
+    <img src="/assets/aci-logo-black.jpeg" alt="ACI Loss Control Experts"/>
+    <p class="eyebrow">Area restringida</p>
+    <h1>BT Online</h1>
+    <p>Bill of Tonnage — Cálculo y registro de operaciones de transferencia.</p>
+    <form id="accessForm">
+      <label>Clave<input id="accessPassword" type="password" autocomplete="current-password" required/></label>
+      <button class="primary-action" type="submit">Ingresar</button>
+    </form>
+    <small id="accessError" aria-live="polite"></small>
+  </div>
+</section>
+
+<!-- ═══ App Header ════════════════════════════════════════════════════════ -->
+<header class="app-header">
+  <a class="brand" href="/operaciones" title="ACI Operaciones">
+    <img src="/assets/aci-logo-white.jpeg" alt="ACI"/>
+  </a>
+  <nav class="module-nav">
+    <a href="#encabezado">Datos</a>
+    <a href="#sec-before">Ullage Antes</a>
+    <a href="#sec-after">Ullage Después</a>
+    <a href="#tierra">Tierra</a>
+    <a href="/operaciones">← Ops Console</a>
+  </nav>
+  <div class="header-actions">
+    <button class="hdr-btn" id="btnImport">Abrir</button>
+    <input type="file" id="fileImport" accept=".json" style="display:none"/>
+    <button class="hdr-btn" id="btnExport">Guardar</button>
+    <button class="hdr-btn" id="btnReset">Nuevo</button>
+    <button class="hdr-btn primary" id="btnPrint">Imprimir / PDF</button>
+  </div>
+</header>
+
+<!-- ═══ Shell ═════════════════════════════════════════════════════════════ -->
+<main class="bt-shell">
+
+  <!-- ── Jump nav ──────────────────────────────────────── -->
+  <div class="jump-nav">
+    <a href="#encabezado">Datos de operación</a>
+    <a href="#sec-before">Ullage Antes de Descarga</a>
+    <a href="#sec-after">Ullage Después de Descarga</a>
+    <a href="#tierra">Recepción en Tierra</a>
+  </div>
+
+  <!-- ═══ Panel 1: Datos de la operación ═══════════════════════════════ -->
+  <section id="encabezado" class="panel">
+    <div class="panel-head"><h2>DATOS DE LA OPERACIÓN</h2></div>
+    <div class="panel-body">
+      <div class="hdr-grid">
+        <label>Referencia / BT No.<input id="hdr_ref" placeholder="Ej. 427-26-00332-A"/></label>
+        <label>Cliente<input id="hdr_customer" placeholder="Ej. ENAP Refinerías S.A."/></label>
+        <label>Nave<input id="hdr_vessel" placeholder="Ej. COPPER SPIRIT"/></label>
+        <label>Puerto / Fondeadero<input id="hdr_port" placeholder="Ej. Concepción Bay, Chile"/></label>
+        <label>Producto<input id="hdr_product" placeholder="Ej. MERO CRUDE OIL"/></label>
+        <label>Tabla CTL
+          <select id="hdr_table">
+            <option value="6A">6A — Crude Oil</option>
+            <option value="6B">6B — Refined Products</option>
+            <option value="6C">6C — MTBE</option>
+            <option value="6D">6D — Lubricants</option>
+          </select>
+        </label>
+        <label>Viaje №<input id="hdr_voyage" placeholder="Ej. V-76"/></label>
+        <label>Fecha inicio<input id="hdr_dateFrom" type="date"/></label>
+        <label>Fecha fin<input id="hdr_dateTo" type="date"/></label>
+        <label class="field-wide">Inspector ACI<input id="hdr_inspector" placeholder="Nombre del inspector"/></label>
+        <label>Rep. Buque<input id="hdr_vesselRep" placeholder="Chief Officer"/></label>
+        <label>Rep. Terminal<input id="hdr_terminalRep" placeholder="Terminal Representative"/></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Panel 2: Ullage Antes ════════════════════════════════════════ -->
+  <section id="sec-before" class="panel">
+    <div class="panel-head"><h2>ULLAGE REPORT — ANTES DE DESCARGA (BEFORE DISCHARGE)</h2></div>
+
+    <!-- Bulk fill -->
+    <div class="bulk-bar">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted)">Aplicar a todos los tanques:</span>
+      <label>API @60°F<input id="b_bulk_api" type="number" step="0.1" placeholder="29.5"/></label>
+      <label>Temp °F<input id="b_bulk_temp" type="number" step="0.1" placeholder="85.0"/></label>
+      <button class="ghost-btn btn-fill-api" data-section="before">Aplicar API / Temp</button>
+      <button class="small-btn btn-add-tank" data-section="before" style="margin-left:auto">+ Tanque</button>
+      <button class="small-btn btn-remove-tank" data-section="before">− Tanque</button>
+    </div>
+
+    <!-- Tank table -->
+    <div class="table-wrap">
+      <table class="ullage-table">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:90px">Tank №</th>
+            <th rowspan="2">Ullage<br>m</th>
+            <th rowspan="2">Ullage<br>Corr. m</th>
+            <th rowspan="2">T.O.V.<br>m³</th>
+            <th colspan="2">FREE WATER</th>
+            <th rowspan="2">G.O.V.<br>Volume<br>Barrels</th>
+            <th rowspan="2">API<br>@60°F</th>
+            <th rowspan="2">TEMP<br>°F</th>
+            <th rowspan="2">Thermal<br>Exp. Coeff.</th>
+            <th rowspan="2">V.C.F.<br>T-2004 6A</th>
+            <th rowspan="2">G.S.V.<br>@60°F<br>Barrels</th>
+          </tr>
+          <tr class="sub-head">
+            <th>Innage m</th>
+            <th>Volume m³</th>
+          </tr>
+        </thead>
+        <tbody id="b_tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Summary + Draft + Seals -->
+    <div class="bt-summary-wrap">
+      <!-- Left: SUMMARY column 1 -->
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">SUMMARY</p>
+        <table class="summary-table">
+          <tr><td>Total Observed Volume</td><td id="b_sumTOV">—</td><td>m³</td></tr>
+          <tr><td>Less Free Water</td><td id="b_sumFW">—</td><td>m³</td></tr>
+          <tr class="sum-highlight"><td>Gross Observed Volume</td><td id="b_sumGOV">—</td><td>BBL</td></tr>
+          <tr class="sum-highlight"><td>Gross Standard Volume @60°F</td><td id="b_sumGSV">—</td><td>BBL</td></tr>
+          <tr><td>Before, Barrels @60°F</td><td>—</td><td>BBL</td></tr>
+          <tr><td>Cubic Meters @15.0°C</td><td id="b_m3at15">—</td><td>m³</td></tr>
+          <tr>
+            <td>VEF</td>
+            <td><input class="vef-input" id="b_vef" type="number" step="0.0001" value="1.0000"/></td>
+            <td></td>
+          </tr>
+          <tr class="sum-highlight"><td>G.S.V. @60°F con VEF</td><td id="b_gsvVEF">—</td><td>BBL</td></tr>
+        </table>
+      </div>
+
+      <!-- Center: SUMMARY column 2 -->
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">CERTIFICADO</p>
+        <table class="summary-table">
+          <tr><td>Density @15°C</td><td id="b_density15">—</td><td>t/m³</td></tr>
+          <tr><td>API Gravity @60°F</td><td id="b_api">—</td><td>°API</td></tr>
+          <tr class="sum-highlight"><td>Metric Tons in Vacuum</td><td id="b_mtVac">—</td><td>MT</td></tr>
+          <tr><td>Long Tons</td><td id="b_lt">—</td><td>LT</td></tr>
+          <tr><td>US Barrels @60°F</td><td id="b_bbl">—</td><td>BBL</td></tr>
+          <tr><td>US Gallons @60°F</td><td id="b_gallons">—</td><td>US gal</td></tr>
+          <tr><td>Metric Tons (Air)</td><td id="b_mtAir">—</td><td>MT</td></tr>
+          <tr><td>Cubic Meters @60°F</td><td id="b_m3at60">—</td><td>m³</td></tr>
+        </table>
+      </div>
+
+      <!-- Right: Draft + Seals -->
+      <div class="side-panel">
+        <h3>Draft / Calado</h3>
+        <div class="draft-grid">
+          <label>Fwd m<input id="b_draftFwd" type="number" step="0.01"/></label>
+          <label>Aft m<input id="b_draftAft" type="number" step="0.01"/></label>
+          <label>Trim m<input id="b_draftTrim" type="number" step="0.01"/></label>
+          <label>List °<input id="b_draftList" type="number" step="0.01"/></label>
+        </div>
+        <hr class="divider"/>
+        <h3>Sea Valve Seal No.</h3>
+        <label>Port<input id="b_sealPort" type="text" placeholder="-"/></label>
+        <label>Stbd<input id="b_sealStbd" type="text" placeholder="-"/></label>
+        <label>O/board P<input id="b_sealObP" type="text" placeholder="-"/></label>
+        <label>O/board S<input id="b_sealObS" type="text" placeholder="-"/></label>
+      </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="sig-row">
+      <div class="sig-block">
+        <p>Inspector ACI</p>
+        <strong id="sig_inspector_before">&nbsp;</strong>
+      </div>
+      <div class="sig-block">
+        <p>Vessel Representative</p>
+        <strong id="sig_vessel_before">&nbsp;</strong>
+      </div>
+      <div class="sig-block">
+        <p>Terminal Representative</p>
+        <strong id="sig_terminal_before">&nbsp;</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Panel 3: Ullage Después ══════════════════════════════════════ -->
+  <section id="sec-after" class="panel">
+    <div class="panel-head"><h2>ULLAGE REPORT — DESPUÉS DE DESCARGA (AFTER DISCHARGE)</h2></div>
+
+    <!-- Bulk fill -->
+    <div class="bulk-bar">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted)">Aplicar a todos los tanques:</span>
+      <label>API @60°F<input id="a_bulk_api" type="number" step="0.1" placeholder="29.5"/></label>
+      <label>Temp °F<input id="a_bulk_temp" type="number" step="0.1" placeholder="85.0"/></label>
+      <button class="ghost-btn btn-fill-api" data-section="after">Aplicar API / Temp</button>
+      <button class="small-btn btn-add-tank" data-section="after" style="margin-left:auto">+ Tanque</button>
+      <button class="small-btn btn-remove-tank" data-section="after">− Tanque</button>
+    </div>
+
+    <!-- Tank table -->
+    <div class="table-wrap">
+      <table class="ullage-table">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:90px">Tank №</th>
+            <th rowspan="2">Ullage<br>m</th>
+            <th rowspan="2">Ullage<br>Corr. m</th>
+            <th rowspan="2">T.O.V.<br>m³</th>
+            <th colspan="2">FREE WATER</th>
+            <th rowspan="2">G.O.V.<br>Volume<br>Barrels</th>
+            <th rowspan="2">API<br>@60°F</th>
+            <th rowspan="2">TEMP<br>°F</th>
+            <th rowspan="2">Thermal<br>Exp. Coeff.</th>
+            <th rowspan="2">V.C.F.<br>T-2004 6A</th>
+            <th rowspan="2">G.S.V.<br>@60°F<br>Barrels</th>
+          </tr>
+          <tr class="sub-head">
+            <th>Innage m</th>
+            <th>Volume m³</th>
+          </tr>
+        </thead>
+        <tbody id="a_tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Summary + Draft + Seals -->
+    <div class="bt-summary-wrap">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">SUMMARY</p>
+        <table class="summary-table">
+          <tr><td>Total Observed Volume</td><td id="a_sumTOV">—</td><td>m³</td></tr>
+          <tr><td>Less Free Water</td><td id="a_sumFW">—</td><td>m³</td></tr>
+          <tr class="sum-highlight"><td>Gross Observed Volume</td><td id="a_sumGOV">—</td><td>BBL</td></tr>
+          <tr class="sum-highlight"><td>Gross Standard Volume @60°F</td><td id="a_sumGSV">—</td><td>BBL</td></tr>
+          <tr><td>Cubic Meters @15.0°C</td><td id="a_m3at15">—</td><td>m³</td></tr>
+          <tr>
+            <td>VEF</td>
+            <td><input class="vef-input" id="a_vef" type="number" step="0.0001" value="1.0000"/></td>
+            <td></td>
+          </tr>
+          <tr class="sum-highlight"><td>G.S.V. @60°F con VEF</td><td id="a_gsvVEF">—</td><td>BBL</td></tr>
+        </table>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">CERTIFICADO</p>
+        <table class="summary-table">
+          <tr><td>Density @15°C</td><td id="a_density15">—</td><td>t/m³</td></tr>
+          <tr><td>API Gravity @60°F</td><td id="a_api">—</td><td>°API</td></tr>
+          <tr class="sum-highlight"><td>Metric Tons in Vacuum</td><td id="a_mtVac">—</td><td>MT</td></tr>
+          <tr><td>Long Tons</td><td id="a_lt">—</td><td>LT</td></tr>
+          <tr><td>US Barrels @60°F</td><td id="a_bbl">—</td><td>BBL</td></tr>
+          <tr><td>US Gallons @60°F</td><td id="a_gallons">—</td><td>US gal</td></tr>
+          <tr><td>Metric Tons (Air)</td><td id="a_mtAir">—</td><td>MT</td></tr>
+          <tr><td>Cubic Meters @60°F</td><td id="a_m3at60">—</td><td>m³</td></tr>
+        </table>
+      </div>
+      <div class="side-panel">
+        <h3>Draft / Calado</h3>
+        <div class="draft-grid">
+          <label>Fwd m<input id="a_draftFwd" type="number" step="0.01"/></label>
+          <label>Aft m<input id="a_draftAft" type="number" step="0.01"/></label>
+          <label>Trim m<input id="a_draftTrim" type="number" step="0.01"/></label>
+          <label>List °<input id="a_draftList" type="number" step="0.01"/></label>
+        </div>
+        <hr class="divider"/>
+        <h3>Sea Valve Seal No.</h3>
+        <label>Port<input id="a_sealPort" type="text" placeholder="-"/></label>
+        <label>Stbd<input id="a_sealStbd" type="text" placeholder="-"/></label>
+        <label>O/board P<input id="a_sealObP" type="text" placeholder="-"/></label>
+        <label>O/board S<input id="a_sealObS" type="text" placeholder="-"/></label>
+      </div>
+    </div>
+
+    <div class="sig-row">
+      <div class="sig-block">
+        <p>Inspector ACI</p>
+        <strong id="sig_inspector_after">&nbsp;</strong>
+      </div>
+      <div class="sig-block">
+        <p>Vessel Representative</p>
+        <strong id="sig_vessel_after">&nbsp;</strong>
+      </div>
+      <div class="sig-block">
+        <p>Terminal Representative</p>
+        <strong id="sig_terminal_after">&nbsp;</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Panel 4: Recepción en Tierra ══════════════════════════════════ -->
+  <section id="tierra" class="panel">
+    <div class="panel-head"><h2>SHORE TANK QUANTITY REPORT — RECEPCIÓN EN TIERRA</h2></div>
+
+    <div class="bulk-bar">
+      <label>API Comp. @60°F<input id="sh_apiComp" type="number" step="0.1" placeholder="29.8"/></label>
+      <label>Densidad Lab @15°C (t/m³)<input id="sh_densityLab" type="number" step="0.00001" placeholder="0.87532"/></label>
+      <label>BSW %<input id="sh_bswPct" type="number" step="0.001" placeholder="0.070"/></label>
+      <label>Tape ID<input id="sh_tapeId" type="text" placeholder="C052" style="width:60px"/></label>
+      <label>Termóm. ID<input id="sh_thermId" type="text" placeholder="40402" style="width:62px"/></label>
+      <button class="small-btn" id="btnAddShoreTank" style="margin-left:auto">+ Tanque</button>
+      <button class="small-btn" id="btnRemShoreTank">− Tanque</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="ullage-table">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:55px">Tank</th>
+            <th rowspan="2" style="width:34px"></th>
+            <th rowspan="2">Gauge<br>m</th>
+            <th rowspan="2">Fecha</th>
+            <th rowspan="2">Hora</th>
+            <th rowspan="2">T.O.V.<br>m³</th>
+            <th colspan="2">FREE WATER</th>
+            <th rowspan="2">Roof<br>Corr<br>m³</th>
+            <th rowspan="2">G.O.V.<br>m³</th>
+            <th rowspan="2">Temp<br>°F</th>
+            <th rowspan="2">API<br>@60°F</th>
+            <th rowspan="2">Th.Exp.<br>Coeff.</th>
+            <th rowspan="2">V.C.F.<br>6A</th>
+            <th rowspan="2">G.S.V.<br>m³@60°F</th>
+          </tr>
+          <tr class="sub-head"><th>Dip m</th><th>Vol m³</th></tr>
+        </thead>
+        <tbody id="sh_tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Shore Summary -->
+    <div class="bt-summary-wrap">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">SHORE QUANTITIES</p>
+        <table class="summary-table">
+          <tr class="sum-highlight"><td>Gross Standard Volume @60°F</td><td id="sh_gsv">—</td><td>m³</td></tr>
+          <tr><td>B.S. &amp; W. Volume</td><td id="sh_bswVol">—</td><td>m³</td></tr>
+          <tr class="sum-highlight"><td>Net Standard Volume @60°F</td><td id="sh_nsv">—</td><td>m³</td></tr>
+        </table>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">CERTIFICADO TIERRA</p>
+        <table class="summary-table">
+          <tr><td>API Comp. @60°F</td><td id="sh_apiDisplay">—</td><td>°API</td></tr>
+          <tr><td>Densidad Lab @15°C</td><td id="sh_densityDisplay">—</td><td>t/m³</td></tr>
+          <tr><td>BSW</td><td id="sh_bswPctDisplay">—</td><td>%</td></tr>
+          <tr class="sum-highlight"><td>Metric Tons Bruto</td><td id="sh_mtGross">—</td><td>MT</td></tr>
+          <tr><td>Metric Tons Neto</td><td id="sh_mtNet">—</td><td>MT</td></tr>
+          <tr class="sum-highlight"><td>Long Tons Bruto</td><td id="sh_ltGross">—</td><td>LT</td></tr>
+          <tr><td>Long Tons Neto</td><td id="sh_ltNet">—</td><td>LT</td></tr>
+        </table>
+      </div>
+      <div class="side-panel">
+        <h3>Instrumentos</h3>
+        <label>Tape ID<input id="sh_tapeId2" type="text" readonly style="pointer-events:none;opacity:.7"/></label>
+        <label>Cal. Tape<input id="sh_calTape" type="date"/></label>
+        <label>Termóm. ID<input id="sh_thermId2" type="text" readonly style="pointer-events:none;opacity:.7"/></label>
+        <label>Cal. Term.<input id="sh_calTherm" type="date"/></label>
+      </div>
+    </div>
+
+    <div class="sig-row">
+      <div class="sig-block"><p>Inspector ACI</p><strong id="sig_inspector_shore">&nbsp;</strong></div>
+      <div class="sig-block"><p>Terminal Representative</p><strong id="sig_terminal_shore">&nbsp;</strong></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="/bt/bt.js"></script>
+</body>
+</html>

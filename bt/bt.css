@@ -1,0 +1,262 @@
+/* ACI LATAM – BT Module styles */
+:root {
+  --bg:     #eef2f3;
+  --surface:#ffffff;
+  --ink:    #122025;
+  --muted:  #607078;
+  --line:   #d4dde0;
+  --navy:   #0a2f3a;
+  --teal:   #0f8583;
+  --mint:   #dff2ee;
+  --amber:  #c48a2c;
+  --red:    #b8443a;
+  --green:  #247a58;
+  --shadow: 0 18px 44px rgba(13,31,38,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Arial,Helvetica,sans-serif;font-size:13px;background:var(--bg);color:var(--ink);line-height:1.45}
+body.locked{overflow:hidden}
+body.locked .app-header,
+body.locked .bt-shell{display:none}
+
+/* ── Access Gate ────────────────────────────────────────── */
+.access-gate{
+  position:fixed;inset:0;z-index:100;
+  display:grid;place-items:center;padding:22px;
+  background:linear-gradient(90deg,rgba(5,17,21,.96),rgba(5,17,21,.72)),
+    url("/assets/oil-tanker-hero.png") center/cover no-repeat;
+}
+body:not(.locked) .access-gate{display:none}
+.access-card{
+  width:min(440px,100%);padding:28px;
+  background:rgba(255,255,255,.97);border-radius:8px;
+  box-shadow:0 28px 80px rgba(0,0,0,.32);
+}
+.access-card img{width:200px;height:auto;display:block;margin-bottom:20px}
+.access-card h1{font-size:2rem;margin-bottom:8px}
+.access-card p:not(.eyebrow){color:var(--muted);margin-bottom:0}
+.access-card form{display:grid;gap:10px;margin-top:16px}
+.access-card label{display:grid;gap:5px;font-weight:700}
+.access-card input[type=password]{
+  padding:10px 12px;border:1.5px solid var(--line);border-radius:6px;font-size:14px;width:100%
+}
+.access-card input[type=password]:focus{outline:none;border-color:var(--teal)}
+#accessError{color:var(--red);min-height:18px;display:block;margin-top:4px}
+.eyebrow{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--teal);margin-bottom:6px}
+
+/* ── Header ─────────────────────────────────────────────── */
+.app-header{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:16px;
+  background:var(--navy);color:#fff;padding:0 20px;height:54px;
+}
+.app-header .brand img{height:32px;width:auto;display:block}
+.app-header .brand{text-decoration:none}
+.module-nav{display:flex;gap:2px;margin-left:16px;flex:1}
+.module-nav a{
+  color:rgba(255,255,255,.7);text-decoration:none;font-size:.78rem;font-weight:700;
+  padding:6px 11px;border-radius:5px;transition:background .15s,color .15s;white-space:nowrap;
+}
+.module-nav a:hover,.module-nav a.active{background:rgba(255,255,255,.12);color:#fff}
+.header-actions{display:flex;gap:8px;margin-left:auto}
+.hdr-btn{
+  padding:6px 14px;border-radius:6px;border:1.5px solid rgba(255,255,255,.25);
+  background:transparent;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer;transition:background .15s;
+}
+.hdr-btn:hover{background:rgba(255,255,255,.12)}
+.hdr-btn.primary{background:var(--teal);border-color:var(--teal)}
+.hdr-btn.primary:hover{background:#0d7371}
+
+/* ── Shell ───────────────────────────────────────────────── */
+.bt-shell{max-width:1600px;margin:0 auto;padding:18px 16px 60px}
+
+/* ── Panel card ──────────────────────────────────────────── */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;border-bottom:1px solid var(--line);background:var(--navy);color:#fff;
+}
+.panel-head h2{font-size:.95rem;font-weight:800;letter-spacing:.02em;margin:0}
+.panel-body{padding:16px 18px}
+
+/* ── Project header grid ─────────────────────────────────── */
+.hdr-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:10px;
+}
+.hdr-grid label{display:grid;gap:4px;font-size:.75rem;font-weight:700;color:var(--muted)}
+.hdr-grid input,.hdr-grid select{
+  padding:7px 9px;border:1.5px solid var(--line);border-radius:6px;
+  font-size:.85rem;color:var(--ink);background:#fff;width:100%;
+}
+.hdr-grid input:focus,.hdr-grid select:focus{outline:none;border-color:var(--teal)}
+.field-wide{grid-column:span 2}
+
+/* ── Section tabs ────────────────────────────────────────── */
+.section-tabs{display:flex;gap:4px;padding:12px 18px 0;border-bottom:1px solid var(--line)}
+.section-tab{
+  padding:7px 18px;border:1.5px solid var(--line);border-bottom:none;
+  border-radius:6px 6px 0 0;background:#f5f7f8;color:var(--muted);
+  font-size:.78rem;font-weight:700;cursor:pointer;transition:background .15s;
+}
+.section-tab.active{background:var(--surface);color:var(--navy);border-bottom:2px solid var(--surface);position:relative;bottom:-1px}
+.section-tab:hover:not(.active){background:var(--mint)}
+
+/* ── Bulk fill bar ───────────────────────────────────────── */
+.bulk-bar{
+  display:flex;align-items:center;gap:10px;padding:10px 18px;
+  background:#f9fbfb;border-bottom:1px solid var(--line);flex-wrap:wrap;
+}
+.bulk-bar label{display:flex;align-items:center;gap:6px;font-size:.75rem;font-weight:700;color:var(--muted)}
+.bulk-bar input{
+  width:80px;padding:5px 7px;border:1.5px solid var(--line);border-radius:5px;font-size:.82rem;
+}
+.bulk-bar input:focus{outline:none;border-color:var(--teal)}
+.ghost-btn{
+  padding:5px 12px;border:1.5px solid var(--teal);border-radius:5px;
+  background:transparent;color:var(--teal);font-size:.75rem;font-weight:700;cursor:pointer;
+}
+.ghost-btn:hover{background:var(--mint)}
+.small-btn{
+  padding:4px 10px;border:1.5px solid var(--line);border-radius:5px;
+  background:#fff;color:var(--muted);font-size:.72rem;font-weight:700;cursor:pointer;
+}
+.small-btn:hover{background:var(--bg)}
+
+/* ── Ullage table ────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;padding:0}
+table.ullage-table{
+  width:100%;border-collapse:collapse;font-size:.78rem;
+}
+table.ullage-table thead tr th{
+  background:var(--navy);color:#fff;padding:7px 6px;
+  text-align:center;font-size:.68rem;font-weight:700;letter-spacing:.02em;
+  white-space:nowrap;border:1px solid rgba(255,255,255,.15);
+}
+table.ullage-table thead tr.sub-head th{
+  background:#1a4050;font-size:.65rem;font-weight:600;padding:4px 6px;
+}
+table.ullage-table tbody tr{border-bottom:1px solid var(--line)}
+table.ullage-table tbody tr:nth-child(even){background:#f8fafb}
+table.ullage-table tbody tr:hover{background:var(--mint)}
+table.ullage-table tbody td{padding:3px 4px;text-align:center;vertical-align:middle}
+table.ullage-table tbody tr.totals-row{
+  background:var(--navy);color:#fff;font-weight:700;
+}
+table.ullage-table tbody tr.totals-row td{padding:6px 4px;border-top:2px solid var(--teal)}
+
+/* ── Cell inputs ─────────────────────────────────────────── */
+.cell-input{
+  width:100%;padding:3px 5px;border:1px solid transparent;border-radius:4px;
+  font-size:.78rem;text-align:center;background:transparent;color:var(--ink);
+}
+.cell-input:focus{outline:none;border-color:var(--teal);background:#fff}
+.name-input{text-align:left;font-weight:600;width:90px}
+.td-name{text-align:left!important;padding-left:8px!important}
+.td-readonly{background:rgba(15,133,131,.06)!important;color:var(--ink);font-weight:600}
+.gsv-cell{font-size:.82rem;font-weight:700;color:var(--green)}
+.vcf-cell{position:relative}
+.vcf-override{
+  position:absolute;bottom:-18px;left:0;right:0;font-size:.65rem;
+  padding:2px 4px;display:none;
+}
+.vcf-cell:hover .vcf-override,.vcf-override:focus{display:block}
+.gov-input{padding-right:18px}
+.td-calc{position:relative}
+.gov-lock{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  border:none;background:transparent;cursor:pointer;font-size:.75rem;color:var(--muted);padding:2px;
+}
+.gov-lock.locked{color:var(--amber)}
+
+/* ── Summary / Certificate ───────────────────────────────── */
+.bt-summary-wrap{
+  display:grid;grid-template-columns:1fr 1fr 280px;gap:20px;
+  padding:16px 18px;border-top:1px solid var(--line);
+}
+@media(max-width:900px){.bt-summary-wrap{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.bt-summary-wrap{grid-template-columns:1fr}}
+
+.summary-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.summary-table td{padding:5px 8px;border-bottom:1px solid var(--line)}
+.summary-table tr:last-child td{border-bottom:none}
+.summary-table td:first-child{color:var(--muted);font-size:.76rem}
+.summary-table td:nth-child(2){font-weight:700;text-align:right;font-size:.88rem}
+.summary-table td:nth-child(3){color:var(--muted);font-size:.72rem;padding-left:4px}
+.summary-table tr.sum-highlight td{background:var(--mint)}
+.summary-table tr.sum-highlight td:nth-child(2){color:var(--teal);font-size:1rem}
+.vef-input{
+  width:90px;padding:3px 6px;border:1.5px solid var(--teal);border-radius:5px;
+  font-size:.85rem;font-weight:700;text-align:center;color:var(--teal);
+}
+.vef-input:focus{outline:none}
+
+.side-panel h3{font-size:.78rem;font-weight:800;color:var(--navy);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+.side-panel label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.76rem;margin-bottom:6px;color:var(--muted)}
+.side-panel input{
+  width:90px;padding:5px 7px;border:1.5px solid var(--line);border-radius:5px;font-size:.82rem;text-align:center;
+}
+.side-panel input:focus{outline:none;border-color:var(--teal)}
+.draft-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.divider{margin:14px 0;border:none;border-top:1px solid var(--line)}
+
+/* ── Signature row ───────────────────────────────────────── */
+.sig-row{
+  display:flex;gap:24px;padding:16px 18px;border-top:1px solid var(--line);
+  font-size:.78rem;flex-wrap:wrap;
+}
+.sig-block{flex:1;min-width:180px}
+.sig-block p{color:var(--muted);margin-bottom:2px}
+.sig-block strong{display:block;border-bottom:1px solid var(--ink);padding-bottom:2px;min-width:160px;margin-top:12px}
+
+/* ── Nav jump links ──────────────────────────────────────── */
+.jump-nav{
+  display:flex;gap:6px;padding:10px 0;flex-wrap:wrap;margin-bottom:4px;
+}
+.jump-nav a{
+  font-size:.72rem;font-weight:700;color:var(--teal);text-decoration:none;
+  padding:4px 10px;border:1.5px solid var(--teal);border-radius:20px;
+}
+.jump-nav a:hover{background:var(--mint)}
+
+/* ── Primary action button ───────────────────────────────── */
+.primary-action{
+  padding:8px 18px;border-radius:6px;border:none;
+  background:var(--teal);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer;
+}
+.primary-action:hover{background:#0d7371}
+
+/* ── Shore Tank section ─────────────────────────────────────────────────── */
+.type-cell{font-size:.65rem;font-weight:700;white-space:nowrap;padding:3px 5px!important;color:var(--muted)}
+table.ullage-table tbody tr.shore-open{background:#fafbfb}
+table.ullage-table tbody tr.shore-close{background:#f2f5f7}
+table.ullage-table tbody tr.shore-delta{background:rgba(15,133,131,.10)!important}
+table.ullage-table tbody tr.shore-delta td{font-weight:700;color:var(--teal)!important}
+table.ullage-table tbody tr.shore-delta .gsv-cell{color:var(--green)!important;font-size:.86rem}
+table.ullage-table tbody tr.shore-sep{background:var(--bg)!important;height:5px}
+table.ullage-table tbody tr.shore-sep:hover{background:var(--bg)!important}
+
+/* ── Print ───────────────────────────────────────────────── */
+@media print {
+  body{background:#fff;font-size:9pt}
+  .app-header,.bulk-bar,.section-tabs,.header-actions,.jump-nav,
+  .btn-add-tank,.btn-remove-tank,.ghost-btn,.small-btn,.gov-lock,
+  .vcf-override,#btnReset,#btnExport,#btnImport,#btnPrint{display:none!important}
+  .panel{border:none;box-shadow:none;margin-bottom:10pt}
+  .panel-head{background:#0a2f3a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.ullage-table thead tr th{
+    background:#0a2f3a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:7pt;padding:4px 3px
+  }
+  table.ullage-table tbody td{padding:3px 3px;font-size:8pt}
+  table.ullage-table tbody tr.totals-row{
+    background:#0a2f3a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact
+  }
+  .bt-summary-wrap{grid-template-columns:1fr 1fr 240px}
+  .hdr-grid input,.hdr-grid select{border:none;padding:2px}
+  .cell-input{border:none;background:transparent}
+  .access-gate{display:none!important}
+  a[href^="#"]:after{content:none}
+  .bt-shell{max-width:100%;padding:0}
+}
