@@ -240,16 +240,59 @@ function initAlijo() {
 }
 
 // ===== CALCULATIONS =====
-function vcf6A(api, temp) {
-  // Simplified VCF for crude oil (Table 6A) at reference 60°F
+
+// VCF (API MPMS 11.1 Table 6A — Crude Oil)
+// refC: reference temperature in °C (15 = 15°C, 15.556 = 60°F, 20 = 20°C)
+function vcfCalc(api, tempC, refC = 15.556) {
+  if (!api || !tempC) return 1;
   const rho15 = 141.5 / (api + 131.5) * 999.016;
   const alpha = 613.9723 / (rho15 * rho15);
-  const dT = (temp - 15) * 1.8;
+  const dT = (tempC - refC) * 1.8;  // Δ°C to Δ°F
   return Math.exp(-alpha * dT * (1 + 0.8 * alpha * dT));
 }
+
+// Density at 15°C from API gravity (kg/m³)
+function apiToDensity15(api) {
+  if (!api) return 0;
+  return 141.5 / (api + 131.5) * 999.016;
+}
+
+// Full quantity summary from GOV, avg temp, API, BS&W
+function calcAllQuantities(govM3, avgTempC, api60, bswPct) {
+  if (!govM3 || govM3 <= 0 || !api60 || !avgTempC) return null;
+
+  const vcf60F  = vcfCalc(api60, avgTempC, 15.556);  // to 60°F
+  const vcf15C  = vcfCalc(api60, avgTempC, 15.0);    // to 15°C
+  const vcf20C  = vcfCalc(api60, avgTempC, 20.0);    // to 20°C
+
+  const gsv60F  = govM3 * vcf60F;   // m³ @ 60°F (15.556°C)
+  const gsv15C  = govM3 * vcf15C;   // m³ @ 15°C
+  const gsv20C  = govM3 * vcf20C;   // m³ @ 20°C
+
+  const bswFrac = (bswPct || 0) / 100;
+  const nsv60F  = gsv60F * (1 - bswFrac);
+  const nsv15C  = gsv15C * (1 - bswFrac);
+
+  const bbl60F  = gsv60F * 6.289811;  // 1 m³ = 6.289811 BBL
+  const gallons = bbl60F * 42;         // 42 gal/bbl
+
+  const rho15   = apiToDensity15(api60);  // kg/m³
+  const tmVac   = nsv15C * rho15 / 1000;  // MT vacuum
+  const tmAir   = tmVac - 0.0011 * nsv15C;  // buoyancy correction
+  const longTons = tmAir / 1.016047;
+  const shortTons = tmAir / 0.90718474;
+
+  const vcf60F_val = vcf60F.toFixed(7);
+  const ctpl       = vcf60F_val;  // simplified: CPL ≈ 1 for gas-free crude
+
+  return { gsv60F, gsv15C, gsv20C, nsv60F, nsv15C, bbl60F, gallons,
+           rho15, tmVac, tmAir, longTons, shortTons,
+           vcf60F, vcf15C, vcf20C, ctpl };
+}
+
 function calcGSV(tov, api, temp, bsw) {
   if (!tov || !api || !temp) return '';
-  const vcf = vcf6A(parseFloat(api), parseFloat(temp));
+  const vcf = vcfCalc(parseFloat(api), parseFloat(temp), 15.556);
   const gov = parseFloat(tov) * (1 - parseFloat(bsw || 0) / 100);
   return (gov * vcf).toFixed(3);
 }
@@ -260,6 +303,8 @@ function calcVEF(shore, vessel) {
 function ullageTotal(tanks, field) {
   return tanks.reduce((s, t) => s + (parseFloat(t[field]) || 0), 0);
 }
+function fmt(n, dec = 3) { return n != null && !isNaN(n) ? n.toLocaleString('es', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—'; }
+function fmt6(n) { return fmt(n, 6); }
 
 // ===== RENDER ENGINE =====
 function render() {
@@ -836,16 +881,36 @@ function buildKeyMeeting(d, ctx) {
 function buildUllage(d, mod, ctx) {
   const tanks = d.tanks || TANK_NAMES.map(n => ({ name: n }));
   const title = mod === 'ullage-inicial' ? 'Ullage Inicial (Before)' : 'Ullage Final (After)';
-  const totalTOV = ullageTotal(tanks, 'tov').toFixed(3);
-  const totalGOV = ullageTotal(tanks, 'gov').toFixed(3);
-  const totalGSV = ullageTotal(tanks, 'gsv').toFixed(3);
-  const totalFW  = ullageTotal(tanks, 'fw').toFixed(3);
+  const totalTOV = ullageTotal(tanks, 'tov');
+  const totalGOV = ullageTotal(tanks, 'gov');
+  const totalGSV = ullageTotal(tanks, 'gsv');
+  const totalFW  = ullageTotal(tanks, 'fw');
+
+  // Weighted averages for summary calculations
+  const govTanks = tanks.filter(t => parseFloat(t.gov) > 0);
+  const wAvgTemp = govTanks.length
+    ? govTanks.reduce((s,t) => s + (parseFloat(t.temp)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
+    : 0;
+  const wAvgApi = govTanks.length
+    ? govTanks.reduce((s,t) => s + (parseFloat(t.api)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
+    : 0;
+  const wAvgBsw = govTanks.length
+    ? govTanks.reduce((s,t) => s + (parseFloat(t.bsw)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
+    : 0;
+
+  // Override with manual inputs if provided
+  const avgTemp = parseFloat(d.avgTemp) || wAvgTemp;
+  const avgApi  = parseFloat(d.avgApi)  || wAvgApi;
+  const avgBsw  = parseFloat(d.avgBsw)  !== undefined && d.avgBsw !== '' ? parseFloat(d.avgBsw) : wAvgBsw;
+
+  const q = calcAllQuantities(totalGOV, avgTemp, avgApi, avgBsw);
 
   return `
     <div class="module-title">📐 ${title}</div>
     <div class="module-subtitle">Medición de tanques — API MPMS 12.1.1 &nbsp;|&nbsp; 14 tanques</div>
+
     <div class="card" style="padding:12px">
-      <div class="form-row" style="margin-bottom:8px">
+      <div class="form-row form-row-3" style="margin-bottom:0">
         <div class="field">
           <label class="field-label">Trim (m)</label>
           <input class="field-input" type="number" step="0.01" value="${d.trim||''}" placeholder="0.00" data-action="save-field" data-ctx="${ctx}" data-field="trim">
@@ -854,14 +919,19 @@ function buildUllage(d, mod, ctx) {
           <label class="field-label">Escora (°)</label>
           <input class="field-input" type="number" step="0.1" value="${d.list||''}" placeholder="0.0" data-action="save-field" data-ctx="${ctx}" data-field="list">
         </div>
+        <div class="field">
+          <label class="field-label" style="color:var(--muted)">Fecha / Hora medición</label>
+          <input class="field-input" type="datetime-local" value="${d.datetime||''}" data-action="save-field" data-ctx="${ctx}" data-field="datetime">
+        </div>
       </div>
     </div>
+
     <div class="card" style="padding:0;overflow:hidden">
       <div class="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th style="width:50px">Tanque</th>
+              <th style="width:46px">Tanque</th>
               <th>Ullage (m)</th>
               <th>TCF</th>
               <th>TOV (m³)</th>
@@ -870,7 +940,7 @@ function buildUllage(d, mod, ctx) {
               <th>BS&W (%)</th>
               <th>Free Water (m³)</th>
               <th>GOV (m³)</th>
-              <th>GSV (m³)</th>
+              <th>GSV @60°F (m³)</th>
             </tr>
           </thead>
           <tbody>
@@ -890,16 +960,195 @@ function buildUllage(d, mod, ctx) {
             <tr class="total-row">
               <td>TOTAL</td>
               <td></td><td></td>
-              <td>${totalTOV}</td>
+              <td>${fmt(totalTOV)}</td>
               <td></td><td></td><td></td>
-              <td>${totalFW}</td>
-              <td>${totalGOV}</td>
-              <td>${totalGSV}</td>
+              <td>${fmt(totalFW)}</td>
+              <td>${fmt(totalGOV)}</td>
+              <td>${fmt(totalGSV)}</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <!-- PROPIEDADES PARA CONVERSIÓN -->
+    <div class="card">
+      <div class="card-title">Propiedades para Conversión de Cantidades</div>
+      <div class="info-box" style="margin-bottom:12px">
+        Los valores API, temperatura y BS&W se calculan automáticamente como promedio ponderado por GOV de los tanques.
+        Puede sobreescribirlos manualmente si el laboratorio reporta valores distintos.
+      </div>
+      <div class="form-row form-row-3">
+        <div class="field">
+          <label class="field-label">Temp. promedio observada (°C)</label>
+          <input class="field-input" type="number" step="0.01"
+            value="${d.avgTemp !== undefined && d.avgTemp !== '' ? d.avgTemp : wAvgTemp.toFixed(2)}"
+            placeholder="${wAvgTemp.toFixed(2)}"
+            data-action="save-field" data-ctx="${ctx}" data-field="avgTemp">
+          <span class="field-hint">Prom. ponderado: ${wAvgTemp.toFixed(3)} °C</span>
+        </div>
+        <div class="field">
+          <label class="field-label">API Gravity @60°F</label>
+          <input class="field-input" type="number" step="0.1"
+            value="${d.avgApi !== undefined && d.avgApi !== '' ? d.avgApi : wAvgApi.toFixed(1)}"
+            placeholder="${wAvgApi.toFixed(1)}"
+            data-action="save-field" data-ctx="${ctx}" data-field="avgApi">
+          <span class="field-hint">Prom. ponderado: ${wAvgApi.toFixed(2)} °API</span>
+        </div>
+        <div class="field">
+          <label class="field-label">BS&W promedio (%)</label>
+          <input class="field-input" type="number" step="0.01"
+            value="${d.avgBsw !== undefined && d.avgBsw !== '' ? d.avgBsw : wAvgBsw.toFixed(3)}"
+            placeholder="${wAvgBsw.toFixed(3)}"
+            data-action="save-field" data-ctx="${ctx}" data-field="avgBsw">
+          <span class="field-hint">Prom. ponderado: ${wAvgBsw.toFixed(4)} %</span>
+        </div>
+      </div>
+      ${q ? `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px">
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">VCF @60°F</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--sea)">${q.vcf60F.toFixed(7)}</div>
+        </div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">VCF @15°C</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--sea)">${q.vcf15C.toFixed(7)}</div>
+        </div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">VCF @20°C</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--sea)">${q.vcf20C.toFixed(7)}</div>
+        </div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Densidad @15°C</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--sea)">${q.rho15.toFixed(4)} kg/m³</div>
+        </div>
+      </div>` : ''}
+    </div>
+
+    <!-- RESUMEN DE CANTIDADES ENTREGADAS -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
+        📊 Resumen de Cantidades — ${title}
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;width:260px">Cantidad</th>
+              <th>Valor</th>
+              <th>Unidad</th>
+              <th style="text-align:left;font-size:10px;color:var(--muted)">Descripción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:#f8f9fa">
+              <td style="font-weight:700;color:var(--ink)">TOV — Total Observed Volume</td>
+              <td class="calc-cell">${fmt(totalTOV)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">Suma directa de tanques</td>
+            </tr>
+            <tr style="background:#f8f9fa">
+              <td style="font-weight:700;color:var(--ink)">Free Water</td>
+              <td class="calc-cell">${fmt(totalFW)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">Agua libre total</td>
+            </tr>
+            <tr style="background:#f8f9fa">
+              <td style="font-weight:700;color:var(--ink)">GOV — Gross Observed Volume</td>
+              <td class="calc-cell">${fmt(totalGOV)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">TOV − Free Water</td>
+            </tr>
+            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
+
+            ${q ? `
+            <tr>
+              <td style="font-weight:700;color:var(--sea)">GSV @60°F — Gross Standard Volume</td>
+              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv60F)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 60°F = 15.556°C)</td>
+            </tr>
+            <tr>
+              <td style="font-weight:700;color:var(--sea)">GSV @60°F en Barriles</td>
+              <td class="calc-cell" style="color:var(--sea)">${fmt(q.bbl60F)}</td>
+              <td style="color:var(--muted);font-size:11px">BBL</td>
+              <td style="color:var(--muted);font-size:11px">m³ × 6.289811</td>
+            </tr>
+            <tr>
+              <td style="font-weight:700;color:var(--sea)">m³ @15°C</td>
+              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv15C)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 15°C)</td>
+            </tr>
+            <tr>
+              <td style="font-weight:700;color:var(--sea)">m³ @20°C</td>
+              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv20C)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 20°C)</td>
+            </tr>
+            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
+
+            <tr style="background:#fffcf5">
+              <td style="font-weight:700;color:var(--ink)">NSV @60°F — Net Standard Volume</td>
+              <td class="calc-cell">${fmt(q.nsv60F)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">GSV@60°F × (1 − BS&W%)</td>
+            </tr>
+            <tr style="background:#fffcf5">
+              <td style="font-weight:700;color:var(--ink)">NSV @15°C</td>
+              <td class="calc-cell">${fmt(q.nsv15C)}</td>
+              <td style="color:var(--muted);font-size:11px">m³</td>
+              <td style="color:var(--muted);font-size:11px">GSV@15°C × (1 − BS&W%)</td>
+            </tr>
+            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
+
+            <tr style="background:var(--panel)">
+              <td style="color:var(--amber);font-weight:700">TM Vacío — Metric Tons Vacuum</td>
+              <td class="calc-cell" style="color:var(--amber)">${fmt(q.tmVac)}</td>
+              <td style="color:var(--muted);font-size:11px">MT</td>
+              <td style="color:var(--muted);font-size:11px">NSV@15°C × ρ₁₅ / 1000</td>
+            </tr>
+            <tr style="background:var(--panel)">
+              <td style="color:var(--amber);font-weight:700">TM Aire — Metric Tons Air</td>
+              <td class="calc-cell" style="color:var(--amber)">${fmt(q.tmAir)}</td>
+              <td style="color:var(--muted);font-size:11px">MT</td>
+              <td style="color:var(--muted);font-size:11px">TM Vac − 0.0011 × NSV@15°C</td>
+            </tr>
+            <tr style="background:var(--panel)">
+              <td style="color:#a0b4c0;font-weight:700">Long Tons</td>
+              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.longTons)}</td>
+              <td style="color:var(--muted);font-size:11px">LT</td>
+              <td style="color:var(--muted);font-size:11px">TM Aire ÷ 1.016047</td>
+            </tr>
+            <tr style="background:var(--panel)">
+              <td style="color:#a0b4c0;font-weight:700">Short Tons</td>
+              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.shortTons)}</td>
+              <td style="color:var(--muted);font-size:11px">ST</td>
+              <td style="color:var(--muted);font-size:11px">TM Aire ÷ 0.90718474</td>
+            </tr>
+            <tr style="background:var(--panel)">
+              <td style="color:#a0b4c0;font-weight:700">US Gallons</td>
+              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.gallons, 0)}</td>
+              <td style="color:var(--muted);font-size:11px">US gal</td>
+              <td style="color:var(--muted);font-size:11px">BBL × 42</td>
+            </tr>
+            <tr style="background:var(--panel)">
+              <td style="color:#a0b4c0;font-weight:700">Ratio BBL / TM Aire</td>
+              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.bbl60F / q.tmAir, 6)}</td>
+              <td style="color:var(--muted);font-size:11px">BBL/MT</td>
+              <td style="color:var(--muted);font-size:11px">Factor de conversión</td>
+            </tr>
+            ` : `
+            <tr>
+              <td colspan="4" style="text-align:center;padding:20px;color:var(--muted);font-size:12px">
+                Complete temperatura, API y BS&W en los tanques o en "Propiedades para Conversión" para calcular las cantidades.
+              </td>
+            </tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">Notas</div>
       <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Observaciones de medición..." data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
