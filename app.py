@@ -7,7 +7,7 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -845,6 +845,181 @@ def export_pdf(operation_id: int):
     buffer.seek(0)
     filename = f"ACI-{operation_id}-{(operation.get('aci_reference') or 'OP').replace('/', '-')}.pdf"
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+# ---------------------------------------------------------------------------
+# Rutas estáticas — módulos SPA (operaciones, bt) y assets
+# ---------------------------------------------------------------------------
+
+@app.route("/operaciones")
+@app.route("/operaciones/")
+def serve_operaciones():
+    return send_from_directory("operaciones", "index.html")
+
+
+@app.route("/operaciones/<path:filename>")
+def serve_operaciones_static(filename):
+    return send_from_directory("operaciones", filename)
+
+
+@app.route("/bt")
+@app.route("/bt/")
+def serve_bt():
+    return send_from_directory("bt", "index.html")
+
+
+@app.route("/bt/<path:filename>")
+def serve_bt_static(filename):
+    return send_from_directory("bt", filename)
+
+
+@app.route("/assets/<path:filename>")
+def serve_assets(filename):
+    return send_from_directory("assets", filename)
+
+
+@app.route("/site.css")
+def serve_site_css():
+    return send_from_directory(".", "site.css")
+
+
+@app.route("/site.js")
+def serve_site_js():
+    return send_from_directory(".", "site.js")
+
+
+@app.route("/favicon.ico")
+def serve_favicon_ico():
+    return send_from_directory(".", "favicon.ico")
+
+
+# ---------------------------------------------------------------------------
+# Consultor IA — API MPMS
+# ---------------------------------------------------------------------------
+
+CONSULTOR_SYSTEM_PROMPT = """Eres un experto en medición y custody transfer de petróleo crudo y productos
+refinados, con más de 25 años de experiencia operativa en terminales marítimas y Loss Control.
+Tu conocimiento abarca la totalidad de las normas API MPMS (Manual of Petroleum Measurement Standards),
+capítulos 1 al 23, con especial dominio en:
+
+NORMAS CLAVE:
+- Cap. 2: Calibración de tanques de tierra y buques (tablas de capacidad)
+- Cap. 3: Medición de nivel en tanques — innage, ullage, flotadores, radar
+- Cap. 4: Muestreo de hidrocarburos — inline, manual, compuesto
+- Cap. 5: Medición de flujo por instrumentos — turbina, coriolis, ultrasónico
+- Cap. 7: Temperatura — termómetros, RTDs, sistemas automáticos
+- Cap. 8: Densidad — hidrómetros, densímetros en línea, laboratorio
+- Cap. 9: BSW (Basic Sediment and Water) — centrifugado, Karl Fischer
+- Cap. 10: Determinación de agua libre en tanques
+- Cap. 11.1: VCF (Volume Correction Factor) — tablas 6A, 6B, 6C, 6D para crudos,
+  products, lubricantes y generalized crude; conversión GOV→GSV→NSV
+- Cap. 11.2: Conversiones de volumen y masa (MTons, m³, BBL)
+- Cap. 12: Calculation of Petroleum Quantities — medición estática y dinámica
+- Cap. 13: Evaporative Loss Measurement
+- Cap. 14: Natural Gas Measurement
+- Cap. 15: Guía de equipos de medición
+- Cap. 17: Marine Measurement (crítico para Loss Control):
+  * 17.01: Vocabulario marino
+  * 17.02: Preparación y inspección de buques tanque
+  * 17.04: Medición de ullage/innage en buques
+  * 17.05: Determinación de agua libre a bordo
+  * 17.06: Muestreo en buques tanque
+  * 17.07: Temperature measurement on board
+  * 17.09: VEF (Vessel Experience Factor) — definición, cálculo, banco de datos mínimo
+    de 6 viajes consecutivos, correcciones por trimado y escora, límites de aplicación
+  * 17.11: Entrega y recepción de petróleo en operaciones Ship-to-Ship
+- Cap. 18: Custody Transfer — documentación, certificados (BL, CCQ, Notice of Readiness)
+- Cap. 19: Evaporative Loss Measurement
+- Cap. 20: Measurement of Multiphase Flow
+- Cap. 21: Flow Measurement Using Electronic Metering Systems
+- Cap. 22: Testing Protocols for Gas Meters
+- Cap. 23: Densitometer installations
+
+ÁREAS DE EXPERTISE ADICIONAL:
+- Análisis de discrepancias shore-vessel: causas técnicas vs. operativas
+- Cálculo e interpretación de OBQ (On Board Quantity) y ROB (Remaining on Board)
+- Trim correction, list correction, wedge formula para tanques parcialmente llenos
+- Factores de inertización (N₂) y vapores de hidrocarburo en espacio de ullage
+- Certificados de calidad: viscosidad, densidad a 15°C/60°F, flash point, pour point
+- Procedimientos de protesta (Quantity Protest, Letter of Indemnity)
+- Time sheet y NOR (Notice of Readiness), SOF (Statement of Facts)
+- Contratos de compraventa: INCOTERMS FOB, CIF, CFR en el contexto de medición
+- Arbitraje técnico y peritaje en disputas de Loss Control
+- Regulaciones de la OMI (MARPOL) relacionadas con medición de carga
+- Normas ASTM relevantes: D1298, D4052, D4006, D4007, D95, D473
+
+CRITERIOS DE ANÁLISIS:
+Cuando analices disputas de Loss Control, considera:
+1. ¿Se siguieron los procedimientos API MPMS correctamente en cada punto de medición?
+2. ¿Los instrumentos estaban calibrados y dentro del rango operativo?
+3. ¿Las condiciones ambientales (temperatura, presión atmosférica, estado del mar) fueron correctamente registradas?
+4. ¿Hay consistencia entre todas las fuentes de datos (BL, CCQ, outturn certificate)?
+5. ¿El VEF aplicado tiene respaldo estadístico suficiente (mínimo 6 viajes)?
+6. ¿Las diferencias están dentro de las tolerancias aceptadas por la industria?
+   - Transferencias shore: 0.05% a 0.20% según API 18.2
+   - Ship-to-ship (STS): hasta 0.30% según API 17.11
+   - VEF band: ±0.003 para considerar el factor estable
+7. ¿Hay factores no cuantificables (oil-on-water, vaporización, derrames)?
+
+Responde siempre en español, con precisión técnica. Cuando cites normas, indica el capítulo
+y sección específica. Cuando calcules o estimes, muestra el procedimiento paso a paso.
+Si detectas una práctica que contradice la norma API, señálalo claramente con la referencia exacta.
+"""
+
+
+@app.route("/consultor")
+def consultor_page():
+    return render_template("consultor.html")
+
+
+@app.route("/api/consultar", methods=["POST"])
+def api_consultar():
+    import os
+    try:
+        import anthropic as _anthropic
+    except ImportError:
+        return jsonify({"error": "Paquete 'anthropic' no instalado. Ejecuta: pip install anthropic"}), 500
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY no configurada. Agrega la variable de entorno antes de iniciar el servidor."}), 500
+
+    data = request.get_json(silent=True) or {}
+    messages = data.get("messages", [])
+    if not messages:
+        return jsonify({"error": "Sin mensajes."}), 400
+
+    # Validate message structure
+    valid = []
+    for m in messages:
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content"):
+            valid.append({"role": m["role"], "content": str(m["content"])[:8000]})
+    if not valid:
+        return jsonify({"error": "Mensajes inválidos."}), 400
+
+    try:
+        client = _anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=2048,
+            system=CONSULTOR_SYSTEM_PROMPT,
+            messages=valid,
+        )
+        reply = next((b.text for b in response.content if b.type == "text"), "")
+        return jsonify({"reply": reply})
+    except _anthropic.AuthenticationError:
+        return jsonify({"error": "API key inválida. Verifica ANTHROPIC_API_KEY."}), 401
+    except _anthropic.RateLimitError:
+        return jsonify({"error": "Límite de tasa alcanzado. Intenta en unos segundos."}), 429
+    except _anthropic.APIStatusError as exc:
+        return jsonify({"error": f"Error de API ({exc.status_code}): {exc.message}"}), 500
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/checklist")
+def checklist_page():
+    return render_template("checklist.html")
 
 
 if __name__ == "__main__":

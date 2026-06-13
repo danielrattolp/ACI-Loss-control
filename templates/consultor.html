@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Consultor IA — API MPMS{% endblock %}
+
+{% block content %}
+<div class="consultor-shell">
+  <div class="consultor-header">
+    <h2>Consultor IA — API MPMS Loss Control</h2>
+    <p class="consultor-subtitle">Experto en medición de petróleo, VCF, VEF, custodia y disputas según normas API MPMS</p>
+  </div>
+
+  <div class="chat-window" id="chatWindow">
+    <div class="msg assistant">
+      <div class="msg-bubble">
+        Hola. Soy tu consultor especializado en API MPMS y Loss Control. Puedo ayudarte con:<br><br>
+        • Interpretación de normas API (Caps. 1–23)<br>
+        • Cálculo y validación de VCF (Cap. 11.1) y VEF (Cap. 17.09)<br>
+        • Análisis de disputas en transferencia de custodia<br>
+        • Metodología de medición en buques tanque<br>
+        • Tolerancias, diferencias admisibles y resolución de discrepancias<br><br>
+        ¿En qué puedo ayudarte hoy?
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <textarea id="userInput" class="chat-textarea" placeholder="Escribe tu consulta sobre API MPMS, VCF, VEF, Loss Control..." rows="3"></textarea>
+    <button id="sendBtn" class="btn-send" onclick="sendMessage()">Enviar</button>
+  </div>
+  <div class="chat-hint">Presiona Ctrl+Enter para enviar · La conversación se mantiene en esta sesión</div>
+</div>
+
+<style>
+.consultor-shell {
+  max-width: 860px;
+  margin: 1.5rem auto;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+}
+.consultor-header { margin-bottom: 1rem; }
+.consultor-header h2 { margin: 0; font-size: 1.25rem; }
+.consultor-subtitle { margin: .25rem 0 0; color: #666; font-size: .875rem; }
+
+.chat-window {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.msg { display: flex; }
+.msg.user { justify-content: flex-end; }
+.msg.assistant { justify-content: flex-start; }
+
+.msg-bubble {
+  max-width: 78%;
+  padding: .65rem 1rem;
+  border-radius: 12px;
+  font-size: .9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user .msg-bubble {
+  background: #0d6efd;
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.msg.assistant .msg-bubble {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-bottom-left-radius: 3px;
+}
+.msg.thinking .msg-bubble {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  font-style: italic;
+}
+
+.chat-input-area {
+  display: flex;
+  gap: .5rem;
+  margin-top: .75rem;
+  align-items: flex-end;
+}
+.chat-textarea {
+  flex: 1;
+  resize: vertical;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  padding: .5rem .75rem;
+  font-size: .9rem;
+  font-family: inherit;
+}
+.chat-textarea:focus { outline: none; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13,110,253,.2); }
+.btn-send {
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: .5rem 1.25rem;
+  font-size: .9rem;
+  cursor: pointer;
+  height: 38px;
+  white-space: nowrap;
+}
+.btn-send:hover { background: #0b5ed7; }
+.btn-send:disabled { background: #6c757d; cursor: not-allowed; }
+.chat-hint { font-size: .75rem; color: #999; margin-top: .3rem; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chatWindow = document.getElementById('chatWindow');
+const userInput  = document.getElementById('userInput');
+const sendBtn    = document.getElementById('sendBtn');
+
+// conversation history sent to backend
+let history = [];
+
+function scrollBottom() {
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  div.appendChild(bubble);
+  chatWindow.appendChild(div);
+  scrollBottom();
+  return bubble;
+}
+
+userInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); sendMessage(); }
+});
+
+async function sendMessage() {
+  const text = userInput.value.trim();
+  if (!text) return;
+
+  userInput.value = '';
+  sendBtn.disabled = true;
+  addMsg('user', text);
+  history.push({ role: 'user', content: text });
+
+  // thinking indicator
+  const thinkDiv = document.createElement('div');
+  thinkDiv.className = 'msg thinking';
+  thinkDiv.innerHTML = '<div class="msg-bubble">Consultando normas API MPMS…</div>';
+  chatWindow.appendChild(thinkDiv);
+  scrollBottom();
+
+  try {
+    const resp = await fetch('/api/consultar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history })
+    });
+
+    chatWindow.removeChild(thinkDiv);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'Error desconocido' }));
+      addMsg('assistant', '⚠ Error: ' + (err.error || resp.statusText));
+      sendBtn.disabled = false;
+      return;
+    }
+
+    const data = await resp.json();
+    const reply = data.reply || '';
+    addMsg('assistant', reply);
+    history.push({ role: 'assistant', content: reply });
+
+  } catch (e) {
+    chatWindow.removeChild(thinkDiv);
+    addMsg('assistant', '⚠ Error de conexión. Verifica que el servidor esté corriendo.');
+  }
+
+  sendBtn.disabled = false;
+  userInput.focus();
+}
+</script>
+{% endblock %}

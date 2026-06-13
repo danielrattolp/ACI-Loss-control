@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+{% block title %}Checklist Auditoría — Inspector Loss Control{% endblock %}
+
+{% block content %}
+<div class="cl-shell">
+
+  <!-- ── CABECERA ── -->
+  <div class="cl-topbar">
+    <div>
+      <h2 class="cl-title">Auditoría de Inspector — Recepción de Buque en Descarga</h2>
+      <p class="cl-sub">Evaluación de desempeño · API MPMS Loss Control · Haz clic en la celda para marcar</p>
+    </div>
+    <div class="cl-score-box" id="scoreBox">
+      <div class="cl-semaforo">
+        <div class="cl-luz" id="luzR"></div>
+        <div class="cl-luz" id="luzA"></div>
+        <div class="cl-luz" id="luzV"></div>
+      </div>
+      <div class="cl-score-nums">
+        <span class="cl-pct" id="clPct">—</span>
+        <span class="cl-verdict" id="clVerdict">Sin evaluar</span>
+        <span class="cl-pts" id="clPts"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DATOS DE LA OPERACIÓN ── -->
+  <div class="cl-meta">
+    <div class="cl-meta-row">
+      <label>Inspector auditado<input type="text" id="mInspector" placeholder="Nombre del inspector"></label>
+      <label>Auditor Loss Control<input type="text" id="mAuditor"   placeholder="Nombre del auditor"></label>
+      <label>Buque<input type="text" id="mBuque"     placeholder="Nombre de la nave"></label>
+      <label>BT / Ref.<input type="text" id="mRef"       placeholder="Nº de operación"></label>
+      <label>Puerto<input type="text" id="mPuerto"    placeholder="Puerto o terminal"></label>
+      <label>Fecha<input type="date" id="mFecha"></label>
+    </div>
+    <div class="cl-meta-row" style="margin-top:.4rem">
+      <label style="flex:3">Producto<input type="text" id="mProducto" placeholder="Crudo / producto refinado"></label>
+    </div>
+  </div>
+
+  <!-- ── LEYENDA ── -->
+  <div class="cl-leyenda">
+    <span class="ly c">C&nbsp;Cumple (2)</span>
+    <span class="ly p">P&nbsp;Parcial (1)</span>
+    <span class="ly n">N&nbsp;No cumple (0)</span>
+    <span class="ly na">—&nbsp;N/A</span>
+    <span class="ly-sep">|</span>
+    <span class="ly-hint">▶ Clic en la celda para marcar · Clic en la pregunta para ver explicación</span>
+  </div>
+
+  <!-- ── CHECKLIST (generado por JS) ── -->
+  <div id="clBody"></div>
+
+  <!-- ── RESUMEN ── -->
+  <div class="cl-resumen">
+    <h4 class="cl-sec-title">Resumen por Categoría</h4>
+    <table class="res-tbl" id="resTbl">
+      <thead><tr><th>Categoría</th><th>Evaluados</th><th>Puntos</th><th>%</th><th>Estado</th></tr></thead>
+      <tbody id="resTbody"></tbody>
+      <tfoot><tr id="resTotRow" class="res-tot"><td><b>TOTAL</b></td><td></td><td></td><td></td><td></td></tr></tfoot>
+    </table>
+  </div>
+
+  <!-- ── OBSERVACIONES ── -->
+  <div class="cl-obs-sec">
+    <h4 class="cl-sec-title">Observaciones Generales</h4>
+    <textarea id="obsGen" rows="4" placeholder="Hallazgos, incumplimientos relevantes, acciones correctivas recomendadas…"></textarea>
+  </div>
+
+  <!-- ── BOTONES ── -->
+  <div class="cl-btns">
+    <button class="btn-cl btn-lmp" onclick="limpiar()">Limpiar todo</button>
+    <button class="btn-cl btn-imp" onclick="window.print()">Imprimir / PDF</button>
+  </div>
+
+</div><!-- /cl-shell -->
+
+<!-- ═══════════════════ DATOS ═══════════════════ -->
+<script>
+const CATS = [
+  { id:"pre", t:"1 — Pre-embarco y Documentación Previa", n:"API MPMS Cap. 17.1 / 17.2",
+    intro:"Antes de subir al buque, el inspector debe reunir y revisar toda la documentación de calibración y antecedentes del cargamento. Esta etapa define la calidad de toda la medición posterior.",
+    items:[
+      {q:"¿Verificó y revisó las tablas de calibración del buque (ullage/innage tables) antes de iniciar mediciones?",
+       pq:"Las tablas de capacidad del buque son la base de todo cálculo de volumen a bordo. Si el inspector usa tablas desactualizadas o incorrectas, cada volumen calculado será erróneo. Cap. 2.8A exige tablas emitidas por organismo reconocido y vigentes. Un error en la tabla es un <b>ERROR SISTEMÁTICO</b>: sesga la ship's figure en la misma dirección en todos los tanques."},
+      {q:"¿Solicitó el ullage report del viaje anterior para controlar el historial VEF del buque?",
+       pq:"El VEF (Cap. 17.09) se construye con ≥6 viajes. Revisar el historial permite anticipar si el buque tiene <b>sesgo sistemático documentado</b> y si debe aplicarse VEF para corregirlo. Sin este contexto, el inspector no puede evaluar si la diferencia actual es normal o anómala."},
+      {q:"¿Confirmó la identidad y certificación del Ship's Officer responsable de las mediciones?",
+       pq:"Cap. 17.1 exige que las mediciones sean realizadas o supervisadas por personal competente. Una firma de persona no autorizada puede invalidar el documento legalmente en una disputa arbitral."},
+      {q:"¿Verificó la vigencia y calibración de los instrumentos de medición del buque (cintas, termómetros)?",
+       pq:"Instrumentos no calibrados son fuente de <b>ERROR SISTEMÁTICO</b>. Una cinta con desgaste en el gancho introduce un error constante en cada lectura de ullage. API MPMS Cap. 3.1 exige que las cintas cumplan estándares de precisión verificables."},
+      {q:"¿Portaba sus propios instrumentos calibrados y vigentes (cinta, termómetro, densímetro, pasta detectora)?",
+       pq:"El inspector independiente debe realizar mediciones propias para comparar. Si solo acepta las lecturas del buque sin verificación independiente, su función pierde valor. La diferencia entre la cinta del buque y la del inspector es la primera alerta de error sistemático instrumental."},
+      {q:"¿Registró las condiciones ambientales al inicio (viento, estado del mar, lista del buque)?",
+       pq:"Condiciones de mal tiempo y oleaje generan <b>ERRORES NO SISTEMÁTICOS (aleatorios)</b>: la superficie del líquido oscila dificultando lecturas estables. Si las condiciones superan límites de Cap. 3.1, las mediciones son menos confiables y deben documentarse para explicar mayor dispersión."},
+    ]
+  },
+  { id:"seg", t:"2 — Seguridad y Acceso a Bordo", n:"API MPMS Cap. 17.1 / ISGOTT 6ª Ed.",
+    intro:"La seguridad no es solo un requisito regulatorio: un incidente a bordo puede interrumpir la operación, crear responsabilidades legales y afectar la validez de la documentación.",
+    items:[
+      {q:"¿Utilizó EPP completo al embarcar y durante toda la operación (casco, chaleco, zapatos, guantes, lentes)?",
+       pq:"ISGOTT y las políticas de terminal exigen EPP específico. El incumplimiento puede resultar en retiro del buque, interrumpiendo la operación. En caso de accidente sin EPP, el inspector y su empresa quedan expuestos legalmente."},
+      {q:"¿Firmó el registro de ingreso al buque siguiendo el procedimiento ISPS/SMS?",
+       pq:"El código ISPS exige registro de toda persona que ingresa. Este registro también protege al inspector: documenta su presencia y el período exacto de servicio, información crítica si hay disputas sobre si estuvo presente en momentos clave."},
+      {q:"¿Verificó condiciones gas-free antes de abrir manholes o hatches de medición?",
+       pq:"La apertura de tanques puede liberar vapores inflamables o tóxicos (H₂S en crudos amargos). ISGOTT Cap. 7 y API RP 500 exigen verificación con detector de gases antes de abrir. El H₂S puede incapacitar instantáneamente sin previo aviso."},
+      {q:"¿Usó detector de gases personal al acceder a cubierta de carga durante la operación?",
+       pq:"Un detector personal (4-gas: O₂, LEL, CO, H₂S) es equipo mínimo. Sin él, el inspector no puede detectar atmósfera peligrosa. Los vapores de hidrocarburos pueden acumularse en cubierta sin ser visibles."},
+      {q:"¿Coordinó con el oficial de guardia cada acceso a cubierta de carga y tanques?",
+       pq:"El oficial controla válvulas, purgas y movimiento de carga. Un inspector que actúa sin coordinación puede interferir con maniobras activas, creando riesgos de derrame o daño a la tubería."},
+    ]
+  },
+  { id:"ub", t:"3 — Medición Ullage Antes de Descarga (OBQ)", n:"API MPMS Cap. 3.1 / 3.2 / 17.6",
+    intro:"La medición inicial establece el volumen On Board Quantity. Es la base del cálculo de cantidad descargada. Errores aquí se propagan directamente a la ship's figure final.",
+    items:[
+      {q:"¿Midió todos los tanques del plan de descarga sin excepción, incluyendo los declarados vacíos?",
+       pq:"Omitir un tanque deja su contenido sin contabilizar. Cap. 17.6 exige medición completa de todos los tanques, incluyendo los declarados vacíos, para confirmar OBQ residual."},
+      {q:"¿Aplicó corrección por trim y escora a cada tanque usando las tablas de corrección del buque?",
+       pq:"<b>ERROR SISTEMÁTICO CLÁSICO</b>: si no se aplica trim correction, tanques de popa quedan sobreestimados y los de proa subestimados, sesgando el total en una dirección consistente. Cap. 3.2 detalla el procedimiento obligatorio."},
+      {q:"¿Realizó mínimo 2 mediciones por tanque, reconciliando diferencias > 3 mm?",
+       pq:"Una sola medición puede estar afectada por oleaje o parallax (<b>ERROR NO SISTEMÁTICO</b>). La repetición reduce incertidumbre aleatoria. Cap. 3.1 recomienda dos lecturas coincidentes dentro de 3 mm; si difieren más, se requiere tercera medición."},
+      {q:"¿Verificó que la cinta se posicionó en el datum plate o punto de referencia correcto para cada tanque?",
+       pq:"Medir desde un punto diferente al datum introduce un <b>ERROR SISTEMÁTICO</b> por diferencia de altura. El inspector debe confirmar que usa el mismo punto que figura en las tablas de calibración del tanque."},
+      {q:"¿Midió agua libre con pasta detectora en cada tanque (free water measurement)?",
+       pq:"El agua libre no es parte del producto entregado. Cap. 10.4 exige su medición y sustracción del GOV. En crudos pesados con alta BS&W, el agua libre puede representar cientos de barriles no descontados."},
+      {q:"¿Obtuvo la firma del Ship's Officer en cada lectura de ullage al momento de la medición?",
+       pq:"La firma simultánea tiene valor legal diferente a una firma posterior. Cap. 17.1 establece que las mediciones deben ser witnessed por todas las partes. Una firma diferida debilita la posición del inspector en disputa."},
+      {q:"¿Verificó que trim y escora del buque se encontraban dentro de los límites de las tablas de corrección?",
+       pq:"Las tablas de corrección tienen rangos de validez. Si el buque está fuera del rango, las correcciones pierden precisión y debe emitirse una nota en el ullage report advirtiendo las implicancias en la confiabilidad del volumen."},
+    ]
+  },
+  { id:"mu", t:"4 — Toma de Muestras", n:"API MPMS Cap. 8.1 / 8.2 / 8.3",
+    intro:"La muestra determina la calidad que define el valor del cargamento. Una muestra no representativa puede llevar a disputas de millones de dólares sobre el grado real del crudo o contenido de agua.",
+    items:[
+      {q:"¿Seleccionó y aplicó el método de muestreo correcto según el tipo de producto y operación?",
+       pq:"Cap. 8.1 establece métodos distintos: running sample para crudos en movimiento, spot para tanques estáticos, composite para representar un lote. Usar el método incorrecto genera muestra sesgada — <b>ERROR SISTEMÁTICO en la calidad</b>."},
+      {q:"¿Tomó la muestra del nivel o zona correcta (superior, media, inferior o all-levels según el producto)?",
+       pq:"Los crudos tienen estratificación: el API puede variar 2–3 grados entre el fondo y la superficie. Una muestra solo de superficie sobrestima el API y subestima el BS&W, con impacto directo en el precio."},
+      {q:"¿Usó frascos limpios, secos, etiquetados correctamente antes de la toma?",
+       pq:"Contaminación del envase o etiqueta errónea puede hacer que la muestra de un buque sea analizada como la de otro. El error en calidad resultante puede ser mayor que cualquier error de cantidad."},
+      {q:"¿Documentó número de muestra, tanque, hora, método y responsable en el formulario oficial?",
+       pq:"La trazabilidad es la cadena de custodia de la muestra. Sin documentación completa, la muestra no puede defenderse como representativa ante un arbitraje."},
+      {q:"¿Selló y custodió correctamente las muestras hasta su entrega al laboratorio?",
+       pq:"Una muestra sin sello puede haber sido adulterada. Temperatura de almacenamiento incorrecta (especialmente en crudos volátiles con RVP alto) puede alterar la composición y afectar resultados de calidad."},
+      {q:"¿Retuvo una muestra dirimente (referee sample) identificada y sellada por todas las partes?",
+       pq:"La muestra dirimente es el árbitro en caso de resultado disputado. Si no existe, la disputa queda sin resolución objetiva. Cap. 8.1 exige retenerla por el tiempo mínimo contractual (usualmente 90 días)."},
+    ]
+  },
+  { id:"ta", t:"5 — Temperatura y Gravedad API", n:"API MPMS Cap. 7.1 / 9.1",
+    intro:"Temperatura y API determinan el VCF. Un error de 1°F o 0.1 en API puede cambiar el VCF en 0.0001–0.0003, equivalente a cientos de barriles en un cargamento grande.",
+    items:[
+      {q:"¿Midió temperatura en cada tanque con termómetro calibrado en tres zonas (superior, media, inferior)?",
+       pq:"Cap. 7.1 exige medición por zonas para temperatura representativa. Tomar solo la temperatura superficial sobrestima el promedio en crudos recién cargados — <b>ERROR SISTEMÁTICO</b> que favorece al exportador."},
+      {q:"¿Registró la temperatura observada en las unidades correctas (°F o °C según el formato del ullage report)?",
+       pq:"La confusión de unidades entre °F y °C produce un VCF completamente erróneo. Las tablas API MPMS Cap. 11.1 operan en °F para el API estándar."},
+      {q:"¿Determinó la gravedad API a 60°F con densímetro calibrado sobre muestra representativa?",
+       pq:"Un API incorrecto de solo 0.5 grados puede cambiar el VCF en 0.0005, equivalente a ~100 Bbl en un cargamento de 200,000 Bbl."},
+      {q:"¿Aplicó corrección de temperatura al densímetro según ASTM Tables 1 y 3?",
+       pq:"Si el densímetro se sumerge en muestra a 80°F, la lectura debe corregirse a 60°F. No aplicar esta corrección introduce un <b>ERROR SISTEMÁTICO</b> cuya magnitud depende de la diferencia entre la temperatura de la muestra y 60°F."},
+      {q:"¿Verificó coherencia entre el API determinado en campo y el certificado de calidad del cargamento cargado?",
+       pq:"Si el API difiere más de 0.3 grados del certificado de origen, debe investigarse antes de usar los valores. Puede indicar mezcla con otro producto, contaminación, o error en campo."},
+    ]
+  },
+  { id:"vcf", t:"6 — Cálculo VCF / CTL (Volume Correction Factor)", n:"API MPMS Cap. 11.1 — Tablas 6A/6B/6C/6D",
+    intro:"El VCF convierte el GOV al GSV estándar a 60°F. Es el cálculo más crítico: un VCF erróneo afecta directamente el volumen facturado en todo el cargamento.",
+    items:[
+      {q:"¿Seleccionó la tabla CTL correcta según el producto (6A crudo, 6B refinados, 6C MTBE, 6D lubricantes)?",
+       pq:"Cada tabla usa una función de expansión térmica diferente. Usar 6B para un crudo (que debería usar 6A) puede generar diferencias de VCF de 0.0005–0.001 — <b>ERROR SISTEMÁTICO</b> que afecta todo el cargamento en la misma proporción."},
+      {q:"¿Ingresó correctamente el API@60°F y la temperatura observada como entradas a la tabla?",
+       pq:"El VCF es función de dos variables: API y temperatura. Cualquier error en las entradas produce VCF incorrecto. El inspector debe usar el API corregido a 60°F, no el observado a temperatura de tanque."},
+      {q:"¿Verificó el VCF calculado contra el valor del Ship's Officer, documentando diferencias > 0.0001?",
+       pq:"Diferencia de 0.0001 en VCF sobre 200,000 GOV Bbl = 20 Bbl. Si supera 0.0002, debe identificarse la causa. Esta verificación es la primera defensa contra <b>ERROR SISTEMÁTICO</b> en el cálculo."},
+      {q:"¿Registró GOV, VCF y GSV correctamente en el ullage report, con coherencia aritmética (GOV × VCF = GSV)?",
+       pq:"Errores de transcripción (copiar VCF de un tanque a otro, invertir decimales) son errores sistemáticos evitables. El auditor debe poder verificar cada GSV independientemente con los valores registrados."},
+      {q:"¿Recalculó al menos un tanque completo de forma independiente antes de firmar el ullage report?",
+       pq:"El Ship's Officer puede usar software con tablas mal programadas o desactualizadas. El inspector debe tener su propio cálculo para detectar discrepancias. Es el control de calidad mínimo exigido por mejores prácticas de custody transfer."},
+    ]
+  },
+  { id:"se", t:"7 — Sellado de Líneas y Válvulas", n:"API MPMS Cap. 17.6 / 17.1",
+    intro:"El sellado garantiza la integridad del cargamento entre medición inicial y final. Válvulas no selladas permiten transferencias no autorizadas que alteran los volúmenes sin rastro.",
+    items:[
+      {q:"¿Selló válvulas de interconexión entre tanques y líneas no activas antes del inicio de la descarga?",
+       pq:"Las válvulas de interconexión permiten transferir producto entre tanques sin que el inspector lo detecte. Los sellos son la barrera física que previene esta manipulación, documentada como obligatoria en Cap. 17.6."},
+      {q:"¿Registró los números de cada sello colocado y verificó el estado de sellos preexistentes del puerto de carga?",
+       pq:"El registro de números crea un rastro auditable. Si un sello aparece roto al finalizar, hay evidencia de apertura no autorizada. Sellos preexistentes rotos deben documentarse con Letter of Protest inmediatamente."},
+      {q:"¿Verificó que slop tanks y tanques no declarados estuvieran sellados o aislados?",
+       pq:"Los slop tanks contienen residuos de lavado y mezclas de viajes anteriores. Si quedan conectados al sistema de descarga, pueden mezclar slops con el producto, alterando calidad y cantidad. Es fuente de diferencias inexplicables por VEF."},
+      {q:"¿Inspeccionó el estado de la línea de carga y manifold antes de conectar el brazo de descarga?",
+       pq:"El volumen en la línea de carga entre los tanques y el manifold (line fill) debe cuantificarse. Una línea llena de viaje anterior que descarga junto con el cargamento sobreestima la cantidad entregada."},
+      {q:"¿Cuantificó y documentó correctamente el volumen de line displacement o drenaje de línea?",
+       pq:"El line displacement es la cantidad de producto en las líneas del buque. Este volumen no forma parte del cargamento principal y debe manejarse por separado. Sin documentación aparece como diferencia inexplicable."},
+    ]
+  },
+  { id:"dc", t:"8 — Monitoreo Durante la Descarga", n:"API MPMS Cap. 17.6 / Cap. 5",
+    intro:"La presencia continua del inspector garantiza que la operación transcurrió conforme al plan. Ausencias no documentadas debilitan la validez de todo el ullage report.",
+    items:[
+      {q:"¿Permaneció a bordo o en zona de muelle durante toda la operación sin abandonar sin relevo?",
+       pq:"Si el inspector se ausenta sin documentarlo, no puede certificar lo ocurrido en ese período. Cap. 17.1 es explícito: el inspector debe estar present durante la operación."},
+      {q:"¿Registró hora exacta de inicio, todas las pausas y hora de término de la descarga?",
+       pq:"En disputas de demurrage, el tiempo de descarga documentado tiene valor económico directo. El log de tiempos es el marco temporal del certificado y evidencia primaria de cualquier reclamación."},
+      {q:"¿Monitoreó periódicamente los niveles en los tanques activos para detectar cambios inesperados?",
+       pq:"Una caída repentina de ullage en un tanque no activo indica transferencia no declarada. El monitoreo periódico (cada 30–60 min) es la herramienta para detectar anomalías en tiempo real."},
+      {q:"¿Registró presión en manifold y tasa de flujo durante la operación si había instrumentos disponibles?",
+       pq:"La presión y flujo en el manifold permiten calcular el volumen transferido de forma independiente. Si difiere significativamente de la diferencia de ullages, hay una inconsistencia que debe investigarse antes de firmar."},
+      {q:"¿Verificó que no se bombearon slops, agua de lastre o residuos hacia el sistema durante la descarga?",
+       pq:"En operaciones fraudulentas se ha documentado la inyección de agua o slops a la línea de carga para inflar el volumen aparentemente entregado. El inspector debe verificar que todos los tanques activos contienen solo el producto declarado."},
+      {q:"¿Confirmó que solo se descargaron los tanques incluidos en el plan de descarga acordado?",
+       pq:"El plan de descarga define qué tanques se vaciarán. Descargar tanques adicionales puede incluir producto de otro consignatario o slops. El inspector debe verificar ullages de tanques no programados al inicio y al final."},
+    ]
+  },
+  { id:"ua", t:"9 — Medición Ullage Después de Descarga (ROB)", n:"API MPMS Cap. 3.1 / 3.2 / 17.6",
+    intro:"La medición final determina el Remain On Board y por diferencia con la medición inicial la cantidad descargada según el buque. Debe ejecutarse con igual rigurosidad que la medición inicial.",
+    items:[
+      {q:"¿Midió todos los tanques después de la descarga, incluyendo los declarados como vacíos?",
+       pq:"Los tanques 'vacíos' pueden contener residuos (ROB) que deben documentarse. No medir un tanque declarado vacío deja un volumen sin contabilizar reclamable posteriormente."},
+      {q:"¿Aplicó la misma metodología (mismo punto de referencia, corrección de trim) que en la medición inicial?",
+       pq:"La consistencia metodológica es fundamental: los errores sistemáticos se cancelan al calcular la diferencia SOLO SI ambas mediciones usan el mismo método. Cambiar la metodología introduce discrepancias artificiales."},
+      {q:"¿Midió el agua libre final con pasta detectora y la comparó con la medición inicial?",
+       pq:"El agua libre final menos la inicial da la variación durante la descarga. Un aumento significativo puede indicar que se descargó agua junto con el producto o que el buque tiene ingreso de agua."},
+      {q:"¿Aplicó corrección de trim y escora final, verificando que esté dentro del rango de tablas?",
+       pq:"El trim cambia significativamente durante la descarga (de cargado a en lastre). Ignorar este cambio o aplicar la corrección inicial a la medición final es un <b>ERROR SISTEMÁTICO</b> clásico, especialmente grave en tanques de popa y proa."},
+      {q:"¿Obtuvo la firma del Ship's Officer en el ullage report final antes de desembarcar?",
+       pq:"Sin la firma del Ship's Officer, el documento no tiene validez bilateral. Si el oficial se niega a firmar, debe emitirse Letter of Protest documentando su negativa y las razones."},
+      {q:"¿Calculó la ship's figure y la comparó con la shore figure antes de firmar?",
+       pq:"La comparación debe hacerse mientras el inspector está a bordo. Si la diferencia supera los límites de tolerancia, tiene la oportunidad de investigar o emitir protesta. Una vez que el buque zarpa, la posibilidad de investigación se cierra."},
+    ]
+  },
+  { id:"di", t:"10 — Análisis de Diferencia y Tolerancia", n:"API MPMS Cap. 17.9 (VEF) / Cap. 12.1 / Cap. 13",
+    intro:"El análisis de diferencia es la conclusión técnica de toda la operación. Determina si la discrepancia entre shore y ship es dentro de lo esperable, o si indica un problema real.",
+    items:[
+      {q:"¿Calculó la diferencia porcentual correctamente: (Shore − Ship) / Ship × 100?",
+       pq:"La fórmula puede variar según el contrato (shore o ship como base). Una inversión del denominador cambia el signo y magnitud, pudiendo hacer que una diferencia fuera de tolerancia parezca estar dentro."},
+      {q:"¿Aplicó el VEF documentado del buque si estaba disponible y era estadísticamente válido (≥ 6 viajes)?",
+       pq:"El VEF corrige el <b>ERROR SISTEMÁTICO</b> del buque. Cap. 17.09 exige mínimo 6 viajes para que sea estadísticamente representativo. Aplicar VEF con pocos datos introduce más incertidumbre que el error que pretende corregir."},
+      {q:"¿Verificó si la diferencia cae dentro del rango de tolerancia aplicable a la operación?",
+       pq:"Tolerancias de la industria: Shore-Ship en terminal ≤ 0.20% (con VEF) o ≤ 0.50% (sin VEF); STS ≤ 0.30%. Si supera el umbral contractual, debe emitirse Letter of Protest y no puede aceptarse sin investigación."},
+      {q:"¿Documentó la metodología completa para llegar a la figura acordada (VEF, tablas, ajustes aplicados)?",
+       pq:"En arbitrajes bajo FOSFA, GAFTA o ICSID, la ausencia de metodología documentada es usualmente fatal para la posición reclamante. El cálculo debe ser completamente reproducible."},
+      {q:"¿Identificó y documentó posibles causas técnicas si la diferencia supera la tolerancia aceptable?",
+       pq:"Una diferencia excesiva puede tener causas legítimas (condiciones adversas, tablas desactualizadas) o indicar manipulación. El inspector debe documentar su análisis causal antes de emitir cualquier reclamación."},
+    ]
+  },
+  { id:"err", t:"11 — Análisis de Errores: Sistemáticos vs. No Sistemáticos", n:"API MPMS Cap. 13.1 / 13.2",
+    intro:"API MPMS Cap. 13 es el marco estadístico de toda la medición de petróleo. Distinguir entre error sistemático (sesgo) y error aleatorio es fundamental para saber si una diferencia es un problema real o variación estadísticamente normal.",
+    items:[
+      {q:"¿Analizó si las diferencias históricas del buque muestran patrón consistente en la misma dirección (error sistemático)?",
+       pq:"<b>ERROR SISTEMÁTICO (Bias)</b>: ocurre siempre en la misma dirección y magnitud similar. Si el buque reporta consistentemente 0.15–0.20% menos que tierra, hay sesgo sistemático. Causas: tablas inexactas, deformación estructural de tanques, trim correction mal aplicado. El VEF es el mecanismo para cuantificar y corregir este sesgo. <b>Un error sistemático no desaparece promediando más mediciones.</b>"},
+      {q:"¿Identificó fuentes de error aleatorio (no sistemático) que pudieron influir en esta operación?",
+       pq:"<b>ERROR NO SISTEMÁTICO (Aleatorio)</b>: varía aleatoriamente alrededor de cero, sin dirección fija. Causas: oleaje que hace oscilar el nivel, parallax en lectura de cinta, variación en posición del termómetro. <b>A diferencia del sistemático, el error aleatorio SE REDUCE promediando múltiples mediciones.</b> Cap. 13.1 cuantifica la incertidumbre aleatoria mediante desviación estándar."},
+      {q:"¿Verificó precisión vs. exactitud del instrumental, distinguiendo sesgo (exactitud) de imprecisión (repetibilidad)?",
+       pq:"Cap. 13.2 define: <b>PRECISIÓN</b> = qué tan consistentes son las mediciones repetidas (asociado al error aleatorio). <b>EXACTITUD</b> = qué tan cerca está el promedio del valor verdadero (asociado al error sistemático). Un densímetro que da siempre 31.5 cuando el real es 32.0 es PRECISO pero INEXACTO (sesgado 0.5 API). Ambos tipos deben evaluarse en los instrumentos del inspector y del buque."},
+      {q:"¿Evaluó si las tablas de calibración del buque son fuente de error sistemático (edad, deformaciones estructurales conocidas)?",
+       pq:"Las tablas de capacidad se basan en la geometría original del buque. Con el tiempo, los tanques se deforman por presión, corrosión y denting. Sin recalibración periódica, toda medición acumula un ERROR SISTEMÁTICO proporcional a la deformación acumulada. Buques con más de 10–15 años sin recalibración son sospechosos de tener sesgo en sus tablas."},
+      {q:"¿Documentó si la diferencia observada es consistente con la incertidumbre de medición esperada?",
+       pq:"Cap. 12.2 y 13.2 proveen metodología para calcular incertidumbre combinada. <b>Incertidumbre total = √(sesgo² + aleatoria²)</b>. En condiciones normales, la incertidumbre de medición de buque es ±0.15–0.30%. Si la diferencia observada está dentro de esta incertidumbre combinada, no hay evidencia de pérdida real: es varianza estadística normal."},
+      {q:"¿Distinguió si la diferencia tiene características de error aleatorio (varía sin dirección fija) o sistemático (constante en dirección y magnitud)?",
+       pq:"Esta distinción define la acción: si es ALEATORIA → mejorar condiciones de medición, repetir, promediar. Si es SISTEMÁTICA → investigar causa raíz (tablas, instrumentos, procedimiento) y aplicar VEF o solicitar recalibración. Reclamar una diferencia aleatoria como si fuera sistemática lleva a decisiones incorrectas y disputas injustificadas."},
+    ]
+  },
+  { id:"doc", t:"12 — Documentación y Certificados", n:"API MPMS Cap. 17.1 / 17.2",
+    intro:"Los documentos que emite el inspector son el producto final de su trabajo. Su calidad, completitud y oportunidad determinan si la operación quedó bien documentada para cualquier reclamación futura.",
+    items:[
+      {q:"¿Emitió el Certificate of Quantity (COQ) con todos los datos requeridos (GOV, VCF, GSV, método, fecha, firmas)?",
+       pq:"El COQ es el documento primario de custody transfer. Campos vacíos o ilegibles invalidan el documento como evidencia en una disputa."},
+      {q:"¿Emitió el Certificate of Quality (CQL) con resultados de laboratorio o referencia al certificado de origen?",
+       pq:"En la mayoría de los contratos el precio se ajusta por calidad. Sin CQL no hay base documentada para reclamar desvíos de calidad contra el vendedor."},
+      {q:"¿El ullage report final fue firmado por todas las partes presentes (inspector, Ship's Officer, representante de terminal)?",
+       pq:"Un ullage report con una sola firma tiene valor unilateral. La firma multilateral convierte el documento en un acuerdo sobre los hechos medidos. Si alguna parte se niega, debe documentarse su negativa."},
+      {q:"¿Emitió Letter of Protest cuando correspondía (diferencia excesiva, negativa a firmar, condiciones adversas, irregularidades)?",
+       pq:"El LoP reserva el derecho a reclamar. Si el inspector omite emitirlo cuando corresponde, puede interpretarse como aceptación. Casos que siempre justifican LoP: diferencia > tolerancia contractual, negativa del buque a permitir mediciones, discrepancias no resueltas."},
+      {q:"¿Entregó copia de todos los documentos al Ship's Officer y representantes antes de desembarcar?",
+       pq:"La entrega in-situ crea un registro reconocido por todas las partes. Si los documentos se envían días después, el buque puede objetar que los valores fueron alterados post-operación."},
+      {q:"¿Reportó a Loss Control/cliente dentro del plazo establecido con informe completo y preciso?",
+       pq:"Muchos contratos tienen plazos de reclamación de 30–60 días. Un reporte tardío puede hacer que el cliente pierda el derecho contractual a reclamar diferencias."},
+      {q:"¿Archivó correctamente toda la documentación original con número de operación y acceso posterior?",
+       pq:"Los documentos de custody transfer deben conservarse por el tiempo contractual (usualmente 3–5 años). En disputas arbitrales pueden requerirse documentos de 2–3 años atrás."},
+    ]
+  },
+  { id:"cond", t:"13 — Conducta Profesional", n:"API Código de Ética / Política ACI LATAM",
+    intro:"La imparcialidad del inspector es el fundamento de su valor. Un inspector percibido como parcial invalida toda su documentación.",
+    items:[
+      {q:"¿Actuó con imparcialidad e independencia frente a las presiones del buque y de la terminal?",
+       pq:"Un inspector que reporta solo lo favorable al cliente pierde credibilidad ante la contraparte y puede generar documentos no aceptados en arbitraje. La objetividad incluye reportar hechos adversos al cliente."},
+      {q:"¿Comunicó en tiempo real a Loss Control cualquier irregularidad o hallazgo adverso?",
+       pq:"Algunas situaciones requieren decisión inmediata del cliente. Un reporte solo al finalizar puede llegar demasiado tarde. La comunicación en tiempo real es parte del servicio de Loss Control."},
+      {q:"¿Registró todas las acciones relevantes en el diario de operaciones con hora exacta?",
+       pq:"El log de campo es la memoria objetiva. Entradas vagas, sin hora o incompletas no sirven como evidencia en una disputa."},
+      {q:"¿Se negó a aceptar instrucciones del buque o terminal que contravenían los procedimientos API MPMS?",
+       pq:"La negativa a proceder incorrectamente debe documentarse indicando quién solicitó la desviación, para proteger al inspector de responsabilidades posteriores."},
+      {q:"¿El informe final es internamente coherente (valores del cuerpo del informe coinciden con los certificados emitidos)?",
+       pq:"Inconsistencias internas sugieren errores de transcripción o, en casos graves, alteración de documentos. El auditor de Loss Control debe verificar coherencia cruzada de todos los documentos."},
+    ]
+  }
+];
+
+// ─── Estado ───
+const state = {};   // state[itemKey] = 2|1|0|-1|null
+CATS.forEach(cat => cat.items.forEach((_, i) => { state[`${cat.id}_${i}`] = null; }));
+
+// ─── Render ───
+function buildChecklist() {
+  const body = document.getElementById('clBody');
+  CATS.forEach((cat, ci) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-wrap' + (cat.id === 'err' ? ' cat-err' : '');
+
+    const hdr = `
+      <div class="cat-hdr">
+        <div>
+          <div class="cat-title">${cat.t}</div>
+          <div class="cat-intro">${cat.intro}</div>
+        </div>
+        <span class="cat-norma">${cat.n}</span>
+      </div>`;
+
+    const thead = `<thead><tr>
+      <th class="th-num">#</th>
+      <th class="th-q">Pregunta de Auditoría<span class="th-hint"> — clic para ver explicación ▼</span></th>
+      <th class="th-c">C</th><th class="th-p">P</th><th class="th-n">N</th><th class="th-na">—</th>
+      <th class="th-obs">Hallazgo / evidencia</th>
+    </tr></thead>`;
+
+    const rows = cat.items.map((item, idx) => {
+      const key = `${cat.id}_${idx}`;
+      return `<tr id="tr_${key}">
+        <td class="td-num">${idx+1}</td>
+        <td class="td-q">
+          <div class="q-text" onclick="togglePq('pq_${key}')">${item.q}</div>
+          <div class="q-pq" id="pq_${key}">${item.pq}</div>
+        </td>
+        <td class="td-opt td-c" onclick="mark('${key}',2)"  data-key="${key}" data-val="2"></td>
+        <td class="td-opt td-p" onclick="mark('${key}',1)"  data-key="${key}" data-val="1"></td>
+        <td class="td-opt td-n" onclick="mark('${key}',0)"  data-key="${key}" data-val="0"></td>
+        <td class="td-opt td-na" onclick="mark('${key}',-1)" data-key="${key}" data-val="-1"></td>
+        <td class="td-obs"><input type="text" id="obs_${key}" placeholder="…" autocomplete="off"></td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = hdr + `<table class="cl-tbl">${thead}<tbody>${rows}</tbody></table>`;
+    body.appendChild(wrap);
+  });
+}
+
+function mark(key, val) {
+  const prev = state[key];
+  // toggle off si se vuelve a hacer clic en la misma
+  state[key] = (prev === val) ? null : val;
+  refreshRow(key);
+  calcScore();
+}
+
+function refreshRow(key) {
+  const val = state[key];
+  const cells = document.querySelectorAll(`td[data-key="${key}"]`);
+  cells.forEach(td => {
+    const v = parseInt(td.dataset.val);
+    td.classList.toggle('sel', val !== null && v === val);
+  });
+  const tr = document.getElementById(`tr_${key}`);
+  tr.classList.remove('row-c','row-p','row-n','row-na');
+  if (val === 2)  tr.classList.add('row-c');
+  if (val === 1)  tr.classList.add('row-p');
+  if (val === 0)  tr.classList.add('row-n');
+  if (val === -1) tr.classList.add('row-na');
+}
+
+function togglePq(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ─── Score ───
+function calcScore() {
+  let tot = 0, mx = 0;
+  const resumen = [];
+  CATS.forEach(cat => {
+    let cp = 0, cm = 0, ce = 0;
+    cat.items.forEach((_, i) => {
+      const v = state[`${cat.id}_${i}`];
+      if (v !== null && v >= 0) { cp += v; cm += 2; ce++; }
+    });
+    tot += cp; mx += cm;
+    resumen.push({ label: cat.t.split('—').slice(1).join('—').trim(), ev: ce, pts: cp, max: cm });
+  });
+
+  const pct = mx > 0 ? Math.round((tot / mx) * 100) : null;
+  const pctEl = document.getElementById('clPct');
+  const vEl   = document.getElementById('clVerdict');
+  const ptsEl = document.getElementById('clPts');
+
+  ['luzR','luzA','luzV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  if (pct === null) {
+    pctEl.textContent = '—'; vEl.textContent = 'Sin evaluar'; vEl.style.color = '#888'; ptsEl.textContent = '';
+  } else {
+    pctEl.textContent = pct + '%';
+    ptsEl.textContent = `${tot} / ${mx} pts`;
+    if (pct >= 80) { document.getElementById('luzV').classList.add('on'); vEl.textContent = 'SATISFACTORIO'; vEl.style.color = '#4ade80'; }
+    else if (pct >= 60) { document.getElementById('luzA').classList.add('on'); vEl.textContent = 'REGULAR'; vEl.style.color = '#fbbf24'; }
+    else { document.getElementById('luzR').classList.add('on'); vEl.textContent = 'DEFICIENTE'; vEl.style.color = '#f87171'; }
+  }
+
+  // Resumen tabla
+  const tbody = document.getElementById('resTbody');
+  tbody.innerHTML = '';
+  resumen.forEach(r => {
+    const rp = r.max > 0 ? Math.round((r.pts / r.max) * 100) : null;
+    const est = rp === null ? '—' : rp >= 80 ? '🟢 OK' : rp >= 60 ? '🟡 Regular' : '🔴 Deficiente';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.label}</td><td>${r.ev}</td><td>${r.pts}/${r.max}</td><td>${rp !== null ? rp+'%' : 'N/A'}</td><td>${est}</td>`;
+    tbody.appendChild(tr);
+  });
+  const fp = mx > 0 ? Math.round((tot / mx) * 100) : '—';
+  const fe = typeof fp === 'number' ? (fp >= 80 ? '🟢 Satisfactorio' : fp >= 60 ? '🟡 Regular' : '🔴 Deficiente') : '—';
+  document.getElementById('resTotRow').innerHTML =
+    `<td><b>TOTAL</b></td><td>—</td><td><b>${tot}/${mx}</b></td><td><b>${typeof fp==='number'?fp+'%':'—'}</b></td><td><b>${fe}</b></td>`;
+}
+
+function limpiar() {
+  if (!confirm('¿Limpiar todas las respuestas?')) return;
+  Object.keys(state).forEach(k => { state[k] = null; });
+  document.querySelectorAll('td.td-opt').forEach(td => td.classList.remove('sel'));
+  document.querySelectorAll('tr[id^="tr_"]').forEach(tr => tr.classList.remove('row-c','row-p','row-n','row-na'));
+  document.querySelectorAll('.obs-in, input[id^="obs_"]').forEach(i => i.value = '');
+  document.querySelectorAll('.q-pq.open').forEach(e => e.classList.remove('open'));
+  document.getElementById('obsGen').value = '';
+  ['mInspector','mAuditor','mBuque','mRef','mPuerto','mProducto'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.value = '';
+  });
+  document.getElementById('mFecha').value = '';
+  calcScore();
+}
+
+buildChecklist();
+document.getElementById('mFecha').valueAsDate = new Date();
+calcScore();
+</script>
+
+<!-- ═══════════════════ ESTILOS ═══════════════════ -->
+<style>
+/* Shell */
+.cl-shell{max-width:1140px;margin:.75rem auto 3rem;font-size:.83rem;}
+
+/* Topbar */
+.cl-topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem;}
+.cl-title{font-size:1.1rem;font-weight:700;margin:0;}
+.cl-sub{margin:.2rem 0 0;color:#666;font-size:.78rem;}
+
+/* Semáforo */
+.cl-score-box{display:flex;align-items:center;gap:.85rem;background:#1a1a2e;border-radius:10px;padding:.65rem 1.1rem;}
+.cl-semaforo{display:flex;flex-direction:column;gap:5px;background:#111;border-radius:7px;padding:7px 5px;border:2px solid #333;}
+.cl-luz{width:24px;height:24px;border-radius:50%;background:#2a2a2a;transition:background .25s,box-shadow .25s;}
+.cl-luz#luzR.on{background:#ef4444;box-shadow:0 0 12px #ef4444;}
+.cl-luz#luzA.on{background:#f59e0b;box-shadow:0 0 12px #f59e0b;}
+.cl-luz#luzV.on{background:#22c55e;box-shadow:0 0 12px #22c55e;}
+.cl-score-nums{display:flex;flex-direction:column;}
+.cl-pct{font-size:1.9rem;font-weight:700;color:#fff;line-height:1;}
+.cl-verdict{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#999;margin-top:.15rem;}
+.cl-pts{font-size:.72rem;color:#888;margin-top:.1rem;}
+
+/* Meta */
+.cl-meta{background:#fff;border:1px solid #dee2e6;border-radius:7px;padding:.75rem 1rem;margin-bottom:.6rem;}
+.cl-meta-row{display:flex;gap:.6rem;flex-wrap:wrap;}
+.cl-meta label{display:flex;flex-direction:column;gap:.15rem;font-size:.72rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.04em;flex:1;min-width:140px;}
+.cl-meta input{padding:.3rem .55rem;border:1px solid #ced4da;border-radius:4px;font-size:.83rem;width:100%;}
+
+/* Leyenda */
+.cl-leyenda{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;font-size:.75rem;margin-bottom:.5rem;padding:.4rem .75rem;background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;}
+.ly{padding:2px 8px;border-radius:3px;font-weight:600;}
+.ly.c{background:#dcfce7;color:#166534;}
+.ly.p{background:#fff7ed;color:#9a3412;}
+.ly.n{background:#fef2f2;color:#991b1b;}
+.ly.na{background:#f1f5f9;color:#475569;}
+.ly-sep{color:#ccc;}
+.ly-hint{color:#0d6efd;font-style:italic;}
+
+/* Categoría */
+.cat-wrap{background:#fff;border:1px solid #dee2e6;border-radius:8px;margin-bottom:.65rem;overflow:hidden;}
+.cat-wrap.cat-err{border-color:#3b82f6;border-width:2px;}
+.cat-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.75rem 1rem .5rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
+.cat-title{font-size:.88rem;font-weight:700;color:#1a1a2e;}
+.cat-err .cat-title{color:#1d4ed8;}
+.cat-intro{font-size:.76rem;color:#555;margin-top:.2rem;line-height:1.45;max-width:820px;}
+.cat-norma{flex-shrink:0;font-size:.7rem;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:3px 8px;white-space:nowrap;}
+.cat-err .cat-norma{background:#eff6ff;border:1px solid #93c5fd;}
+
+/* Tabla */
+.cl-tbl{width:100%;border-collapse:collapse;font-size:.81rem;}
+.cl-tbl th{background:#f3f4f6;padding:.38rem .5rem;text-align:center;border:1px solid #e5e7eb;font-size:.72rem;font-weight:700;color:#374151;}
+.cl-tbl td{border:1px solid #e5e7eb;vertical-align:middle;padding:.35rem .45rem;}
+.th-num,.td-num{width:28px;text-align:center;color:#9ca3af;font-size:.72rem;}
+.th-q{text-align:left;padding-left:.75rem!important;}
+.th-hint{font-weight:400;color:#9ca3af;font-size:.67rem;}
+.td-q{padding:.4rem .6rem!important;}
+.th-c{color:#166534;} .th-p{color:#92400e;} .th-n{color:#991b1b;} .th-na{color:#64748b;}
+.th-c,.th-p,.th-n,.th-na,.td-opt{width:54px;}
+.th-obs,.td-obs{width:180px;}
+
+/* Celdas de opción — INTERACCIÓN CENTRAL */
+.td-opt{
+  text-align:center;cursor:pointer;
+  transition:background .12s, transform .08s;
+  user-select:none;
+  position:relative;
+}
+.td-opt::after{content:'';display:block;width:20px;height:20px;border-radius:50%;margin:0 auto;border:2px solid currentColor;transition:background .12s;}
+.td-c::after{color:#16a34a;border-color:#16a34a;}
+.td-p::after{color:#ea580c;border-color:#ea580c;}
+.td-n::after{color:#dc2626;border-color:#dc2626;}
+.td-na::after{color:#94a3b8;border-color:#94a3b8;}
+
+.td-opt:hover{background:#f0fdf4;}
+.td-p:hover{background:#fff7ed;}
+.td-n:hover{background:#fef2f2;}
+.td-na:hover{background:#f8fafc;}
+
+/* SELECCIONADO */
+.td-opt.sel.td-c{background:#dcfce7;} .td-opt.sel.td-c::after{background:#16a34a;}
+.td-opt.sel.td-p{background:#ffedd5;} .td-opt.sel.td-p::after{background:#ea580c;}
+.td-opt.sel.td-n{background:#fee2e2;} .td-opt.sel.td-n::after{background:#dc2626;}
+.td-opt.sel.td-na{background:#f1f5f9;} .td-opt.sel.td-na::after{background:#94a3b8;}
+
+/* Fila con respuesta */
+.row-c>td:first-child{border-left:3px solid #16a34a;}
+.row-p>td:first-child{border-left:3px solid #ea580c;}
+.row-n>td:first-child{border-left:3px solid #dc2626;}
+.row-na>td:first-child{border-left:3px solid #94a3b8;}
+.row-c{background:#fafffe!important;}
+.row-p{background:#fffcfa!important;}
+.row-n{background:#fffafa!important;}
+
+/* Pregunta expandible */
+.q-text{cursor:pointer;line-height:1.45;}
+.q-text:hover{color:#2563eb;}
+.q-text::before{content:'▶ ';font-size:.62rem;color:#93c5fd;transition:transform .15s;display:inline-block;}
+.q-pq.open+* .q-text::before,.q-text.active::before{transform:rotate(90deg);}
+.q-pq{display:none;margin-top:.45rem;background:#fffbeb;border-left:3px solid #f59e0b;padding:.45rem .7rem;font-size:.77rem;line-height:1.6;color:#374151;border-radius:0 4px 4px 0;}
+.q-pq.open{display:block;}
+
+/* Campo de observación */
+.td-obs input{width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:.22rem .4rem;font-size:.76rem;background:transparent;}
+.td-obs input:focus{outline:none;border-color:#93c5fd;background:#f0f9ff;}
+
+/* Resumen */
+.cl-resumen{background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:.85rem 1rem;margin-bottom:.65rem;}
+.cl-obs-sec{background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:.85rem 1rem;margin-bottom:.65rem;}
+.cl-sec-title{font-size:.88rem;font-weight:700;margin:0 0 .6rem;color:#1a1a2e;}
+.res-tbl{width:100%;border-collapse:collapse;font-size:.8rem;}
+.res-tbl th{background:#1a1a2e;color:#fff;padding:.38rem .7rem;text-align:center;font-size:.74rem;}
+.res-tbl td{padding:.36rem .7rem;border-bottom:1px solid #e5e7eb;text-align:center;}
+.res-tbl td:first-child{text-align:left;}
+.res-tot td{background:#eff6ff;font-weight:700;}
+#obsGen{width:100%;resize:vertical;border:1px solid #ced4da;border-radius:6px;padding:.5rem .75rem;font-size:.84rem;font-family:inherit;}
+
+/* Botones */
+.cl-btns{display:flex;gap:.7rem;justify-content:flex-end;margin-top:.5rem;}
+.btn-cl{padding:.45rem 1.3rem;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;font-weight:600;}
+.btn-lmp{background:#f3f4f6;border:1px solid #d1d5db;color:#374151;}
+.btn-imp{background:#2563eb;color:#fff;}
+.btn-imp:hover{background:#1d4ed8;}
+
+/* PRINT */
+@media print{
+  .app-header,.cl-btns,.ly-hint{display:none!important;}
+  .cl-shell{margin:0;max-width:100%;}
+  .cat-wrap{break-inside:avoid;}
+  .td-opt.sel.td-c{background:#dcfce7!important;-webkit-print-color-adjust:exact;}
+  .td-opt.sel.td-p{background:#ffedd5!important;-webkit-print-color-adjust:exact;}
+  .td-opt.sel.td-n{background:#fee2e2!important;-webkit-print-color-adjust:exact;}
+  .td-opt.sel.td-na{background:#f1f5f9!important;-webkit-print-color-adjust:exact;}
+  .q-pq.open{display:block!important;}
+}
+</style>
+{% endblock %}
