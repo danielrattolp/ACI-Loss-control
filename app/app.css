@@ -215,13 +215,22 @@ tr.total-row td:first-child { color: var(--amber); }
 .checklist-section-title { font-size: 12px; font-weight: 700; color: var(--sea); text-transform: uppercase; letter-spacing: .06em; padding: 8px 0; border-bottom: 1px solid var(--line2); margin-bottom: 10px; }
 .checklist-item { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line2); }
 .checklist-item:last-child { border-bottom: none; }
-.checklist-item-text { flex: 1; font-size: 12px; color: var(--ink); padding-top: 2px; }
-.checklist-options { display: flex; gap: 4px; flex-shrink: 0; }
-.chk-opt { padding: 3px 10px; border-radius: 4px; border: 1px solid var(--line); font-size: 11px; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); transition: all .12s; }
-.chk-opt:hover { border-color: var(--steel); }
-.chk-opt.yes.sel { background: #e8f4ea; color: var(--green); border-color: var(--green); }
-.chk-opt.no.sel { background: #fdf0f0; color: var(--red); border-color: var(--red); }
-.chk-opt.na.sel { background: var(--line2); color: var(--steel); border-color: var(--steel); }
+.checklist-item { border-bottom: 1px solid var(--line2); padding: 9px 4px; }
+.checklist-item:last-child { border-bottom: none; }
+.checklist-item-text { flex: 1; font-size: 12px; color: var(--ink); padding-top: 2px; line-height: 1.45; }
+.checklist-options { display: flex; gap: 5px; flex-shrink: 0; align-items: center; }
+.chk-opt {
+  width: 38px; height: 28px; border-radius: 5px;
+  border: 2px solid var(--line); font-size: 11px; font-weight: 700;
+  cursor: pointer; background: var(--white); color: #bbb;
+  transition: all .13s; letter-spacing: .03em; display: flex; align-items: center; justify-content: center;
+}
+.chk-opt:hover.yes  { border-color: var(--green); color: var(--green); background: #f0faf1; }
+.chk-opt:hover.no   { border-color: var(--red);   color: var(--red);   background: #fdf2f2; }
+.chk-opt:hover.na   { border-color: var(--steel);  color: var(--steel); background: #f0f4f6; }
+.chk-opt.yes.sel { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 2px 6px rgba(61,107,69,.35); }
+.chk-opt.no.sel  { background: var(--red);   color: #fff; border-color: var(--red);   box-shadow: 0 2px 6px rgba(139,48,48,.35); }
+.chk-opt.na.sel  { background: var(--steel); color: #fff; border-color: var(--steel); }
 .checklist-comment { font-size: 11px; color: var(--muted); cursor: pointer; flex-shrink: 0; padding-top: 2px; }
 .checklist-comment-field { margin-top: 6px; }
 
