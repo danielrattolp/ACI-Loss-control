@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>ACI LATAM - Brochure Corporativo</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #d7dde1;
+        color: #101417;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.38;
+      }
+
+      .page {
+        position: relative;
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+        background: #f6f7f4;
+        page-break-after: always;
+      }
+
+      .cover {
+        color: #fff;
+        background:
+          linear-gradient(90deg, rgba(6, 8, 10, 0.96), rgba(8, 12, 14, 0.74) 50%, rgba(8, 12, 14, 0.28)),
+          linear-gradient(180deg, rgba(8, 12, 14, 0.12), rgba(8, 12, 14, 0.82)),
+          url("../../assets/oil-tanker-hero.png") center / cover no-repeat;
+      }
+
+      .mark {
+        position: absolute;
+        top: 22mm;
+        left: 18mm;
+        width: 60mm;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .cover-content {
+        position: absolute;
+        left: 18mm;
+        right: 24mm;
+        bottom: 34mm;
+      }
+
+      .eyebrow {
+        margin: 0 0 6mm;
+        color: #d49b48;
+        font-size: 10pt;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0 0 7mm;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 54pt;
+        line-height: 0.92;
+      }
+
+      .lead {
+        max-width: 134mm;
+        margin: 0 0 11mm;
+        color: rgba(255, 255, 255, 0.84);
+        font-size: 15pt;
+      }
+
+      .cover-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        width: 156mm;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(10, 15, 18, 0.72);
+      }
+
+      .cover-strip div {
+        min-height: 26mm;
+        padding: 6mm;
+        border-right: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .cover-strip div:last-child {
+        border-right: 0;
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 2mm;
+        color: #d49b48;
+        font-size: 8pt;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .value {
+        display: block;
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 10.5pt;
+        font-weight: 700;
+      }
+
+      .page-inner {
+        padding: 18mm;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 10mm;
+        border-bottom: 1px solid #cfd6da;
+      }
+
+      .topbar img {
+        width: 48mm;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .topbar span {
+        color: #5d6870;
+        font-size: 9pt;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h2 {
+        margin: 12mm 0 5mm;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 25pt;
+        line-height: 1.03;
+      }
+
+      .summary {
+        max-width: 150mm;
+        margin: 0 0 9mm;
+        color: #26343b;
+        font-size: 11pt;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4mm;
+        margin-bottom: 9mm;
+      }
+
+      .card {
+        min-height: 45mm;
+        padding: 5mm;
+        border: 1px solid #d3dadf;
+        background: #fff;
+      }
+
+      .card h3 {
+        margin: 0 0 3mm;
+        color: #1f5867;
+        font-size: 12pt;
+      }
+
+      .card p,
+      .contact-card p,
+      .list li {
+        margin: 0;
+        color: #344149;
+        font-size: 9.5pt;
+      }
+
+      .band {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 5mm;
+        margin-top: 8mm;
+      }
+
+      .contact-card,
+      .coverage-card {
+        padding: 6mm;
+        background: #11181d;
+        color: #fff;
+      }
+
+      .coverage-card {
+        background: #546e57;
+      }
+
+      .contact-card h3,
+      .coverage-card h3 {
+        margin: 0 0 3mm;
+        font-size: 13pt;
+      }
+
+      .contact-card p,
+      .coverage-card p {
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 9.5pt;
+      }
+
+      .contact-card a {
+        display: block;
+        margin-top: 5mm;
+        color: #fff;
+        font-size: 14pt;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .list {
+        margin: 3mm 0 0;
+        padding: 0 0 0 5mm;
+      }
+
+      .list li {
+        margin-bottom: 1.8mm;
+        color: rgba(255, 255, 255, 0.83);
+      }
+
+      .footer {
+        position: absolute;
+        left: 18mm;
+        right: 18mm;
+        bottom: 12mm;
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid #cfd6da;
+        padding-top: 5mm;
+        color: #65717b;
+        font-size: 8.5pt;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page cover">
+      <img class="mark" src="../../assets/aci-logo-white.jpeg" alt="ACI Loss Control Experts" />
+      <div class="cover-content">
+        <p class="eyebrow">Loss control petrolero y expediting</p>
+        <h1>ACI LATAM</h1>
+        <p class="lead">
+          Control tecnico independiente para operaciones de carga, descarga, transferencia y
+          almacenamiento de mercancias petroleras.
+        </p>
+        <div class="cover-strip">
+          <div>
+            <span class="label">Foco</span>
+            <span class="value">Cantidad, calidad, tiempos y evidencia</span>
+          </div>
+          <div>
+            <span class="label">Cobertura</span>
+            <span class="value">Chile, Ecuador, Colombia, Peru, Caribe y Estados Unidos</span>
+          </div>
+          <div>
+            <span class="label">Contacto</span>
+            <span class="value">contacto@acilatam.cl</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="page-inner">
+        <div class="topbar">
+          <img src="../../assets/aci-logo-black.jpeg" alt="ACI Loss Control Experts" />
+          <span>Brochure corporativo</span>
+        </div>
+
+        <h2>Presencia tecnica donde cada barril importa.</h2>
+        <p class="summary">
+          ACI LATAM protege los intereses operacionales y economicos del cliente durante
+          operaciones petroleras criticas. Actuamos como ojos tecnicos en terreno, registrando
+          eventos, verificando mediciones, consolidando evidencias y emitiendo reportes claros para
+          reducir perdidas, controversias y decisiones sin respaldo.
+        </p>
+
+        <div class="grid">
+          <article class="card">
+            <h3>Loss control y expediting</h3>
+            <p>Presencia en operaciones de carga, descarga y transferencia, con control de eventos, tiempos y alertas tempranas.</p>
+          </article>
+          <article class="card">
+            <h3>Reconciliacion operativa</h3>
+            <p>Comparacion de cantidades, documentos, mediciones y diferencias entre nave, terminal, planta o cliente.</p>
+          </article>
+          <article class="card">
+            <h3>Control de cantidad y calidad</h3>
+            <p>Supervision de aforos, temperatura, muestreo, documentacion de laboratorio y consistencia operacional.</p>
+          </article>
+          <article class="card">
+            <h3>Soporte a reclamos</h3>
+            <p>Consolidacion de lineas de tiempo, fotografias, comunicaciones, calculos y documentos criticos.</p>
+          </article>
+          <article class="card">
+            <h3>Informes trazables</h3>
+            <p>Reportes preliminares, bitacoras de operacion, dossier documental e informe final con hallazgos.</p>
+          </article>
+          <article class="card">
+            <h3>Control documental</h3>
+            <p>Ordenamiento de evidencia operacional para respaldar cierres, diferencias, auditorias y decisiones ejecutivas.</p>
+          </article>
+        </div>
+
+        <div class="band">
+          <div class="coverage-card">
+            <h3>Cobertura</h3>
+            <p>Capacidad de coordinacion para operaciones nacionales, regionales e internacionales.</p>
+            <ul class="list">
+              <li>Chile, Ecuador, Colombia y Peru.</li>
+              <li>Caribe y Estados Unidos.</li>
+              <li>Puertos, terminales, plantas, buques y puntos de transferencia.</li>
+            </ul>
+          </div>
+          <div class="contact-card">
+            <h3>Solicite cobertura</h3>
+            <p>Envienos los datos de la operacion, producto, terminal, fecha estimada y servicio requerido.</p>
+            <a href="mailto:contacto@acilatam.cl">contacto@acilatam.cl</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <span>ACI LATAM | Loss Control Experts</span>
+        <span>www.acilatam.cl</span>
+      </div>
+    </section>
+  </body>
+</html>

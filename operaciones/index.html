@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ACI Ops Console: plataforma de calculo, reconciliacion y reportabilidad para operaciones de loss control petrolero."
+    />
+    <title>ACI Operaciones | ACI LATAM</title>
+    <link rel="icon" href="/favicon.ico?v=3" sizes="any" />
+    <link rel="icon" href="/assets/favicon.png?v=3" type="image/png" />
+    <link rel="stylesheet" href="/operaciones/styles.css?v=master-balance" />
+  </head>
+  <body class="locked">
+    <section class="access-gate" id="accessGate" aria-label="Acceso restringido">
+      <div class="access-card">
+        <img src="/assets/aci-logo-black.jpeg" alt="ACI Loss Control Experts" />
+        <p class="eyebrow">Area restringida</p>
+        <h1>ACI Operaciones</h1>
+        <p>Ingrese la clave de acceso para utilizar la consola de reconciliacion operativa.</p>
+        <form id="accessForm">
+          <label>
+            Clave
+            <input id="accessPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-action" type="submit">Ingresar</button>
+        </form>
+        <small id="accessError" aria-live="polite"></small>
+      </div>
+    </section>
+
+    <header class="app-header">
+      <a class="brand" href="#console" aria-label="ACI Loss Control Experts">
+        <img src="/assets/aci-logo-white.jpeg" alt="ACI Loss Control Experts" />
+      </a>
+      <nav class="module-nav" aria-label="Modulos">
+        <a href="#console">Operacion</a>
+        <a href="#calculator">Calculos</a>
+        <a href="#lighterPlan">Alijes</a>
+        <a href="#api1211">API 12.1.1</a>
+        <a href="#shore">Tierra</a>
+        <a href="#timeline">Eventos</a>
+        <a href="#report">Reporte</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-button" id="resetDemo" type="button" title="Reiniciar datos">
+          <span aria-hidden="true">↺</span>
+        </button>
+        <button class="primary-action" id="printReport" type="button">Emitir PDF</button>
+      </div>
+    </header>
+
+    <main id="console" class="ops-shell">
+      <section class="control-room" aria-label="Operacion activa">
+        <div class="operation-hero">
+          <div>
+            <p class="eyebrow">ACI Ops Console</p>
+            <h1>Reconciliacion operativa en vivo</h1>
+            <p>
+              Una plataforma para capturar mediciones, eventos, muestras y discrepancias en un
+              solo flujo. Calcula diferencias nave/terminal, clasifica riesgo y arma un reporte
+              ejecutivo listo para emitir.
+            </p>
+          </div>
+          <div class="hero-status" id="riskPanel">
+            <span class="status-dot"></span>
+            <strong id="riskLabel">Riesgo controlado</strong>
+            <small id="riskReason">Sin diferencias criticas.</small>
+          </div>
+        </div>
+
+        <form class="operation-grid" id="operationForm">
+          <label>
+            Reporte
+            <input name="reportNo" value="ACI-OPS-0001" />
+          </label>
+          <label>
+            Cliente
+            <input name="client" value="Principal / Trader" />
+          </label>
+          <label>
+            Nave
+            <input name="vessel" value="M/T Pacific Trader" />
+          </label>
+          <label>
+            Terminal
+            <input name="terminal" value="Terminal Quintero" />
+          </label>
+          <label>
+            Producto
+            <select name="product">
+              <option>ULSD</option>
+              <option>Gasoline 93</option>
+              <option>Fuel Oil</option>
+              <option>MTBE</option>
+              <option>Crude Oil</option>
+            </select>
+          </label>
+          <label>
+            Tipo de operacion
+            <select name="operationType">
+              <option>Descarga</option>
+              <option>Carga</option>
+              <option>Transferencia</option>
+              <option>Bunker</option>
+            </select>
+          </label>
+          <label>
+            Inspector
+            <input name="inspector" value="ACI Surveyor" />
+          </label>
+          <label>
+            Fecha
+            <input name="date" type="date" />
+          </label>
+        </form>
+      </section>
+
+      <section class="kpi-strip" aria-label="Indicadores principales">
+        <article>
+          <small>Diferencia neta</small>
+          <strong id="kpiDiffBbl">0 bbl</strong>
+          <span id="kpiDiffM3">0 m3</span>
+        </article>
+        <article>
+          <small>Merma sobre B/L</small>
+          <strong id="kpiLoss">0.000%</strong>
+          <span id="kpiLossStatus">Dentro de tolerancia</span>
+        </article>
+        <article>
+          <small>Demora operacional</small>
+          <strong id="kpiDelay">0 h</strong>
+          <span id="kpiDelayCost">USD 0 estimado</span>
+        </article>
+        <article>
+          <small>Checkpoints activos</small>
+          <strong id="kpiSamples">0/0</strong>
+          <span id="kpiSampleStatus">Trazabilidad parcial</span>
+        </article>
+      </section>
+
+      <section class="operation-map" aria-label="Mapa de conciliacion operacional">
+        <div class="map-title">
+          <div>
+            <p class="eyebrow">Figura operacional</p>
+            <h2>Origen, buque, descarga y tierra destino</h2>
+          </div>
+          <span id="flowStatus">Pendiente de completar mediciones</span>
+        </div>
+        <div class="flow-lane">
+          <article>
+            <small>B/L</small>
+            <strong id="flowBl">0 bbl</strong>
+            <span id="flowBlMeta">Base documental</span>
+          </article>
+          <article>
+            <small>Tierra / origen</small>
+            <strong id="flowOrigin">0 bbl</strong>
+            <span id="flowOriginMeta">Shore origen</span>
+          </article>
+          <article>
+            <small>Buque al arribo</small>
+            <strong id="flowArrival">0 bbl</strong>
+            <span id="flowArrivalMeta">Arribo con VEF destino</span>
+          </article>
+          <article>
+            <small>Buque descargado</small>
+            <strong id="flowShipDischarge">Pendiente</strong>
+            <span id="flowShipDischargeMeta">Ullage before - after</span>
+          </article>
+          <article>
+            <small>Tierra destino</small>
+            <strong id="flowShoreReceipt">Pendiente</strong>
+            <span id="flowShoreReceiptMeta">Final - inicial</span>
+          </article>
+        </div>
+        <div class="balance-lane">
+          <article>
+            <small>Balance origen vs arribo</small>
+            <strong id="flowOriginBalance">0 bbl</strong>
+            <span id="flowOriginBalanceMeta">Buque arribo - referencia origen</span>
+          </article>
+          <article>
+            <small>Balance descarga</small>
+            <strong id="flowDischargeBalance">Pendiente</strong>
+            <span id="flowDischargeBalanceMeta">Tierra destino - buque descargado</span>
+          </article>
+          <article>
+            <small>Balance round trip</small>
+            <strong id="flowDeliveryBalance">0 bbl</strong>
+            <span id="flowDeliveryBalanceMeta">Entrega final - B/L</span>
+          </article>
+        </div>
+        <div class="master-balance">
+          <div class="master-balance-head">
+            <div>
+              <p class="eyebrow">Compendio de balance</p>
+              <h3>BL, origen, arribo, alijes y entregas</h3>
+            </div>
+            <strong id="masterWorstDeviation">Mayor desvio: pendiente</strong>
+          </div>
+          <div class="master-table-wrap">
+            <table>
+              <tbody id="masterBalanceRows"></tbody>
+            </table>
+          </div>
+          <div class="ai-analysis">
+            <h3>Analisis inteligente de desvios</h3>
+            <p id="aiDeviationAnalysis">Complete mediciones para generar el analisis.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="lighterPlan" class="workspace lighter-workspace">
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Flujo STS / alije</p>
+              <h2>Buque madre, alijadores y entrega ENAP</h2>
+            </div>
+            <button class="ghost-button" id="addLighter" type="button">Agregar alijador</button>
+          </div>
+          <div class="lighter-context">
+            <label>
+              Fondeadero / bahia
+              <input name="lighterAnchorage" value="Bahia de Talcahuano" />
+            </label>
+            <label>
+              Buque madre / emisor
+              <input name="motherVessel" value="M/T Pacific Trader" />
+            </label>
+            <label>
+              Terminal operador
+              <input name="lighterTerminalOperator" value="ENAP Chile" />
+            </label>
+          </div>
+          <div class="lighter-list" id="lighterList"></div>
+          <div class="ullage-summary lighter-summary">
+            <h3>Resumen alijes y entregas</h3>
+            <table>
+              <tbody id="lighterSummaryRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="decision-panel">
+          <p class="eyebrow">Regla de comparacion</p>
+          <h2>Dos balances por alijador</h2>
+          <ul class="alerts">
+            <li>Alije STS: compara solo buque madre/emisor contra buque menor/receptor.</li>
+            <li>Entrega a destino: compara solo ullage del buque menor contra tierra del terminal.</li>
+            <li>El destino puede quedar en San Vicente o Quintero, y cada alijador se puede agregar o eliminar sin afectar los otros.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section id="calculator" class="workspace">
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Motor round trip</p>
+              <h2>Conciliacion origen / zarpe / arribo / entrega</h2>
+            </div>
+            <button class="ghost-button" id="loadScenario" type="button">Cargar caso demo</button>
+          </div>
+          <div class="calc-grid round-trip-grid">
+            <fieldset>
+              <legend>Base documental</legend>
+              <label class="toggle-row">
+                <input name="includeBl" type="checkbox" checked />
+                <span>Considerar B/L</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="blGsvBbl" type="number" step="0.001" value="249450" /></label>
+                <label>API @60F<input name="blApi" type="number" step="0.01" value="38.2" /></label>
+                <label>BSW %<input name="blBsw" type="number" step="0.001" value="0.08" /></label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Tierra origen</legend>
+              <label class="toggle-row">
+                <input name="includeOriginShore" type="checkbox" checked />
+                <span>Considerar tierra origen</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="originShoreGsvBbl" type="number" step="0.001" value="249600" /></label>
+                <label>API @60F<input name="originShoreApi" type="number" step="0.01" value="38.1" /></label>
+                <label>BSW %<input name="originShoreBsw" type="number" step="0.001" value="0.09" /></label>
+              </div>
+              <label>
+                Diferencia linea/cierre origen bbl
+                <input name="originAdjustmentBbl" type="number" step="0.001" value="0" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cantidad al zarpe</legend>
+              <label>
+                VEF origen
+                <input name="originVef" type="number" step="0.00001" value="1.00056" />
+              </label>
+              <label class="toggle-row">
+                <input name="includeSailingNoVef" type="checkbox" checked />
+                <span>Zarpe sin VEF</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="sailingGsvBbl" type="number" step="0.001" value="249200" /></label>
+                <label>API @60F<input name="sailingApi" type="number" step="0.01" value="38.2" /></label>
+                <label>BSW %<input name="sailingBsw" type="number" step="0.001" value="0.09" /></label>
+              </div>
+              <label class="toggle-row">
+                <input name="includeSailingVef" type="checkbox" checked />
+                <span>Zarpe con VEF origen</span>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Cantidad al arribo</legend>
+              <label>
+                VEF destino
+                <input name="destinationVef" type="number" step="0.00001" value="1.00068" />
+              </label>
+              <label class="toggle-row">
+                <input name="includeArrivalNoVef" type="checkbox" checked />
+                <span>Arribo sin VEF</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="arrivalGsvBbl" type="number" step="0.001" value="248960" /></label>
+                <label>API @60F<input name="arrivalApi" type="number" step="0.01" value="38.1" /></label>
+                <label>BSW %<input name="arrivalBsw" type="number" step="0.001" value="0.08" /></label>
+              </div>
+              <label class="toggle-row">
+                <input name="includeArrivalVef" type="checkbox" checked />
+                <span>Arribo con VEF destino</span>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Recepcion / alije</legend>
+              <label>
+                Medicion recepcionada por
+                <select name="receiptBasis">
+                  <option>Buque</option>
+                  <option>Terminal</option>
+                </select>
+              </label>
+              <label class="toggle-row">
+                <input name="includeLighterReceipt" type="checkbox" checked />
+                <span>Considerar cantidad recepcionada</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="lighterReceiptGsvBbl" type="number" step="0.001" value="248900" /></label>
+                <label>API @60F<input name="lighterReceiptApi" type="number" step="0.01" value="38.1" /></label>
+                <label>BSW %<input name="lighterReceiptBsw" type="number" step="0.001" value="0.08" /></label>
+              </div>
+              <label>
+                ROB / remanente buque bbl
+                <input name="robBbl" type="number" step="0.001" value="42" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Descarga alijadores a terminal</legend>
+              <label class="toggle-row">
+                <input name="includeLighterToTerminal" type="checkbox" checked />
+                <span>Considerar entrega final</span>
+              </label>
+              <div class="cube-inputs">
+                <label>GSV bbl<input name="lighterToTerminalGsvBbl" type="number" step="0.001" value="248720" /></label>
+                <label>API @60F<input name="lighterToTerminalApi" type="number" step="0.01" value="38.0" /></label>
+                <label>BSW %<input name="lighterToTerminalBsw" type="number" step="0.001" value="0.08" /></label>
+              </div>
+              <label>
+                Line displacement / drenaje bbl
+                <input name="lineDisplacementBbl" type="number" step="0.001" value="28" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Tolerancias y costos</legend>
+              <label>
+                Tolerancia por tramo %
+                <input name="tolerancePct" type="number" step="0.001" value="0.25" />
+              </label>
+              <label>
+                Demurrage USD/dia
+                <input name="demurrageDay" type="number" step="1" value="28000" />
+              </label>
+              <label>
+                Compromiso Key Meeting bbl/h
+                <input name="keyMeetingRateBph" type="number" step="0.001" value="10500" />
+              </label>
+              <label>
+                NOR tendered
+                <input name="norTendered" type="datetime-local" />
+              </label>
+              <label>
+                Inicio descarga
+                <input name="dischargeStart" type="datetime-local" />
+              </label>
+              <label>
+                Termino desconexion
+                <input name="disconnectionComplete" type="datetime-local" />
+              </label>
+            </fieldset>
+          </div>
+          <div class="formula-board" aria-label="Resultados calculados">
+            <output>
+              <small>Entrega final considerada</small>
+              <strong id="adjustedNsv">0 bbl</strong>
+            </output>
+            <output>
+              <small>Diferencia round trip</small>
+              <strong id="nsvDifference">0 bbl</strong>
+            </output>
+            <output>
+              <small>Tramo mas critico</small>
+              <strong id="metricVolume">0 bbl</strong>
+            </output>
+            <output>
+              <small>Decision sugerida</small>
+              <strong id="decisionText">Continuar monitoreo</strong>
+            </output>
+          </div>
+        </div>
+
+        <aside class="decision-panel">
+          <p class="eyebrow">Copiloto operacional</p>
+          <h2>Alertas accionables</h2>
+          <ul class="alerts" id="alertsList"></ul>
+          <div class="next-step">
+            <strong>Proxima accion</strong>
+            <p id="nextAction">Completar datos de medicion y eventos para emitir resumen.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section id="api1211" class="workspace api-workspace">
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Hoja de calculo tecnico</p>
+              <h2>Ullage completo - 14 tanques</h2>
+            </div>
+            <button class="ghost-button" id="apiLoadFromSummary" type="button">Precargar desde resumen</button>
+          </div>
+          <div class="api-toolbar">
+            <label>
+              Tabla VCF
+              <select name="apiProductClass">
+                <option value="6A">Tabla 6A - Crude Oil</option>
+                <option value="6B">Tabla 6B - Products</option>
+                <option value="6C">Tabla 6C - MTBE</option>
+                <option value="6D">Tabla 6D - Lubricating Oil</option>
+              </select>
+            </label>
+            <label>
+              CTSh global
+              <input name="apiGlobalCtsh" type="number" step="0.000001" value="1.000000" />
+            </label>
+            <label>
+              VEF global
+              <input name="apiGlobalVef" type="number" step="0.000001" value="1.000000" />
+            </label>
+          </div>
+          <div class="ullage-wrap">
+            <table class="ullage-table">
+              <caption>Ullage Before</caption>
+              <thead>
+                <tr>
+                  <th>Usar</th>
+                  <th>Tanque</th>
+                  <th>Ullage</th>
+                  <th>Ref h</th>
+                  <th>TOV bbl</th>
+                  <th>FW bbl</th>
+                  <th>Temp F</th>
+                  <th>API</th>
+                  <th>BSW %</th>
+                  <th>VCF auto</th>
+                  <th>VCF override</th>
+                  <th>GOV</th>
+                  <th>GSV</th>
+                  <th>NSV</th>
+                </tr>
+              </thead>
+              <tbody id="ullageBeforeRows"></tbody>
+            </table>
+          </div>
+          <div class="ullage-wrap after-wrap">
+            <table class="ullage-table">
+              <caption>Ullage After</caption>
+              <thead>
+                <tr>
+                  <th>Usar</th>
+                  <th>Tanque</th>
+                  <th>Ullage</th>
+                  <th>Ref h</th>
+                  <th>TOV bbl</th>
+                  <th>FW bbl</th>
+                  <th>Temp F</th>
+                  <th>API</th>
+                  <th>BSW %</th>
+                  <th>VCF auto</th>
+                  <th>VCF override</th>
+                  <th>GOV</th>
+                  <th>GSV</th>
+                  <th>NSV</th>
+                </tr>
+              </thead>
+              <tbody id="ullageAfterRows"></tbody>
+            </table>
+          </div>
+          <div class="formula-board api-results" aria-label="Resultados API">
+            <output>
+              <small>Total GOV</small>
+              <strong id="apiGovResult">0 bbl</strong>
+            </output>
+            <output>
+              <small>Total GSV</small>
+              <strong id="apiGsvResult">0 bbl</strong>
+            </output>
+            <output>
+              <small>Total NSV</small>
+              <strong id="apiNsvResult">0 bbl</strong>
+            </output>
+            <output>
+              <small>Tanques activos</small>
+              <strong id="apiMethodResult">0/14</strong>
+            </output>
+          </div>
+          <div class="ullage-summary">
+            <h3>Summary descargado Before - After</h3>
+            <table>
+              <tbody id="ullageSummaryRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="decision-panel">
+          <p class="eyebrow">Notas de metodo</p>
+          <h2>Trazabilidad</h2>
+          <ul class="alerts">
+            <li>Secuencia por tanque: TOV - FW = GOV; GOV x VCF x CTSh = GSV; GSV x (1 - BSW%) = NSV.</li>
+            <li>El VCF automatico replica la formula encontrada en el archivo F.C.V. para Tablas 6A, 6B, 6C y 6D. Mantenga VCF override disponible para valores verificados por software/tablas oficiales.</li>
+            <li>El volumen TOV debe venir de tablas de calibracion/ullage del buque o tanque. Esta hoja no reemplaza las tablas de aforo.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section id="shore" class="workspace shore-workspace">
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Hoja de calculo tierra</p>
+              <h2>Shore tanks - medicion inicial / final</h2>
+            </div>
+            <div class="panel-actions">
+              <button class="ghost-button" id="addShoreTank" type="button">Agregar tanque</button>
+            </div>
+          </div>
+
+          <div class="api-toolbar">
+            <label>
+              Terminal
+              <input name="shoreTerminal" value="Terminal" />
+            </label>
+            <label>
+              Puerto
+              <input name="shorePort" value="Puerto" />
+            </label>
+            <label>
+              Tabla VCF
+              <select name="shoreProductClass">
+                <option value="6A">Tabla 6A - Crude Oil</option>
+                <option value="6B">Tabla 6B - Products</option>
+                <option value="6C">Tabla 6C - MTBE</option>
+                <option value="6D">Tabla 6D - Lubricating Oil</option>
+              </select>
+            </label>
+            <label>
+              CTSh global
+              <input name="shoreGlobalCtsh" type="number" step="0.000001" value="1.000000" />
+            </label>
+            <label>
+              Ajuste de linea bbl
+              <input name="shoreLineAdjustmentBbl" type="number" step="0.001" value="0" />
+            </label>
+          </div>
+
+          <div class="shore-instruments">
+            <fieldset>
+              <legend>Cinta de medicion</legend>
+              <div class="instrument-grid">
+                <label>
+                  Marca
+                  <input name="shoreTapeBrand" placeholder="Marca" />
+                </label>
+                <label>
+                  Modelo
+                  <input name="shoreTapeModel" placeholder="Modelo" />
+                </label>
+                <label>
+                  Fecha calibracion
+                  <input name="shoreTapeCalibration" type="date" />
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Termometro</legend>
+              <div class="instrument-grid">
+                <label>
+                  Marca
+                  <input name="shoreThermoBrand" placeholder="Marca" />
+                </label>
+                <label>
+                  Modelo
+                  <input name="shoreThermoModel" placeholder="Modelo" />
+                </label>
+                <label>
+                  Fecha calibracion
+                  <input name="shoreThermoCalibration" type="date" />
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="shore-tank-list" id="shoreTankList"></div>
+
+          <div class="ullage-summary shore-summary">
+            <h3>Conciliacion tierra final - inicial</h3>
+            <table>
+              <tbody id="shoreSummaryRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="decision-panel">
+          <p class="eyebrow">Metodo</p>
+          <h2>Tanques verticales</h2>
+          <ul class="alerts">
+            <li>Por tanque: TOV - FW = GOV; GOV x VCF x CTSh = GSV; GSV x (1 - BSW%) = NSV.</li>
+            <li>La conciliacion toma medicion final menos medicion inicial y suma el ajuste de linea al resultado neto.</li>
+            <li>El API conciliado y densidad se ponderan por volumen GSV descargado/recibido de cada tanque.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section id="timeline" class="workspace two-column">
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Bitacora viva</p>
+              <h2>Eventos criticos</h2>
+            </div>
+            <button class="ghost-button" id="addEvent" type="button">Agregar evento</button>
+          </div>
+          <div class="event-list" id="eventList"></div>
+        </div>
+
+        <div class="tool-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Control de muestras</p>
+              <h2>Custodia y retencion</h2>
+            </div>
+            <button class="ghost-button" id="addSample" type="button">Agregar muestra</button>
+          </div>
+          <div class="sample-list" id="sampleList"></div>
+        </div>
+
+        <div class="tool-panel wide-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Tiempo operativo</p>
+              <h2>Detenciones durante la descarga</h2>
+            </div>
+            <button class="ghost-button" id="addStoppage" type="button">Agregar detencion</button>
+          </div>
+          <div class="stoppage-list" id="stoppageList"></div>
+        </div>
+
+        <div class="tool-panel wide-panel">
+          <div class="panel-title">
+            <div>
+              <p class="eyebrow">Hora a hora editable</p>
+              <h2>Rata / volumen real de descarga</h2>
+            </div>
+            <button class="ghost-button" id="addHourly" type="button">Agregar hora</button>
+          </div>
+          <div class="hourly-entry-list" id="hourlyEntryList"></div>
+        </div>
+      </section>
+
+      <section id="report" class="workspace">
+        <div class="report-sheet" id="reportSheet">
+          <div class="report-head">
+            <img src="/assets/aci-logo-black.jpeg" alt="ACI Loss Control Experts" />
+            <div>
+              <p>Operational Loss Control Report</p>
+              <h2 id="reportTitle">ACI-OPS-0001</h2>
+            </div>
+          </div>
+          <div class="report-meta" id="reportMeta"></div>
+          <div class="report-section">
+            <h3>Resumen ejecutivo</h3>
+            <p id="executiveSummary"></p>
+          </div>
+          <div class="report-section">
+            <h3>Balance de cantidades</h3>
+            <table>
+              <tbody id="quantityTable"></tbody>
+            </table>
+          </div>
+          <div class="report-section effect-commentary">
+            <h3>Comentario tecnico sobre efectos en el resultado</h3>
+            <p id="effectsCommentary"></p>
+          </div>
+          <div class="report-section">
+            <h3>Analisis tiempo operativo vs Key Meeting</h3>
+            <table>
+              <tbody id="timeTable"></tbody>
+            </table>
+            <p class="method-note" id="hourlyMethod"></p>
+            <div class="hourly-wrap">
+              <table>
+                <tbody id="hourlyTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="report-section">
+            <h3>Eventos relevantes</h3>
+            <ol id="reportEvents"></ol>
+          </div>
+          <div class="report-section">
+            <h3>Muestras y custodia</h3>
+            <ol id="reportSamples"></ol>
+          </div>
+          <div class="signature-row">
+            <span>ACI Loss Control</span>
+            <span id="signatureInspector">ACI Surveyor</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="contacto" class="request-section" aria-label="Solicitudes comerciales">
+        <div class="request-copy">
+          <p class="eyebrow">Solicitar cobertura</p>
+          <h2>Envie una solicitud operacional a ACI.</h2>
+          <p>
+            Para servicios de loss control, expediting, reconciliacion o soporte documental,
+            complete los datos de la operacion. El formulario preparara un correo dirigido a
+            <strong>contacto@acilatam.cl</strong>.
+          </p>
+          <div class="contact-direct">
+            <span>Correo directo</span>
+            <a href="mailto:contacto@acilatam.cl">contacto@acilatam.cl</a>
+          </div>
+        </div>
+        <form class="request-form" id="requestForm">
+          <label>
+            Nombre
+            <input name="requestName" autocomplete="name" required />
+          </label>
+          <label>
+            Empresa
+            <input name="requestCompany" autocomplete="organization" required />
+          </label>
+          <label>
+            Email
+            <input name="requestEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Telefono
+            <input name="requestPhone" autocomplete="tel" />
+          </label>
+          <label>
+            Pais
+            <select name="requestCountry">
+              <option>Chile</option>
+              <option>Ecuador</option>
+              <option>Colombia</option>
+              <option>Otro</option>
+            </select>
+          </label>
+          <label>
+            Servicio requerido
+            <select name="requestService">
+              <option>Loss control y expediting</option>
+              <option>Reconciliacion nave/terminal/planta</option>
+              <option>Control de cantidad y calidad</option>
+              <option>Soporte a reclamos</option>
+              <option>Informe y trazabilidad documental</option>
+            </select>
+          </label>
+          <label class="full">
+            Detalle de la operacion
+            <textarea name="requestDetails" rows="5" placeholder="Producto, fecha estimada, terminal/nave/planta, alcance requerido y cualquier antecedente relevante." required></textarea>
+          </label>
+          <button class="primary-action" type="submit">Enviar solicitud</button>
+        </form>
+      </section>
+    </main>
+
+    <template id="eventTemplate">
+      <article class="editable-row">
+        <input class="event-time" type="datetime-local" />
+        <input class="event-title" placeholder="Evento" />
+        <select class="event-impact">
+          <option>Informativo</option>
+          <option>Riesgo cantidad</option>
+          <option>Riesgo calidad</option>
+          <option>Demora</option>
+          <option>Discrepancia</option>
+        </select>
+        <button class="icon-button remove-row" type="button" title="Eliminar">×</button>
+      </article>
+    </template>
+
+    <template id="sampleTemplate">
+      <article class="editable-row">
+        <input class="sample-id" placeholder="ID muestra" />
+        <input class="sample-source" placeholder="Origen" />
+        <select class="sample-status">
+          <option>Retenida ACI</option>
+          <option>Enviada laboratorio</option>
+          <option>Entregada cliente</option>
+          <option>Crítica</option>
+        </select>
+        <button class="icon-button remove-row" type="button" title="Eliminar">×</button>
+      </article>
+    </template>
+
+    <template id="stoppageTemplate">
+      <article class="editable-row stoppage-row">
+        <input class="stop-start" type="datetime-local" />
+        <input class="stop-end" type="datetime-local" />
+        <select class="stop-accountable">
+          <option value="discount">Descontable</option>
+          <option value="accountable">Afecta operacion</option>
+        </select>
+        <input class="stop-reason" placeholder="Motivo detencion" />
+        <button class="icon-button remove-row" type="button" title="Eliminar">×</button>
+      </article>
+    </template>
+
+    <template id="hourlyEntryTemplate">
+      <article class="editable-row hourly-entry-row">
+        <input class="hour-start" type="datetime-local" />
+        <input class="hour-end" type="datetime-local" />
+        <input class="hour-volume" type="number" step="0.001" placeholder="Volumen bbl" />
+        <input class="hour-pressure" type="number" step="0.001" placeholder="Presion" />
+        <select class="hour-pressure-unit">
+          <option>PSI</option>
+          <option>Bar</option>
+        </select>
+        <select class="hour-status">
+          <option>Descargando</option>
+          <option>Detencion descontable</option>
+          <option>Detencion afecta operacion</option>
+          <option>Rata reducida</option>
+        </select>
+        <input class="hour-comment" placeholder="Comentario" />
+        <button class="icon-button remove-row" type="button" title="Eliminar">×</button>
+      </article>
+    </template>
+
+    <template id="lighterTemplate">
+      <article class="lighter-card">
+        <div class="lighter-card-head">
+          <label>
+            Buque alijador
+            <input class="lighter-name" value="M/T Alijador 1" />
+          </label>
+          <label>
+            Destino
+            <select class="lighter-destination">
+              <option>San Vicente</option>
+              <option>Quintero</option>
+              <option>Otro</option>
+            </select>
+          </label>
+          <button class="icon-button remove-lighter" type="button" title="Eliminar">×</button>
+        </div>
+        <div class="lighter-leg-grid">
+          <fieldset>
+            <legend>Alije madre → receptor</legend>
+            <label class="toggle-row">
+              <input class="lighter-transfer-active" type="checkbox" checked />
+              <span>Considerar alije STS</span>
+            </label>
+            <div class="cube-inputs">
+              <label>Emisor NSV bbl<input class="lighter-mother-nsv" type="number" step="0.001" value="0" /></label>
+              <label>Receptor NSV bbl<input class="lighter-receiver-nsv" type="number" step="0.001" value="0" /></label>
+              <label>ROB madre bbl<input class="lighter-mother-rob" type="number" step="0.001" value="0" /></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Descarga receptor → terminal</legend>
+            <label class="toggle-row">
+              <input class="lighter-delivery-active" type="checkbox" checked />
+              <span>Considerar entrega terminal</span>
+            </label>
+            <div class="cube-inputs">
+              <label>Ullage alijador NSV<input class="lighter-ullage-nsv" type="number" step="0.001" value="0" /></label>
+              <label>Tierra terminal NSV<input class="lighter-shore-nsv" type="number" step="0.001" value="0" /></label>
+              <label>Ajuste linea bbl<input class="lighter-line-adjustment" type="number" step="0.001" value="0" /></label>
+            </div>
+          </fieldset>
+        </div>
+        <table class="lighter-result-table">
+          <tbody></tbody>
+        </table>
+      </article>
+    </template>
+
+    <template id="shoreTankTemplate">
+      <article class="shore-tank">
+        <div class="shore-tank-head">
+          <label>
+            Tanque
+            <input class="shore-tank-name" value="TK-001" />
+          </label>
+          <button class="icon-button remove-shore-tank" type="button" title="Eliminar">Ã—</button>
+        </div>
+        <div class="shore-vertical-wrap">
+          <table class="shore-vertical-table">
+            <thead>
+              <tr>
+                <th>Medicion</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>TOV bbl</th>
+                <th>FW bbl</th>
+                <th>Temp F</th>
+                <th>API</th>
+                <th>VCF override</th>
+                <th>BSW %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Inicial / OPEN</td>
+                <td><input class="shore-initial-date" type="date" /></td>
+                <td><input class="shore-initial-time" type="time" /></td>
+                <td><input class="shore-initial-tov" type="number" step="0.001" value="0" /></td>
+                <td><input class="shore-initial-fw" type="number" step="0.001" value="0" /></td>
+                <td><input class="shore-initial-temp" type="number" step="0.1" value="75" /></td>
+                <td><input class="shore-initial-api" type="number" step="0.01" value="38.2" /></td>
+                <td><input class="shore-initial-vcf-override" type="number" step="0.000001" placeholder="auto" /></td>
+                <td><input class="shore-initial-bsw" type="number" step="0.001" value="0.08" /></td>
+              </tr>
+              <tr>
+                <td>Final / CLOSE</td>
+                <td><input class="shore-final-date" type="date" /></td>
+                <td><input class="shore-final-time" type="time" /></td>
+                <td><input class="shore-final-tov" type="number" step="0.001" value="0" /></td>
+                <td><input class="shore-final-fw" type="number" step="0.001" value="0" /></td>
+                <td><input class="shore-final-temp" type="number" step="0.1" value="75" /></td>
+                <td><input class="shore-final-api" type="number" step="0.01" value="38.2" /></td>
+                <td><input class="shore-final-vcf-override" type="number" step="0.000001" placeholder="auto" /></td>
+                <td><input class="shore-final-bsw" type="number" step="0.001" value="0.08" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <table class="shore-tank-result">
+          <tbody></tbody>
+        </table>
+      </article>
+    </template>
+
+    <script src="/operaciones/script.js?v=master-balance"></script>
+  </body>
+</html>
