@@ -2084,11 +2084,11 @@ function initEvents() {
 }
 
 function handleClick(e) {
-  // Close modal only if clicking the overlay itself, not the modal panel
-  if (e.target.dataset.action === 'close-modal-bg' && e.target.closest('[data-stop-propagation]')) return;
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const a = el.dataset.action;
+  // Only close modal when clicking the overlay itself, not elements inside the modal panel
+  if (a === 'close-modal-bg' && e.target.closest('[data-stop-propagation]')) return;
 
   if (a === 'go-home') { state.view='home'; state.currentOpId=null; render(); }
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
