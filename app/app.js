@@ -13,23 +13,24 @@ const OP_TYPES = {
     label: 'Buque con VEF',
     icon: '🛢️',
     desc: 'Medición a bordo con cálculo de VEF y ullage inicial.',
-    modules: ['key-meeting', 'ullage-inicial', 'vef', 'time-log', 'checklist-inspeccion'],
+    modules: ['origen', 'key-meeting', 'ullage-inicial', 'vef', 'time-log', 'checklist-inspeccion', 'summary'],
   },
   'alije': {
     label: 'Alije (STS)',
     icon: '⚓',
     desc: 'Transferencia ship-to-ship con buque madre y alijadores.',
-    modules: ['key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-madre', 'checklist-alijador'],
+    modules: ['origen', 'key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-madre', 'checklist-alijador', 'summary'],
   },
   'terminal': {
     label: 'Descarga a Terminal',
     icon: '🏭',
     desc: 'Descarga desde buque a instalaciones en tierra.',
-    modules: ['key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-buque', 'checklist-terminal'],
+    modules: ['origen', 'key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-buque', 'checklist-terminal', 'summary'],
   },
 };
 
 const MODULE_META = {
+  'origen':               { label: 'Datos Origen',       icon: '📦' },
   'key-meeting':          { label: 'Key Meeting',        icon: '🤝' },
   'ullage-inicial':       { label: 'Ullage Inicial',     icon: '📐' },
   'ullage-final':         { label: 'Ullage Final',       icon: '📏' },
@@ -42,6 +43,7 @@ const MODULE_META = {
   'checklist-alijador':   { label: 'Checklist Alijador', icon: '✅' },
   'checklist-buque':      { label: 'Checklist Buque',    icon: '✅' },
   'checklist-terminal':   { label: 'Checklist Terminal', icon: '✅' },
+  'summary':              { label: 'Summary',            icon: '📊' },
 };
 
 const TANK_NAMES = ['1P','1S','2P','2S','3P','3S','4P','4S','5P','5S','SLP','SLS','WBP','WBS'];
@@ -208,10 +210,19 @@ function newOpId() { return 'op_' + Date.now() + '_' + Math.random().toString(36
 
 function initModuleData(type) {
   const tanks = TANK_NAMES.map(n => ({ name: n, ullage: '', tcf: '', tov: '', temp: '', api: '', bsw: '', fw: '', gov: '', gsv: '' }));
+  const emptyQty = () => ({ tov:'', gov:'', gsv60F:'', m3_15:'', m3_20:'', bbl:'', tmVac:'', tmAir:'', longTons:'', shortTons:'', gallons:'', api:'', bsw:'', temp:'', vcf:'' });
   return {
+    'origen': {
+      loadPort: '', loadTerminal: '', loadBerth: '', loadDate: '',
+      blNumber: '', blDate: '', blRef: '',
+      bl: emptyQty(),
+      shore: { ...emptyQty(), vef: '', tankDetails: '', notes: '' },
+      shipFigureOrigin: { ...emptyQty(), vef: '', notes: '' },
+      notes: '',
+    },
     'key-meeting':    { date: '', time: '', location: '', attendees: [], topics: [], notes: '', decisions: '' },
-    'ullage-inicial': { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '' },
-    'ullage-final':   { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '' },
+    'ullage-inicial': { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'' },
+    'ullage-final':   { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'' },
     'vef':            { shoreGSV: '', vesselGSV: '', vef: '', notes: '', voyages: [] },
     'time-log':       { events: [], pumpRate: '', startTime: '', hoses: 1, notes: '' },
     'discharge-record': { bl: { qty: '', api: '', bsw: '', temp: '' }, pumpLog: [], notes: '' },
@@ -221,6 +232,7 @@ function initModuleData(type) {
     'checklist-alijador':   { items: makeChecklistData(CHECKLIST_LIGHTER), inspector: '', date: '', signature: '' },
     'checklist-buque':      { items: makeChecklistData(CHECKLIST_VESSEL), inspector: '', date: '', signature: '' },
     'checklist-terminal':   { items: makeChecklistData(CHECKLIST_TERMINAL), inspector: '', date: '', signature: '' },
+    'summary': { notes: '' },
   };
 }
 
@@ -438,13 +450,81 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function serializeOpForAI(op) {
+  if (!op) return null;
+  const mods = op.modules || {};
+  const origen = mods['origen'] || {};
+  const ullI   = mods['ullage-inicial'] || {};
+  const ullF   = mods['ullage-final']   || {};
+  const vefMod = mods['vef'] || {};
+
+  const blGSV    = parseFloat(origen.bl?.gsv60F || 0);
+  const shoreGSV = parseFloat(origen.shore?.gsv60F || 0);
+  const shipGSV  = parseFloat(origen.shipFigureOrigin?.gsv60F || 0);
+
+  const pct = (a, b) => (a > 0 && b > 0) ? ((a - b) / b * 100).toFixed(4) + '%' : 'N/D';
+
+  return {
+    codigo: op.code, tipo: op.type, buque: op.vessel, viaje: op.voyage,
+    imo: op.imo, producto: op.product, crudo: op.crudeName,
+    puerto: op.port, terminal: op.terminal,
+    clientes: (op.clients || []).map(c => c.name).join(', '),
+    origen: {
+      puertoOrigen: origen.loadPort, terminalOrigen: origen.loadTerminal,
+      fechaCarga: origen.loadDate, blNum: origen.blNumber,
+      api: origen.originApi, tempC: origen.originTemp, bsw: origen.originBsw,
+      bl:    { gsv60F: origen.bl?.gsv60F, tmAire: origen.bl?.tmAir, longTons: origen.bl?.longTons, bbl: origen.bl?.bbl },
+      tierra:{ gsv60F: origen.shore?.gsv60F, tmAire: origen.shore?.tmAir, vef: origen.shore?.vef },
+      buque: { gsv60F: origen.shipFigureOrigin?.gsv60F, tmAire: origen.shipFigureOrigin?.tmAir, vef: origen.shipFigureOrigin?.vef },
+    },
+    vefDestino: vefMod.vef || 'N/D',
+    diferencias: {
+      buqueVsTierra: pct(shipGSV, shoreGSV),
+      blVsTierra: pct(shoreGSV, blGSV),
+      blVsBuque: pct(shipGSV, blGSV),
+    },
+    ullageInicial: {
+      tanques: (ullI.tanks || []).length,
+      gov: ullageTotal(ullI.tanks || [], 'gov'),
+      gsv: ullageTotal(ullI.tanks || [], 'gsv'),
+    },
+    ullajeFinale: ullF.tanks ? {
+      tanques: (ullF.tanks || []).length,
+      gov: ullageTotal(ullF.tanks || [], 'gov'),
+      gsv: ullageTotal(ullF.tanks || [], 'gsv'),
+    } : null,
+    notas: (mods['summary'] || {}).notes || '',
+  };
+}
+
+function detectOpCodes(text) {
+  return [...text.matchAll(/ACI(?:CH|CO|EC|PE|CA|USA)-\d{3,}/gi)].map(m => m[0].toUpperCase());
+}
+
 async function chatSend() {
   const input = document.getElementById('chat-input');
   const text = input?.value?.trim();
   if (!text || state.chatLoading) return;
 
   if (!state.chatHistory) state.chatHistory = [];
-  state.chatHistory.push({ role: 'user', content: text });
+
+  // Inject operation data when the user mentions an operation code
+  const codes = detectOpCodes(text);
+  let enrichedText = text;
+  if (codes.length > 0) {
+    const parts = [];
+    for (const code of codes) {
+      const op = loadOps().find(o => (o.code || '').toUpperCase() === code);
+      if (op) {
+        parts.push(`\n\n--- DATOS COMPLETOS OPERACIÓN ${code} ---\n${JSON.stringify(serializeOpForAI(op), null, 2)}\n---`);
+      } else {
+        parts.push(`\n\n[Nota: La operación ${code} no fue encontrada en el sistema.]`);
+      }
+    }
+    enrichedText = text + parts.join('');
+  }
+
+  state.chatHistory.push({ role: 'user', content: enrichedText });
   state.chatLoading = true;
   input.value = '';
   render();
@@ -800,6 +880,7 @@ function buildModuleContentInner(data, mod, ctx) {
   const meta = MODULE_META[mod] || {};
   const ctxStr = encodeCtx(ctx);
 
+  if (mod === 'origen')                                                   return buildOrigen(data, ctxStr);
   if (mod === 'key-meeting')                                              return buildKeyMeeting(data, ctxStr);
   if (mod === 'ullage-inicial' || mod === 'ullage-final')                 return buildUllage(data, mod, ctxStr);
   if (mod === 'vef')                                                      return buildVEF(data, ctxStr);
@@ -807,11 +888,516 @@ function buildModuleContentInner(data, mod, ctx) {
   if (mod === 'discharge-record')                                         return buildDischargeRecord(data, ctxStr);
   if (mod === 'slops')                                                    return buildSlops(data, ctxStr);
   if (mod.startsWith('checklist'))                                        return buildChecklist(data, mod, ctxStr);
+  if (mod === 'summary') {
+    const c = decodeCtx(ctx);
+    const op = getOp(c.opId);
+    return op ? buildSummary(op, ctxStr) : '<div class="text-muted">Operación no encontrada.</div>';
+  }
   return `<div class="module-title">${meta.label}</div><div class="text-muted">Módulo en desarrollo.</div>`;
 }
 
 function encodeCtx(ctx) { return encodeURIComponent(JSON.stringify(ctx)); }
 function decodeCtx(s) { try { return JSON.parse(decodeURIComponent(s)); } catch { return {}; } }
+
+// ===== MODULE: ORIGEN =====
+function buildOrigen(d, ctx) {
+  const bl = d.bl || {};
+  const shore = d.shore || {};
+  const ship = d.shipFigureOrigin || {};
+
+  const qRow = (label, obj, field, unit, hint='') => `
+    <tr>
+      <td style="font-weight:600;color:var(--ink);font-size:12px">${label}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${obj[field]||''}"
+          data-action="save-origen-qty" data-ctx="${ctx}" data-obj="${field==='vef'?'shore':field.startsWith('bl')?'bl':''}" data-subobj="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+      ${hint ? `<td style="color:var(--muted);font-size:10px">${hint}</td>` : '<td></td>'}
+    </tr>`;
+
+  const blRow = (label, field, unit, hint='') => `
+    <tr>
+      <td style="font-weight:600;color:var(--ink);font-size:12px">${label}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${bl[field]||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+      <td style="color:var(--muted);font-size:10px">${hint}</td>
+    </tr>`;
+
+  const shoreRow = (label, field, unit, hint='') => `
+    <tr>
+      <td style="font-weight:600;color:var(--ink);font-size:12px">${label}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${shore[field]||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="shore" data-field="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+      <td style="color:var(--muted);font-size:10px">${hint}</td>
+    </tr>`;
+
+  const shipRow = (label, field, unit, hint='') => `
+    <tr>
+      <td style="font-weight:600;color:var(--ink);font-size:12px">${label}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${ship[field]||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="shipFigureOrigin" data-field="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+      <td style="color:var(--muted);font-size:10px">${hint}</td>
+    </tr>`;
+
+  return `
+    <div class="module-title">📦 Datos de Origen / Puerto de Carga</div>
+    <div class="module-subtitle">Bill of Lading, figura tierra origen, figura buque en carga</div>
+
+    <!-- PUERTO Y TERMINAL ORIGEN -->
+    <div class="card">
+      <div class="card-title">Puerto y Terminal de Carga</div>
+      <div class="form-row form-row-3">
+        <div class="field">
+          <label class="field-label">Puerto de carga</label>
+          <input class="field-input" value="${d.loadPort||''}" placeholder="Ej: Coveñas, Esmeraldas..."
+            data-action="save-field" data-ctx="${ctx}" data-field="loadPort">
+        </div>
+        <div class="field">
+          <label class="field-label">Terminal</label>
+          <input class="field-input" value="${d.loadTerminal||''}" placeholder="Nombre de la terminal"
+            data-action="save-field" data-ctx="${ctx}" data-field="loadTerminal">
+        </div>
+        <div class="field">
+          <label class="field-label">Muelle / Berth</label>
+          <input class="field-input" value="${d.loadBerth||''}" placeholder="Ej: Berth 1, Muelle 3..."
+            data-action="save-field" data-ctx="${ctx}" data-field="loadBerth">
+        </div>
+      </div>
+      <div class="form-row form-row-3">
+        <div class="field">
+          <label class="field-label">Fecha inicio carga</label>
+          <input class="field-input" type="datetime-local" value="${d.loadDate||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="loadDate">
+        </div>
+        <div class="field">
+          <label class="field-label">N° B/L</label>
+          <input class="field-input" value="${d.blNumber||''}" placeholder="Número Bill of Lading"
+            data-action="save-field" data-ctx="${ctx}" data-field="blNumber">
+        </div>
+        <div class="field">
+          <label class="field-label">Fecha B/L</label>
+          <input class="field-input" type="date" value="${d.blDate||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="blDate">
+        </div>
+      </div>
+    </div>
+
+    <!-- PROPIEDADES GENERALES ORIGEN -->
+    <div class="card">
+      <div class="card-title">Propiedades del Producto en Origen</div>
+      <div class="form-row form-row-3" style="margin-bottom:0">
+        <div class="field">
+          <label class="field-label">API Gravity @60°F</label>
+          <input class="field-input" type="number" step="0.1" value="${d.originApi||''}" placeholder="°API"
+            data-action="save-field" data-ctx="${ctx}" data-field="originApi">
+        </div>
+        <div class="field">
+          <label class="field-label">Temperatura observada (°C)</label>
+          <input class="field-input" type="number" step="0.01" value="${d.originTemp||''}" placeholder="°C"
+            data-action="save-field" data-ctx="${ctx}" data-field="originTemp">
+        </div>
+        <div class="field">
+          <label class="field-label">BS&W (%)</label>
+          <input class="field-input" type="number" step="0.001" value="${d.originBsw||''}" placeholder="% vol"
+            data-action="save-field" data-ctx="${ctx}" data-field="originBsw">
+        </div>
+      </div>
+    </div>
+
+    <!-- TRES FIGURAS EN PARALELO -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+
+      <!-- B/L -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:#1f3a5f;color:#7eb8e8;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:10px 14px">
+          📄 Bill of Lading (B/L)
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th style="text-align:left">Cantidad</th><th>Valor</th><th>Ud.</th><th></th></tr></thead>
+            <tbody>
+              ${blRow('TOV','tov','m³','Tank gauge')}
+              ${blRow('GOV','gov','m³','Gross Observed')}
+              ${blRow('GSV @60°F','gsv60F','m³','Std. Volume')}
+              ${blRow('m³ @15°C','m3_15','m³','')}
+              ${blRow('m³ @20°C','m3_20','m³','')}
+              ${blRow('BBL @60°F','bbl','BBL','')}
+              ${blRow('TM Vacío','tmVac','MT','')}
+              ${blRow('TM Aire','tmAir','MT','')}
+              ${blRow('Long Tons','longTons','LT','')}
+              ${blRow('Short Tons','shortTons','ST','')}
+              ${blRow('US Gallons','gallons','gal','')}
+              <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades</td></tr>
+              ${blRow('API @60°F','api','°API','')}
+              ${blRow('Temperatura','temp','°C','')}
+              ${blRow('BS&W','bsw','%','')}
+              ${blRow('VCF aplicado','vcf','—','')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SHORE / TIERRA ORIGEN -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:#1a3a2a;color:#7ecc9e;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:10px 14px">
+          🏭 Figura Tierra (Shore) Origen
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th style="text-align:left">Cantidad</th><th>Valor</th><th>Ud.</th><th></th></tr></thead>
+            <tbody>
+              ${shoreRow('TOV','tov','m³','')}
+              ${shoreRow('GOV','gov','m³','')}
+              ${shoreRow('GSV @60°F','gsv60F','m³','')}
+              ${shoreRow('m³ @15°C','m3_15','m³','')}
+              ${shoreRow('m³ @20°C','m3_20','m³','')}
+              ${shoreRow('BBL @60°F','bbl','BBL','')}
+              ${shoreRow('TM Vacío','tmVac','MT','')}
+              ${shoreRow('TM Aire','tmAir','MT','')}
+              ${shoreRow('Long Tons','longTons','LT','')}
+              ${shoreRow('Short Tons','shortTons','ST','')}
+              ${shoreRow('US Gallons','gallons','gal','')}
+              <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades / VEF</td></tr>
+              ${shoreRow('API @60°F','api','°API','')}
+              ${shoreRow('Temperatura','temp','°C','')}
+              ${shoreRow('BS&W','bsw','%','')}
+              ${shoreRow('VEF origen','vef','—','Shore/Ship')}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:10px 12px">
+          <label class="field-label" style="font-size:11px">Detalle tanques tierra</label>
+          <textarea class="field-textarea" style="width:100%;min-height:60px;font-size:11px"
+            placeholder="N° tanques, IDs, mediciones..."
+            data-action="save-nested" data-ctx="${ctx}" data-obj="shore" data-field="tankDetails">${shore.tankDetails||''}</textarea>
+        </div>
+      </div>
+
+      <!-- SHIP FIGURE ORIGEN -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="background:#3a1f2a;color:#e87eaa;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:10px 14px">
+          🛢️ Figura Buque en Carga
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th style="text-align:left">Cantidad</th><th>Valor</th><th>Ud.</th><th></th></tr></thead>
+            <tbody>
+              ${shipRow('TOV','tov','m³','')}
+              ${shipRow('GOV','gov','m³','')}
+              ${shipRow('GSV @60°F','gsv60F','m³','')}
+              ${shipRow('m³ @15°C','m3_15','m³','')}
+              ${shipRow('m³ @20°C','m3_20','m³','')}
+              ${shipRow('BBL @60°F','bbl','BBL','')}
+              ${shipRow('TM Vacío','tmVac','MT','')}
+              ${shipRow('TM Aire','tmAir','MT','')}
+              ${shipRow('Long Tons','longTons','LT','')}
+              ${shipRow('Short Tons','shortTons','ST','')}
+              ${shipRow('US Gallons','gallons','gal','')}
+              <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades / VEF</td></tr>
+              ${shipRow('API @60°F','api','°API','')}
+              ${shipRow('Temperatura','temp','°C','')}
+              ${shipRow('BS&W','bsw','%','')}
+              ${shipRow('VEF origen','vef','—','Buque')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Notas de Origen</div>
+      <textarea class="field-textarea" style="width:100%;min-height:80px"
+        placeholder="Observaciones sobre la carga, discrepancias de origen, condiciones especiales..."
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
+// ===== MODULE: SUMMARY =====
+function buildSummary(op, ctx) {
+  const mods = op.modules || {};
+  const origen = mods['origen'] || {};
+  const ullI   = mods['ullage-inicial'] || {};
+  const ullF   = mods['ullage-final']   || {};
+  const vef    = mods['vef'] || {};
+
+  // Aggregate ullage quantities
+  const getTankGSV = (ull) => ullageTotal(ull.tanks || [], 'gsv');
+  const getTankGOV = (ull) => ullageTotal(ull.tanks || [], 'gov');
+  const getTankTOV = (ull) => ullageTotal(ull.tanks || [], 'tov');
+
+  // Key figures (all in m³ GSV @60°F)
+  const blGSV     = parseFloat(origen.bl?.gsv60F || 0);
+  const shoreGSV  = parseFloat(origen.shore?.gsv60F || 0) ||
+                    parseFloat(vef.shoreGSV || 0);
+  const shipInit  = parseFloat(origen.shipFigureOrigin?.gsv60F || 0) || getTankGSV(ullI);
+  const shipFinal = getTankGSV(ullF);
+
+  // Discharge figure: shipInit - shipFinal (quantity discharged by ship)
+  const shipDischarged = shipInit > 0 && shipFinal >= 0 ? shipInit - shipFinal : 0;
+  const shoreReceived  = shoreGSV;
+
+  // All B/L figures
+  const blTmAir    = parseFloat(origen.bl?.tmAir || 0);
+  const shoreTmAir = parseFloat(origen.shore?.tmAir || 0);
+  const shipTmAir  = parseFloat(origen.shipFigureOrigin?.tmAir || 0);
+
+  const hasData = blGSV > 0 || shoreGSV > 0 || shipInit > 0;
+
+  // Difference calculations
+  const diffShipShore = shoreReceived > 0 && shipDischarged > 0
+    ? ((shipDischarged - shoreReceived) / shoreReceived * 100) : null;
+  const diffBLShip = blGSV > 0 && shipDischarged > 0
+    ? ((shipDischarged - blGSV) / blGSV * 100) : null;
+  const diffBLShore = blGSV > 0 && shoreReceived > 0
+    ? ((shoreReceived - blGSV) / blGSV * 100) : null;
+
+  const statusBadge = (pct) => {
+    if (pct === null) return '<span style="color:var(--muted)">—</span>';
+    const abs = Math.abs(pct);
+    const color = abs <= 0.2 ? '#3d6b45' : abs <= 0.5 ? '#c88c3a' : '#8b3030';
+    const label = abs <= 0.2 ? 'Normal' : abs <= 0.5 ? 'Monitorear' : 'Investigar';
+    return `<span style="background:${color}22;color:${color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">${pct > 0 ? '+' : ''}${pct.toFixed(4)}% — ${label}</span>`;
+  };
+
+  // API MPMS 13 causes analysis
+  const causes = analyzeCauses(diffShipShore, diffBLShip, diffBLShore, op);
+
+  const summaryRow = (label, value, unit, style='') =>
+    `<tr ${style}>
+      <td style="font-weight:600;font-size:12px">${label}</td>
+      <td class="calc-cell">${value != null && value !== 0 ? fmt(value) : '—'}</td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+
+  return `
+    <div class="module-title">📊 Summary — Reconciliación Global</div>
+    <div class="module-subtitle">Comparación figuras B/L · Tierra · Buque &nbsp;|&nbsp; API MPMS 13 &nbsp;·&nbsp; Referencia: ${op.code}</div>
+
+    ${!hasData ? `<div class="warn-box">Complete los módulos <strong>Datos Origen</strong>, <strong>Ullage Inicial</strong> y <strong>VEF</strong> para ver el resumen automático.</div>` : ''}
+
+    <!-- COMPARATIVA GLOBAL DE FIGURAS -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px">
+        Figuras de Referencia (GSV @60°F — m³)
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--line)">
+        ${[
+          ['B/L', blGSV, '#1f3a5f', '#7eb8e8'],
+          ['Tierra Origen', shoreGSV, '#1a3a2a', '#7ecc9e'],
+          ['Buque Cargado', shipInit, '#2a1a3a', '#b07ecc'],
+          ['Descargado Buque', shipDischarged, '#3a1f12', '#cc9e7e'],
+        ].map(([lbl,val,bg,fg]) => `
+          <div style="background:${bg};padding:16px 20px;border-right:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:10px;color:${fg}88;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${lbl}</div>
+            <div style="font-size:22px;font-weight:700;font-family:monospace;color:${val>0?fg:'rgba(255,255,255,.2)'}">${val>0?fmt(val):'—'}</div>
+            <div style="font-size:10px;color:${fg}66;margin-top:2px">m³ GSV @60°F</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- DIFERENCIAS -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px">
+        Diferencias — Criterio API MPMS 13 (tolerancia ±0.2% alerta / ±0.5% significativa)
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--panel2)">
+          <th style="text-align:left;padding:10px 16px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Comparación</th>
+          <th style="padding:10px 16px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Δ m³</th>
+          <th style="padding:10px 16px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Δ %</th>
+          <th style="padding:10px 16px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Estado</th>
+        </tr></thead>
+        <tbody>
+          ${[
+            ['Buque descargado vs Tierra recibida', shipDischarged, shoreReceived, diffShipShore],
+            ['Buque descargado vs B/L', shipDischarged, blGSV, diffBLShip],
+            ['Tierra recibida vs B/L', shoreReceived, blGSV, diffBLShore],
+          ].map(([lbl, a, b, pct]) => {
+            const delta = a > 0 && b > 0 ? a - b : null;
+            return `<tr style="border-bottom:1px solid var(--line2)">
+              <td style="padding:12px 16px;font-weight:600;font-size:13px">${lbl}</td>
+              <td style="padding:12px 16px;text-align:center;font-family:monospace;color:var(--sea);font-weight:700">${delta !== null ? (delta > 0 ? '+' : '') + fmt(delta) : '—'}</td>
+              <td style="padding:12px 16px;text-align:center">${statusBadge(pct)}</td>
+              <td style="padding:12px 16px;text-align:center">${pct !== null ? (Math.abs(pct)<=0.2?'✅':Math.abs(pct)<=0.5?'⚠️':'🔴') : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TABLA COMPLETA DE CANTIDADES POR FIGURA -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px">
+        Resumen Completo de Cantidades por Figura
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;min-width:180px">Cantidad</th>
+              <th>B/L</th>
+              <th>Tierra Origen</th>
+              <th>Buque Cargado</th>
+              <th>Descargado</th>
+              <th>Unidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[
+              ['TOV', 'tov', 'm³'],
+              ['GOV', 'gov', 'm³'],
+              ['GSV @60°F', 'gsv60F', 'm³'],
+              ['m³ @15°C', 'm3_15', 'm³'],
+              ['m³ @20°C', 'm3_20', 'm³'],
+              ['BBL @60°F', 'bbl', 'BBL'],
+              ['TM Vacío', 'tmVac', 'MT'],
+              ['TM Aire', 'tmAir', 'MT'],
+              ['Long Tons', 'longTons', 'LT'],
+              ['Short Tons', 'shortTons', 'ST'],
+              ['US Gallons', 'gallons', 'US gal'],
+            ].map(([lbl, field, unit]) => {
+              const bv  = parseFloat(origen.bl?.[field] || 0);
+              const sv  = parseFloat(origen.shore?.[field] || 0);
+              const shv = parseFloat(origen.shipFigureOrigin?.[field] || 0);
+              return `<tr style="border-bottom:1px solid var(--line2)">
+                <td style="font-weight:600;font-size:12px;padding:8px 10px">${lbl}</td>
+                <td class="calc-cell" style="color:#7eb8e8">${bv>0?fmt(bv):'—'}</td>
+                <td class="calc-cell" style="color:#7ecc9e">${sv>0?fmt(sv):'—'}</td>
+                <td class="calc-cell" style="color:#b07ecc">${shv>0?fmt(shv):'—'}</td>
+                <td class="calc-cell">${shipDischarged>0?fmt(shipDischarged):'—'}</td>
+                <td style="color:var(--muted);font-size:11px">${unit}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="border-bottom:1px solid var(--line2);background:var(--line2)">
+              <td style="font-weight:600;font-size:12px;padding:8px 10px">API @60°F</td>
+              <td class="calc-cell" style="color:#7eb8e8">${origen.bl?.api||'—'}</td>
+              <td class="calc-cell" style="color:#7ecc9e">${origen.shore?.api||'—'}</td>
+              <td class="calc-cell" style="color:#b07ecc">${origen.shipFigureOrigin?.api||'—'}</td>
+              <td class="calc-cell">—</td>
+              <td style="color:var(--muted);font-size:11px">°API</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--line2);background:var(--line2)">
+              <td style="font-weight:600;font-size:12px;padding:8px 10px">Temperatura</td>
+              <td class="calc-cell" style="color:#7eb8e8">${origen.bl?.temp||'—'}</td>
+              <td class="calc-cell" style="color:#7ecc9e">${origen.shore?.temp||'—'}</td>
+              <td class="calc-cell" style="color:#b07ecc">${origen.shipFigureOrigin?.temp||'—'}</td>
+              <td class="calc-cell">—</td>
+              <td style="color:var(--muted);font-size:11px">°C</td>
+            </tr>
+            <tr style="background:var(--line2)">
+              <td style="font-weight:600;font-size:12px;padding:8px 10px">VEF</td>
+              <td class="calc-cell">—</td>
+              <td class="calc-cell" style="color:#7ecc9e">${origen.shore?.vef||'—'}</td>
+              <td class="calc-cell" style="color:#b07ecc">${origen.shipFigureOrigin?.vef||'—'}</td>
+              <td class="calc-cell" style="color:var(--amber)">${vef.vef||'—'}</td>
+              <td style="color:var(--muted);font-size:11px">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ANÁLISIS DE CAUSAS API MPMS 13 -->
+    ${causes.length > 0 ? `
+    <div class="card" style="border-left:4px solid var(--amber)">
+      <div class="card-title">🔍 Análisis de Posibles Causas — API MPMS 13</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${causes.map(c => `
+          <div style="display:flex;gap:12px;align-items:flex-start;padding:10px;background:var(--paper);border-radius:var(--r)">
+            <div style="font-size:20px;flex-shrink:0">${c.icon}</div>
+            <div>
+              <div style="font-weight:700;font-size:13px;color:var(--ink);margin-bottom:2px">${c.title}</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.5">${c.desc}</div>
+              <div style="font-size:11px;color:var(--steel);margin-top:4px">Referencia: ${c.ref}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="info-box" style="margin-top:16px;margin-bottom:0">
+        Para un análisis exhaustivo con recomendaciones específicas, use el <strong>Consultor IA</strong> mencionando el código <strong>${op.code}</strong>.
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">Notas del Summary</div>
+      <textarea class="field-textarea" style="width:100%;min-height:80px"
+        placeholder="Conclusiones, acciones a tomar, acuerdos de reclamo..."
+        data-action="save-field" data-ctx="${ctx}" data-field="notes"
+        >${(mods['summary']||{}).notes||''}</textarea>
+    </div>`;
+}
+
+function analyzeCauses(diffShipShore, diffBLShip, diffBLShore, op) {
+  const causes = [];
+  const allDiffs = [diffShipShore, diffBLShip, diffBLShore].filter(d => d !== null);
+  if (allDiffs.length === 0) return causes;
+
+  const maxAbs = Math.max(...allDiffs.map(Math.abs));
+  if (maxAbs === 0) return causes;
+
+  // Always include measurement uncertainty
+  causes.push({
+    icon: '📏', title: 'Incertidumbre de Medición (API MPMS 12.1.1)',
+    desc: 'El ullage manual tiene una precisión de ±1-2 mm, lo que equivale a una incertidumbre volumétrica de ±0.05-0.15% según el tipo de tanque. En tanques de gran capacidad esta incertidumbre puede ser dominante.',
+    ref: 'API MPMS 12.1.1 / ISO 4512',
+  });
+
+  if (op.modules?.origen?.bl?.temp && op.modules?.['ullage-inicial']?.avgTemp) {
+    const dT = Math.abs(parseFloat(op.modules.origen.bl.temp) - parseFloat(op.modules['ullage-inicial'].avgTemp));
+    if (dT > 2) {
+      causes.push({
+        icon: '🌡️', title: `Diferencia de Temperatura (ΔT ≈ ${dT.toFixed(1)}°C detectada)`,
+        desc: 'Un diferencial de temperatura entre la medición en origen y destino produce diferencia volumétrica directa. Para crudos pesados (API 20-30) cada 1°C representa ≈0.04-0.06% de variación en VCF. Un ΔT de 5°C puede explicar una diferencia de 0.2-0.3%.',
+        ref: 'API MPMS 11.1 (Tabla 6A/6B) — coeficiente de expansión térmica',
+      });
+    }
+  }
+
+  if (maxAbs > 0.1) {
+    causes.push({
+      icon: '⚖️', title: 'VEF — Vessel Experience Factor (API MPMS 17.9)',
+      desc: 'El VEF corrige la diferencia sistemática entre la figura del buque y la figura de tierra. Un VEF diferente al histórico del buque indica posible cambio en el comportamiento del casco, error en la tabla de estiba, o condiciones anómalas de trim/escora durante la medición.',
+      ref: 'API MPMS 17.9 — criterio: VEF histórico ± 0.002 (±0.2%)',
+    });
+  }
+
+  if (maxAbs > 0.15) {
+    causes.push({
+      icon: '🚢', title: 'Trim y Escora del Buque',
+      desc: 'Desviaciones de trim superiores a 0.5 m o escoras superiores a 0.5° afectan la exactitud de las tablas de calibración. La corrección de trim debe aplicarse según el método de la compañía y las tablas del Lloyd\'s Register.',
+      ref: 'API MPMS 2.8A — Trim and List corrections',
+    });
+  }
+
+  if (maxAbs > 0.2) {
+    causes.push({
+      icon: '💧', title: 'Agua Libre y Sedimentos (BS&W)',
+      desc: 'Una diferencia de 0.1% en BS&W entre origen y destino produce directamente ≈0.1% de diferencia en NSV. Si el muestreo no fue representativo (API MPMS 8.2), la determinación de BS&W puede tener un error sistemático.',
+      ref: 'API MPMS 8.2 / ASTM D4007 / IP 372',
+    });
+    causes.push({
+      icon: '🏭', title: 'Calibración de Tanques de Tierra (API MPMS 2.2)',
+      desc: 'Los tanques de tierra con tablas de calibración antiguas (>5 años sin revalidación) o con deformaciones estructurales introducen errores sistemáticos. La tabla del techo flotante y la zona muerta del fondo son fuentes críticas de error.',
+      ref: 'API MPMS 2.2A/2.2B — Calibración tanques verticales',
+    });
+  }
+
+  if (maxAbs > 0.35) {
+    causes.push({
+      icon: '🔧', title: 'Cargo No Entregado / Líneas y Codos de Tubería',
+      desc: 'El cargo retenido en líneas, codos y sistemas de stripping puede representar 10-50 m³ dependiendo del diámetro y longitud de la instalación. Considerar también vapores, inertización, y sistema de recuperación de vapores (VRS).',
+      ref: 'API MPMS 17.6 — Hoses & Pipelines / API 14.2.1',
+    });
+    causes.push({
+      icon: '📊', title: 'Incertidumbre Combinada Excede Tolerancia',
+      desc: `La diferencia de ${maxAbs.toFixed(3)}% supera el límite de alerta del 0.5%. Se recomienda revisión formal de todas las mediciones, verificación de equipos de medición (calibración), y posiblemente una mediación técnica con las partes involucradas.`,
+      ref: 'ASTM E177 / API MPMS 13.2 — Statistical analysis of measurement uncertainty',
+    });
+  }
+
+  return causes;
+}
 
 // ===== MODULE: KEY MEETING =====
 function buildKeyMeeting(d, ctx) {
