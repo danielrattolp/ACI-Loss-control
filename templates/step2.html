@@ -247,10 +247,6 @@
 (function () {
   "use strict";
 
-  // Modo fijo: GSV directo
-  document.getElementById("shoreVcfRow").style.display     = "none";
-  document.getElementById("vesselRawVcfRow").style.display = "none";
-
   // ── Helpers ───────────────────────────────────────────────────────────────
   function n(id) { return parseFloat(document.getElementById(id).value) || 0; }
   // set(): para <input class="rv"> respeta override manual; ignora si data-manual="1"
@@ -384,7 +380,12 @@
     el.addEventListener("input", function() { markManual(el); });
   });
 
-  updatePreview();
+  // Esperar que todos los scripts (VCF) estén cargados antes del primer render
+  if (typeof calculateVCF === "function") {
+    updatePreview();
+  } else {
+    window.addEventListener("load", updatePreview);
+  }
 })();
 </script>
 {% endblock %}
