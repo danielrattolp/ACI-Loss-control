@@ -1616,120 +1616,151 @@ function buildUllage(d, mod, ctx) {
       <div style="background:var(--panel);color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
         📊 Resumen de Cantidades — ${title}
       </div>
+      ${!q ? `<div class="warn-box" style="margin:12px 16px">Ingrese API, temperatura y BS&W (en los tanques o en "Propiedades para Conversión") para calcular todas las cantidades.</div>` : ''}
       <div class="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th style="text-align:left;width:260px">Cantidad</th>
-              <th>Valor</th>
-              <th>Unidad</th>
-              <th style="text-align:left;font-size:10px;color:var(--muted)">Descripción</th>
+              <th style="text-align:left;min-width:260px">Cantidad</th>
+              <th style="min-width:110px">Valor</th>
+              <th style="min-width:70px">Unidad</th>
+              <th style="text-align:left;font-size:10px;color:var(--muted)">Norma / Fórmula</th>
             </tr>
           </thead>
           <tbody>
-            <tr style="background:#f8f9fa">
+            <!-- Bloque GOV -->
+            <tr style="background:#f0f2f4">
+              <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Volumen Observado — API MPMS 12.1</td>
+            </tr>
+            <tr>
               <td style="font-weight:700;color:var(--ink)">TOV — Total Observed Volume</td>
               <td class="calc-cell">${fmt(totalTOV)}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
               <td style="color:var(--muted);font-size:11px">Suma directa de tanques</td>
             </tr>
-            <tr style="background:#f8f9fa">
-              <td style="font-weight:700;color:var(--ink)">Free Water</td>
+            <tr>
+              <td style="font-weight:700;color:var(--ink)">Free Water (FW)</td>
               <td class="calc-cell">${fmt(totalFW)}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
-              <td style="color:var(--muted);font-size:11px">Agua libre total</td>
+              <td style="color:var(--muted);font-size:11px">Agua libre total en fondos</td>
             </tr>
-            <tr style="background:#f8f9fa">
+            <tr>
               <td style="font-weight:700;color:var(--ink)">GOV — Gross Observed Volume</td>
               <td class="calc-cell">${fmt(totalGOV)}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
-              <td style="color:var(--muted);font-size:11px">TOV − Free Water</td>
+              <td style="color:var(--muted);font-size:11px">TOV − FW</td>
             </tr>
-            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
 
-            ${q ? `
+            <!-- Factores de conversión -->
+            <tr style="background:#f0f2f4">
+              <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Factores de Corrección — API MPMS 11.1 (Tabla 6A Crudo)</td>
+            </tr>
+            <tr style="background:#eaf4f8">
+              <td style="font-weight:700;color:var(--sea)">Densidad @15°C (ρ₁₅)</td>
+              <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.rho15, 4) : '—'}</td>
+              <td style="color:var(--muted);font-size:11px">kg/m³</td>
+              <td style="color:var(--muted);font-size:11px">141.5 / (API + 131.5) × 999.016</td>
+            </tr>
+            <tr style="background:#eaf4f8">
+              <td style="font-weight:700;color:var(--sea)">CTL Tabla 11 / VCF @60°F (15.556°C)</td>
+              <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf60F.toFixed(7) : '—'}</td>
+              <td style="color:var(--muted);font-size:11px">—</td>
+              <td style="color:var(--muted);font-size:11px">API MPMS 11.1 Tabla 6A — ref. 60°F</td>
+            </tr>
+            <tr style="background:#eaf4f8">
+              <td style="font-weight:700;color:var(--sea)">CTL Tabla 13 / VCF @15°C</td>
+              <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf15C.toFixed(7) : '—'}</td>
+              <td style="color:var(--muted);font-size:11px">—</td>
+              <td style="color:var(--muted);font-size:11px">API MPMS 11.1 Tabla 6A — ref. 15°C</td>
+            </tr>
+            <tr style="background:#eaf4f8">
+              <td style="font-weight:700;color:var(--sea)">VCF @20°C</td>
+              <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf20C.toFixed(7) : '—'}</td>
+              <td style="color:var(--muted);font-size:11px">—</td>
+              <td style="color:var(--muted);font-size:11px">API MPMS 11.1 Tabla 6A — ref. 20°C</td>
+            </tr>
+
+            <!-- GSV -->
+            <tr style="background:#f0f2f4">
+              <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar (GSV / NSV)</td>
+            </tr>
             <tr>
               <td style="font-weight:700;color:var(--sea)">GSV @60°F — Gross Standard Volume</td>
-              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv60F)}</td>
+              <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.gsv60F) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
-              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 60°F = 15.556°C)</td>
+              <td style="color:var(--muted);font-size:11px">GOV × CTL(T11)</td>
             </tr>
             <tr>
               <td style="font-weight:700;color:var(--sea)">GSV @60°F en Barriles</td>
-              <td class="calc-cell" style="color:var(--sea)">${fmt(q.bbl60F)}</td>
+              <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.bbl60F) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">BBL</td>
-              <td style="color:var(--muted);font-size:11px">m³ × 6.289811</td>
+              <td style="color:var(--muted);font-size:11px">GSV(m³) × 6.289811</td>
             </tr>
             <tr>
-              <td style="font-weight:700;color:var(--sea)">m³ @15°C</td>
-              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv15C)}</td>
+              <td style="font-weight:700;color:var(--sea)">m³ @15°C — GSV Tabla 13</td>
+              <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.gsv15C) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
-              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 15°C)</td>
+              <td style="color:var(--muted);font-size:11px">GOV × CTL(T13)</td>
             </tr>
             <tr>
               <td style="font-weight:700;color:var(--sea)">m³ @20°C</td>
-              <td class="calc-cell" style="color:var(--sea)">${fmt(q.gsv20C)}</td>
+              <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.gsv20C) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
-              <td style="color:var(--muted);font-size:11px">GOV × VCF (ref. 20°C)</td>
+              <td style="color:var(--muted);font-size:11px">GOV × VCF(20°C)</td>
             </tr>
-            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
-
-            <tr style="background:#fffcf5">
-              <td style="font-weight:700;color:var(--ink)">NSV @60°F — Net Standard Volume</td>
-              <td class="calc-cell">${fmt(q.nsv60F)}</td>
+            <tr>
+              <td style="font-weight:600;color:var(--ink)">NSV @60°F — Net Standard Volume</td>
+              <td class="calc-cell">${q ? fmt(q.nsv60F) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
               <td style="color:var(--muted);font-size:11px">GSV@60°F × (1 − BS&W%)</td>
             </tr>
-            <tr style="background:#fffcf5">
-              <td style="font-weight:700;color:var(--ink)">NSV @15°C</td>
-              <td class="calc-cell">${fmt(q.nsv15C)}</td>
+            <tr>
+              <td style="font-weight:600;color:var(--ink)">NSV @15°C</td>
+              <td class="calc-cell">${q ? fmt(q.nsv15C) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">m³</td>
               <td style="color:var(--muted);font-size:11px">GSV@15°C × (1 − BS&W%)</td>
             </tr>
-            <tr><td colspan="4" style="padding:0;height:6px;background:var(--line2)"></td></tr>
 
+            <!-- Masa -->
+            <tr style="background:#f0f2f4">
+              <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Masa — API MPMS 11.1 / ASTM D1250</td>
+            </tr>
             <tr style="background:var(--panel)">
-              <td style="color:var(--amber);font-weight:700">TM Vacío — Metric Tons Vacuum</td>
-              <td class="calc-cell" style="color:var(--amber)">${fmt(q.tmVac)}</td>
+              <td style="color:var(--amber);font-weight:700">TM Vacío — Metric Tons (vacuum)</td>
+              <td class="calc-cell" style="color:var(--amber)">${q ? fmt(q.tmVac) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">MT</td>
               <td style="color:var(--muted);font-size:11px">NSV@15°C × ρ₁₅ / 1000</td>
             </tr>
             <tr style="background:var(--panel)">
-              <td style="color:var(--amber);font-weight:700">TM Aire — Metric Tons Air</td>
-              <td class="calc-cell" style="color:var(--amber)">${fmt(q.tmAir)}</td>
+              <td style="color:var(--amber);font-weight:700">TM Aire — Metric Tons (air)</td>
+              <td class="calc-cell" style="color:var(--amber)">${q ? fmt(q.tmAir) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">MT</td>
               <td style="color:var(--muted);font-size:11px">TM Vac − 0.0011 × NSV@15°C</td>
             </tr>
             <tr style="background:var(--panel)">
               <td style="color:#a0b4c0;font-weight:700">Long Tons</td>
-              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.longTons)}</td>
+              <td class="calc-cell" style="color:#a0b4c0">${q ? fmt(q.longTons) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">LT</td>
               <td style="color:var(--muted);font-size:11px">TM Aire ÷ 1.016047</td>
             </tr>
             <tr style="background:var(--panel)">
               <td style="color:#a0b4c0;font-weight:700">Short Tons</td>
-              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.shortTons)}</td>
+              <td class="calc-cell" style="color:#a0b4c0">${q ? fmt(q.shortTons) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">ST</td>
               <td style="color:var(--muted);font-size:11px">TM Aire ÷ 0.90718474</td>
             </tr>
             <tr style="background:var(--panel)">
-              <td style="color:#a0b4c0;font-weight:700">US Gallons</td>
-              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.gallons, 0)}</td>
+              <td style="color:#a0b4c0;font-weight:700">US Gallons @60°F</td>
+              <td class="calc-cell" style="color:#a0b4c0">${q ? fmt(q.gallons, 0) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">US gal</td>
               <td style="color:var(--muted);font-size:11px">BBL × 42</td>
             </tr>
             <tr style="background:var(--panel)">
-              <td style="color:#a0b4c0;font-weight:700">Ratio BBL / TM Aire</td>
-              <td class="calc-cell" style="color:#a0b4c0">${fmt(q.bbl60F / q.tmAir, 6)}</td>
+              <td style="color:#a0b4c0;font-weight:700">Factor BBL / TM Aire</td>
+              <td class="calc-cell" style="color:#a0b4c0;font-family:monospace">${q && q.tmAir ? fmt(q.bbl60F / q.tmAir, 6) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">BBL/MT</td>
-              <td style="color:var(--muted);font-size:11px">Factor de conversión</td>
+              <td style="color:var(--muted);font-size:11px">Factor de conversión operacional</td>
             </tr>
-            ` : `
-            <tr>
-              <td colspan="4" style="text-align:center;padding:20px;color:var(--muted);font-size:12px">
-                Complete temperatura, API y BS&W en los tanques o en "Propiedades para Conversión" para calcular las cantidades.
-              </td>
-            </tr>`}
           </tbody>
         </table>
       </div>
