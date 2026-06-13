@@ -2655,7 +2655,22 @@ function chkSet(ctx, si, ii, val) {
   if (!ref.data.items?.[si]?.items?.[ii]) return;
   const current = ref.data.items[si].items[ii].val;
   ref.data.items[si].items[ii].val = current === val ? '' : val;
-  ref.save(); render();
+  ref.save();
+  // Re-render only the module-content in place to avoid scroll reset
+  const mc = document.getElementById('module-content');
+  if (mc) {
+    const scrollY = mc.scrollTop;
+    const op = getOp(c.opId);
+    if (op) {
+      const modData = c.alijoIdx !== undefined
+        ? op.alijos[c.alijoIdx].modules[c.mod]
+        : op.modules[c.mod];
+      mc.innerHTML = buildModuleContentInner(modData, c.mod, c);
+    }
+    mc.scrollTop = scrollY;
+  } else {
+    render();
+  }
 }
 function chkComment(ctx, si, ii, val) {
   const c = decodeCtx(ctx);
