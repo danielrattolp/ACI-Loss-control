@@ -997,6 +997,24 @@ function buildOrigen(d, ctx) {
   const bl = d.bl || {};
   const shore = d.shore || {};
   const ship = d.shipFigureOrigin || {};
+  const tempUnit = d.tempUnit || 'C'; // 'C' or 'F'
+  const tempLabel = tempUnit === 'F' ? 'Temperatura (°F)' : 'Temperatura (°C)';
+  const tempPlaceholder = tempUnit === 'F' ? '°F' : '°C';
+  const tempToggle = (colData, objKey) => `
+    <tr>
+      <td style="font-weight:600;color:var(--ink);font-size:12px">${tempLabel}</td>
+      <td><input class="tbl-input" type="number" step="0.01" value="${colData['temp']||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="${objKey}" data-field="temp" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${tempPlaceholder}</td>
+      <td>
+        <span style="display:inline-flex;gap:2px">
+          <button style="padding:1px 5px;font-size:10px;font-weight:700;border-radius:3px;border:1px solid var(--line);cursor:pointer;background:${tempUnit==='C'?'var(--accent)':'var(--white)'};color:${tempUnit==='C'?'#fff':'var(--muted)'}"
+            data-action="set-temp-unit" data-ctx="${ctx}" data-unit="C">°C</button>
+          <button style="padding:1px 5px;font-size:10px;font-weight:700;border-radius:3px;border:1px solid var(--line);cursor:pointer;background:${tempUnit==='F'?'var(--accent)':'var(--white)'};color:${tempUnit==='F'?'#fff':'var(--muted)'}"
+            data-action="set-temp-unit" data-ctx="${ctx}" data-unit="F">°F</button>
+        </span>
+      </td>
+    </tr>`;
 
   const qRow = (label, obj, field, unit, hint='') => `
     <tr>
@@ -1087,8 +1105,8 @@ function buildOrigen(d, ctx) {
             data-action="save-field" data-ctx="${ctx}" data-field="originApi">
         </div>
         <div class="field">
-          <label class="field-label">Temperatura observada (°C)</label>
-          <input class="field-input" type="number" step="0.01" value="${d.originTemp||''}" placeholder="°C"
+          <label class="field-label">Temperatura observada (${tempPlaceholder})</label>
+          <input class="field-input" type="number" step="0.01" value="${d.originTemp||''}" placeholder="${tempPlaceholder}"
             data-action="save-field" data-ctx="${ctx}" data-field="originTemp">
         </div>
         <div class="field">
@@ -1111,9 +1129,6 @@ function buildOrigen(d, ctx) {
           <table>
             <thead><tr><th style="text-align:left">Cantidad</th><th>Valor</th><th>Ud.</th><th></th></tr></thead>
             <tbody>
-              ${blRow('TOV','tov','m³','Tank gauge')}
-              ${blRow('GOV','gov','m³','Gross Observed')}
-              ${blRow('GSV @60°F','gsv60F','m³','Std. Volume')}
               ${blRow('m³ @15°C','m3_15','m³','')}
               ${blRow('m³ @20°C','m3_20','m³','')}
               ${blRow('BBL @60°F','bbl','BBL','')}
@@ -1124,7 +1139,7 @@ function buildOrigen(d, ctx) {
               ${blRow('US Gallons','gallons','gal','')}
               <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades</td></tr>
               ${blRow('API @60°F','api','°API','')}
-              ${blRow('Temperatura','temp','°C','')}
+              ${tempToggle(bl,'bl')}
               ${blRow('BS&W','bsw','%','')}
               ${blRow('VCF aplicado','vcf','—','')}
             </tbody>
@@ -1154,7 +1169,7 @@ function buildOrigen(d, ctx) {
               ${shoreRow('US Gallons','gallons','gal','')}
               <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades / VEF</td></tr>
               ${shoreRow('API @60°F','api','°API','')}
-              ${shoreRow('Temperatura','temp','°C','')}
+              ${tempToggle(shore,'shore')}
               ${shoreRow('BS&W','bsw','%','')}
               ${shoreRow('VEF origen','vef','—','Shore/Ship')}
             </tbody>
@@ -1190,7 +1205,7 @@ function buildOrigen(d, ctx) {
               ${shipRow('US Gallons','gallons','gal','')}
               <tr style="background:var(--line2)"><td style="font-size:11px;color:var(--muted);padding:6px 8px" colspan="4">Propiedades / VEF</td></tr>
               ${shipRow('API @60°F','api','°API','')}
-              ${shipRow('Temperatura','temp','°C','')}
+              ${tempToggle(ship,'shipFigureOrigin')}
               ${shipRow('BS&W','bsw','%','')}
               ${shipRow('VEF origen','vef','—','Buque')}
             </tbody>
@@ -2376,6 +2391,16 @@ function handleClick(e) {
   else if (a === 'delete-op') deleteOp(el.dataset.id);
   else if (a === 'edit-op') editOp(el.dataset.id);
   else if (a === 'save-alijo-vessel-name' || a === 'save-alijo-vessel-imo') {/* handled by input */}
+  else if (a === 'set-temp-unit') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (op) {
+      if (!op.modules[c.mod]) op.modules[c.mod] = {};
+      op.modules[c.mod].tempUnit = el.dataset.unit;
+      saveOp(op);
+      render();
+    }
+  }
 }
 
 function handleChange(e) {
