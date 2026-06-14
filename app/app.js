@@ -1625,40 +1625,61 @@ function buildUllage(d, mod, ctx) {
         <table>
           <thead>
             <tr>
-              <th style="width:46px">Tanque</th>
-              <th>Ullage (m)</th>
-              <th>TCF</th>
-              <th>TOV (m³)</th>
-              <th>Temp (°C)</th>
-              <th>API @60°F</th>
-              <th>BS&W (%)</th>
-              <th>Free Water (m³)</th>
-              <th>GOV (m³)</th>
-              <th>GSV @60°F (m³)</th>
+              <th style="width:44px;font-size:11px">Tq.</th>
+              <th style="font-size:11px">Ullage<br><span style="font-weight:400;color:var(--muted)">(m)</span></th>
+              <th style="font-size:11px">TCF</th>
+              <th style="font-size:11px">TOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m)</span></th>
+              <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px;background:#e8f4f8">GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px;background:#d4ecf7">GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
+              <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°C)</span></th>
+              <th style="font-size:11px">API<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
+              <th style="font-size:11px">BS&W<br><span style="font-weight:400;color:var(--muted)">(%)</span></th>
+              <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
+              <th style="font-size:11px;background:#e8f4ea">GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px;background:#d4edd4">GSV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
             </tr>
           </thead>
           <tbody>
-            ${tanks.map((t, i) => `
+            ${tanks.map((t, i) => {
+              const tov = parseFloat(t.tov) || 0;
+              const fw  = parseFloat(t.fw)  || 0;
+              const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
+              const govBbl = gov * 6.289812;
+              const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp), 15.556) : null;
+              const gsv = vcf && gov > 0 ? gov * vcf : 0;
+              const gsvBbl = gsv * 6.289812;
+              const fmtC = (v, d=3) => v > 0 ? v.toFixed(d) : (v===0&&tov>0?'0.000':'—');
+              return `
               <tr>
-                <td>${t.name || TANK_NAMES[i]}</td>
+                <td style="font-weight:700;font-size:12px">${t.name || TANK_NAMES[i]}</td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.ullage||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="ullage"></td>
                 <td><input class="tbl-input" type="number" step="0.0001" value="${t.tcf||''}" placeholder="1.0000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="tcf"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.tov||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="tov"></td>
+                <td><input class="tbl-input" type="number" step="0.001" value="${t.fwM||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fwM"></td>
+                <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>
+                <td style="background:#e8f4f8"><span id="gov-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gov>0?gov.toFixed(3):'—'}</span></td>
+                <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(2):'—'}</span></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="temp"></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="api"></td>
                 <td><input class="tbl-input" type="number" step="0.01" value="${t.bsw||''}" placeholder="0.00" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="bsw"></td>
-                <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>
-                <td><input class="tbl-input calc-cell" type="number" step="0.001" value="${t.gov||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="gov"></td>
-                <td><input class="tbl-input calc-cell" type="number" step="0.001" value="${t.gsv||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="gsv"></td>
-              </tr>`).join('')}
+                <td style="background:#e8f4ea"><span id="vcf-${i}" class="calc-cell" style="display:block;min-width:78px;text-align:right;padding:3px 6px;font-size:11px;font-family:monospace;color:var(--green)">${vcf?vcf.toFixed(6):'—'}</span></td>
+                <td style="background:#e8f4ea"><span id="gsv-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gsv>0?gsv.toFixed(3):'—'}</span></td>
+                <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(2):'—'}</span></td>
+              </tr>`;}).join('')}
             <tr class="total-row">
               <td>TOTAL</td>
               <td></td><td></td>
-              <td>${fmt(totalTOV)}</td>
+              <td><span id="total-tov">${fmt(totalTOV)}</span></td>
+              <td></td>
+              <td><span id="total-fw">${fmt(totalFW)}</span></td>
+              <td style="background:#e8f4f8"><span id="total-gov">${fmt(totalGOV)}</span></td>
+              <td style="background:#d4ecf7;font-weight:700;color:var(--sea)"><span id="total-govbbl">${totalGOV>0?fmt(totalGOV*6.289812):''}</span></td>
               <td></td><td></td><td></td>
-              <td>${fmt(totalFW)}</td>
-              <td>${fmt(totalGOV)}</td>
-              <td>${fmt(totalGSV)}</td>
+              <td style="background:#e8f4ea"></td>
+              <td style="background:#e8f4ea"><span id="total-gsv">${fmt(totalGSV)}</span></td>
+              <td style="background:#d4edd4;font-weight:700;color:var(--green)"><span id="total-gsvbbl">${totalGSV>0?fmt(totalGSV*6.289812):''}</span></td>
             </tr>
           </tbody>
         </table>
@@ -2303,17 +2324,44 @@ function saveTank(ctxStr, tankIdx, field, value) {
   const ctx = decodeCtx(ctxStr);
   const ref = getModuleRef(ctx);
   if (!ref) return;
+  if (!ref.data.tanks) ref.data.tanks = TANK_NAMES.map(n => ({ name: n }));
   ref.data.tanks[tankIdx][field] = value;
-  ref.save();
-  updateUllageTotals(ref.data.tanks);
-}
 
-function updateUllageTotals(tanks) {
-  const fields = ['tov','gov','gsv','fw'];
-  fields.forEach(f => {
-    const total = ullageTotal(tanks, f);
-    // totals row is the last row, find and update
-  });
+  // Auto-calculate derived per-tank values
+  const t = ref.data.tanks[tankIdx];
+  const tov = parseFloat(t.tov) || 0;
+  const fw  = parseFloat(t.fw)  || 0;
+  const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
+  const govBbl = gov * 6.289812;
+  const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp), 15.556) : null;
+  const gsv = (vcf && gov > 0) ? gov * vcf : 0;
+  const gsvBbl = gsv * 6.289812;
+  t.gov = gov > 0 ? gov.toFixed(6) : '';
+  t.gsv = gsv > 0 ? gsv.toFixed(6) : '';
+
+  // Update DOM cells for this tank
+  const setTxt = (id, val, dec) => { const el = document.getElementById(id); if (el) el.textContent = val > 0 ? val.toFixed(dec) : '—'; };
+  setTxt(`gov-${tankIdx}`, gov, 3);
+  setTxt(`govbbl-${tankIdx}`, govBbl, 2);
+  if (vcf) setTxt(`vcf-${tankIdx}`, vcf, 6); else { const el = document.getElementById(`vcf-${tankIdx}`); if(el) el.textContent = '—'; }
+  setTxt(`gsv-${tankIdx}`, gsv, 3);
+  setTxt(`gsvbbl-${tankIdx}`, gsvBbl, 2);
+
+  // Recalculate all-tank totals
+  const tanks = ref.data.tanks;
+  const totalTOV = ullageTotal(tanks, 'tov');
+  const totalFW  = ullageTotal(tanks, 'fw');
+  const totalGOV = tanks.reduce((s, t) => { const g = parseFloat(t.gov)||0; return s+g; }, 0);
+  const totalGSV = tanks.reduce((s, t) => { const g = parseFloat(t.gsv)||0; return s+g; }, 0);
+  const setTotal = (id, val, dec=3) => { const el = document.getElementById(id); if(el) el.textContent = val > 0 ? val.toFixed(dec) : ''; };
+  setTotal('total-tov', totalTOV);
+  setTotal('total-fw', totalFW);
+  setTotal('total-gov', totalGOV);
+  setTotal('total-govbbl', totalGOV * 6.289812, 2);
+  setTotal('total-gsv', totalGSV);
+  setTotal('total-gsvbbl', totalGSV * 6.289812, 2);
+
+  ref.save();
 }
 
 function saveSlop(ctxStr, phase, idx, field, value) {
