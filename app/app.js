@@ -346,14 +346,77 @@ function initAlijo() {
 
 // ===== CALCULATIONS =====
 
-// VCF (API MPMS 11.1 Table 6A — Crude Oil)
-// refC: reference temperature in °C (15 = 15°C, 15.556 = 60°F, 20 = 20°C)
-function vcfCalc(api, tempC, refC = 15.556) {
-  if (!api || !tempC) return 1;
-  const rho15 = 141.5 / (api + 131.5) * 999.016;
-  const alpha = 613.9723 / (rho15 * rho15);
-  const dT = tempC - refC;  // ΔT en °C — constante 613.9723 ya calibrada para °C
-  return Math.exp(-alpha * dT * (1 + 0.8 * alpha * dT));
+// ─── API MPMS Chapter 11.1 (2004) — VCF ────────────────────────────────────
+// Temperatura de entrada en °F; referencia siempre 60 °F.
+// Tablas: 6A crudos, 6B productos refinados, 6C MTBE, 6D lubricantes.
+
+const _REF_F   = 60.0068749;       // temperatura de referencia (MPMS 11.1)
+const _DELTA   = 0.01374979547;    // constante corrección cuadrática
+const _WATER60 = 999.016;          // densidad agua a 60 °F kg/m³
+
+// Corrección de temperatura de equilibrio (polinomio Horner grado 9)
+function _equilF(tF) {
+  const tC = (tF - 32) / 1.8;
+  const x  = tC / 630;
+  const b  = ((-0.148759 + (-0.267408 + (1.08076 + (1.269056 + (-4.089591 +
+              (-1.871251 + (7.438081 + (-3.536296*x)*x)*x)*x)*x)*x)*x)*x)*x);
+  return (tC - b) * 1.8 + 32;
+}
+
+// Densidad a 60 °F (kg/m³) desde API gravity
+function _rho60(api) { return 141.5 / (api + 131.5) * _WATER60; }
+
+// Núcleo de cálculo
+function _vcfCore(api, tObsF, alpha60, alphaFn, denomFactor) {
+  const rho0 = _rho60(api);
+  const fpm  = (_DELTA / 2) * alpha60;
+  const rhoT = rho0 * (1 + (Math.exp(fpm*(1+0.8*fpm))-1) /
+                           (1 + fpm*(1+1.6*fpm)*denomFactor));
+  const aT   = alphaFn(rhoT);
+  const dT   = _equilF(tObsF) - _REF_F;
+  return Math.round(Math.exp(-aT * dT * (1 + 0.8*aT*(dT+_DELTA))) * 1e5) / 1e5;
+}
+
+// Tabla 6A — Crudos generalizados
+function vcfTable6A(api, tempF) {
+  const r = _rho60(api);
+  return _vcfCore(api, tempF, 341.0957/(r*r), r2 => 341.0957/(r2*r2), 2);
+}
+
+// Tabla 6B — Productos refinados (sub-rangos por densidad)
+function vcfTable6B(api, tempF) {
+  const rho = _rho60(api);
+  let K0, K1, K2, den;
+  if      (rho >= 838.3127)                 { K0=103.872;  K1=0.2701;   K2=0; }
+  else if (rho >= 787.5195)                 { K0=330.301;  K1=0;        K2=0; }
+  else if (rho >= 770.352)                  { K0=1489.067; K1=0;        K2=-0.0018684; }
+  else if (rho >= 610.6)                    { K0=192.4571; K1=0.2438;   K2=0; }
+  else return null;
+  const aFn = r => K0/(r*r) + K1/r + K2;
+  den = (2*K0 + K1*rho) / (K0 + (K1 + K2*rho)*rho);
+  return _vcfCore(api, tempF, aFn(rho), aFn, den);
+}
+
+// Tabla 6C — MTBE (factor térmico fijo 0.000789)
+function vcfTable6C(api, tempF) {
+  return _vcfCore(api, tempF, 0.000789, () => 0.000789, 1);
+}
+
+// Tabla 6D — Lubricantes
+function vcfTable6D(api, tempF) {
+  const r = _rho60(api);
+  return _vcfCore(api, tempF, 0.34878/r, r2 => 0.34878/r2, 1);
+}
+
+// vcfCalc(api, tempF, tabla) — tabla: '6A'|'6B'|'6C'|'6D' (default 6A)
+function vcfCalc(api, tempF, tabla = '6A') {
+  if (!api || tempF == null) return null;
+  switch (tabla) {
+    case '6B': return vcfTable6B(api, tempF);
+    case '6C': return vcfTable6C(api, tempF);
+    case '6D': return vcfTable6D(api, tempF);
+    default:   return vcfTable6A(api, tempF);
+  }
 }
 
 // Density at 15°C from API gravity (kg/m³)
@@ -362,13 +425,23 @@ function apiToDensity15(api) {
   return 141.5 / (api + 131.5) * 999.016;
 }
 
-// Full quantity summary from GOV, avg temp, API, BS&W
-function calcAllQuantities(govM3, avgTempC, api60, bswPct) {
-  if (!govM3 || govM3 <= 0 || !api60 || !avgTempC) return null;
+// Full quantity summary from GOV, avg temp (°F), API, BS&W
+function calcAllQuantities(govM3, avgTempF, api60, bswPct) {
+  if (!govM3 || govM3 <= 0 || !api60 || avgTempF == null) return null;
 
-  const vcf60F  = vcfCalc(api60, avgTempC, 15.556);  // to 60°F
-  const vcf15C  = vcfCalc(api60, avgTempC, 15.0);    // to 15°C
-  const vcf20C  = vcfCalc(api60, avgTempC, 20.0);    // to 20°C
+  const vcf60F  = vcfCalc(api60, avgTempF, '6A');        // to 60°F (MPMS 6A)
+  // Para 15°C y 20°C: mismo algoritmo con referencia ajustada en °F
+  const _vcfRef = (refF) => {
+    const r   = _rho60(api60);
+    const a60 = 341.0957 / (r*r);
+    const fpm = (_DELTA/2)*a60;
+    const rT  = r*(1+(Math.exp(fpm*(1+0.8*fpm))-1)/(1+fpm*(1+1.6*fpm)*2));
+    const aT  = 341.0957/(rT*rT);
+    const dT  = _equilF(avgTempF) - refF;
+    return Math.round(Math.exp(-aT*dT*(1+0.8*aT*(dT+_DELTA)))*1e5)/1e5;
+  };
+  const vcf15C  = _vcfRef(59.0);   // 15°C ≈ 59°F
+  const vcf20C  = _vcfRef(68.0);   // 20°C = 68°F
 
   const gsv60F  = govM3 * vcf60F;   // m³ @ 60°F (15.556°C)
   const gsv15C  = govM3 * vcf15C;   // m³ @ 15°C
@@ -395,9 +468,9 @@ function calcAllQuantities(govM3, avgTempC, api60, bswPct) {
            vcf60F, vcf15C, vcf20C, ctpl };
 }
 
-function calcGSV(tov, api, temp, bsw) {
-  if (!tov || !api || !temp) return '';
-  const vcf = vcfCalc(parseFloat(api), parseFloat(temp), 15.556);
+function calcGSV(tov, api, tempF, bsw) {
+  if (!tov || !api || !tempF) return '';
+  const vcf = vcfCalc(parseFloat(api), parseFloat(tempF));
   const gov = parseFloat(tov) * (1 - parseFloat(bsw || 0) / 100);
   return (gov * vcf).toFixed(3);
 }
@@ -1601,9 +1674,7 @@ function buildUllage(d, mod, ctx) {
   const avgApi  = parseFloat(d.avgApi)  || wAvgApi;
   const avgBsw  = parseFloat(d.avgBsw)  !== undefined && d.avgBsw !== '' ? parseFloat(d.avgBsw) : wAvgBsw;
 
-  // Convert °F → °C for calcAllQuantities
-  const avgTempC_calc = avgTempF ? (avgTempF - 32) / 1.8 : 0;
-  const q = calcAllQuantities(totalGOV, avgTempC_calc, avgApi, avgBsw);
+  const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw);
 
   return `
     <div class="module-title">📐 ${title}</div>
@@ -1654,8 +1725,7 @@ function buildUllage(d, mod, ctx) {
               const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
               const govBbl = gov * 6.289812;
               const tempF = parseFloat(t.temp);
-              const tempC_for_vcf = tempF ? (tempF - 32) / 1.8 : null;
-              const vcf = (t.api && tempC_for_vcf) ? vcfCalc(parseFloat(t.api), tempC_for_vcf, 15.556) : null;
+              const vcf = (t.api && tempF) ? vcfCalc(parseFloat(t.api), tempF) : null;
               const gsv = vcf && gov > 0 ? gov * vcf : 0;
               const gsvBbl = gsv * 6.289812;
               const fmtC = (v, d=3) => v > 0 ? v.toFixed(d) : (v===0&&tov>0?'0.000':'—');
@@ -2341,8 +2411,7 @@ function saveTank(ctxStr, tankIdx, field, value) {
   const fw  = parseFloat(t.fw)  || 0;
   const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
   const govBbl = gov * 6.289812;
-  const _tempC = t.temp ? (parseFloat(t.temp) - 32) / 1.8 : null;
-  const vcf = (t.api && _tempC) ? vcfCalc(parseFloat(t.api), _tempC, 15.556) : null;
+  const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp)) : null;
   const gsv = (vcf && gov > 0) ? gov * vcf : 0;
   const gsvBbl = gsv * 6.289812;
   t.gov = gov > 0 ? gov.toFixed(6) : '';
