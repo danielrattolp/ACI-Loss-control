@@ -667,6 +667,10 @@ function buildHome(ops) {
     </div>
     <div class="home-actions">
       <button class="btn btn-primary" data-action="open-new-op">+ Nueva Operación</button>
+      <button class="btn" style="background:var(--paper);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:6px 12px" data-action="export-ops" title="Exportar todas las operaciones a JSON">⬇ Exportar</button>
+      <label style="background:var(--paper);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:6px 12px;border-radius:var(--r);cursor:pointer" title="Importar operaciones desde JSON">
+        ⬆ Importar <input type="file" accept=".json" style="display:none" data-action="import-ops">
+      </label>
     </div>
     <div class="ops-grid">
       ${ops.map(op => buildOpCard(op)).join('')}
@@ -2438,6 +2442,14 @@ function handleClick(e) {
   }
   else if (a === 'delete-op') deleteOp(el.dataset.id);
   else if (a === 'edit-op') editOp(el.dataset.id);
+  else if (a === 'export-ops') {
+    const ops = loadOps();
+    const blob = new Blob([JSON.stringify(ops, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a2 = document.createElement('a');
+    a2.href = url; a2.download = `aci-ops-${new Date().toISOString().slice(0,10)}.json`;
+    a2.click(); URL.revokeObjectURL(url);
+  }
   else if (a === 'save-alijo-vessel-name' || a === 'save-alijo-vessel-imo') {/* handled by input */}
   else if (a === 'set-temp-unit') {
     const c = decodeCtx(el.dataset.ctx);
@@ -2460,6 +2472,26 @@ function handleChange(e) {
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'chk-comment') chkComment(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.value);
+  else if (a === 'import-ops') {
+    const file = el.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!Array.isArray(imported)) { alert('Archivo inválido — debe ser un array de operaciones.'); return; }
+        const existing = loadOps();
+        const existingIds = new Set(existing.map(o => o.id));
+        let added = 0;
+        imported.forEach(op => { if (!existingIds.has(op.id)) { existing.push(op); added++; } });
+        saveOps(existing);
+        render();
+        if (added > 0) alert(`✅ ${added} operación(es) importada(s) correctamente.`);
+        else alert('ℹ️ Todas las operaciones ya existían (IDs duplicados).');
+      } catch { alert('Error al leer el archivo JSON.'); }
+    };
+    reader.readAsText(file);
+  }
 }
 
 function handleInput(e) {

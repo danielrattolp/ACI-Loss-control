@@ -1,0 +1,483 @@
+[
+  {
+    "id": "op_acich002_sim",
+    "code": "ACICH-002",
+    "country": "CL",
+    "type": "vef",
+    "status": "activa",
+    "vessel": {
+      "name": "MT MERIDIAN STAR",
+      "imo": "9234567",
+      "voyage": "V-039"
+    },
+    "product": {
+      "type": "crude",
+      "crudeName": "Vasconia Blend"
+    },
+    "clients": [
+      {
+        "name": "ENAP Refinería"
+      }
+    ],
+    "port": "Quintero",
+    "terminal": "ENAP Quintero",
+    "createdAt": "2026-04-15T08:00:00.000Z",
+    "modules": {
+      "origen": {
+        "loadPort": "Coveñas",
+        "loadTerminal": "Terminal Coveñas",
+        "loadBerth": "Berth 2",
+        "loadDate": "2026-04-10T06:00",
+        "blNumber": "COV-2026-0412",
+        "blDate": "2026-04-12",
+        "originApi": 24.5,
+        "originTemp": 32.5,
+        "originBsw": 0.15,
+        "tempUnit": "C",
+        "bl": {
+          "m3_15": 95420.5,
+          "m3_20": 96180.2,
+          "bbl": 600200,
+          "tmVac": 83850,
+          "tmAir": 83745.2,
+          "longTons": 82426.8,
+          "shortTons": 92306.4,
+          "gallons": 25208400,
+          "api": 24.5,
+          "temp": 32.5,
+          "bsw": 0.15,
+          "vcf": 0.9315
+        },
+        "shore": {
+          "tov": 102450.3,
+          "gov": 101980.5,
+          "gsv60F": 95080.2,
+          "m3_15": 95080.2,
+          "m3_20": 95834.1,
+          "bbl": 598024.8,
+          "tmVac": 83561.4,
+          "tmAir": 83456.9,
+          "api": 24.3,
+          "temp": 33.2,
+          "bsw": 0.18,
+          "vef": 0.9995
+        },
+        "shipFigureOrigin": {
+          "tov": 102380,
+          "gov": 101925.5,
+          "gsv60F": 95038.1,
+          "m3_15": 95038.1,
+          "bbl": 597760.5,
+          "tmVac": 83524.8,
+          "tmAir": 83420.4,
+          "api": 24.5,
+          "temp": 32.5,
+          "bsw": 0.15,
+          "vef": 0.9996
+        }
+      },
+      "ullage-inicial": {
+        "trim": 0.85,
+        "list": 0.3,
+        "datetime": "2026-04-15T06:30",
+        "tanks": [
+          {
+            "name": "1P",
+            "ullage": 1.25,
+            "tcf": 1,
+            "tov": 12450,
+            "fwM": 0.045,
+            "fw": 1.8,
+            "temp": 32.8,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "12448.200000",
+            "gsv": "12287.092439"
+          },
+          {
+            "name": "1S",
+            "ullage": 1.255,
+            "tcf": 1,
+            "tov": 12380,
+            "fwM": 0.04,
+            "fw": 1.6,
+            "temp": 32.6,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "12378.400000",
+            "gsv": "12220.060588"
+          },
+          {
+            "name": "2P",
+            "ullage": 1.18,
+            "tcf": 1,
+            "tov": 13200,
+            "fwM": 0.055,
+            "fw": 2.1,
+            "temp": 33.1,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "13197.900000",
+            "gsv": "13024.106983"
+          },
+          {
+            "name": "2S",
+            "ullage": 1.185,
+            "tcf": 1,
+            "tov": 13150,
+            "fwM": 0.05,
+            "fw": 2,
+            "temp": 32.9,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "13148.000000",
+            "gsv": "12976.845040"
+          },
+          {
+            "name": "3P",
+            "ullage": 1.32,
+            "tcf": 1,
+            "tov": 11800,
+            "fwM": 0.035,
+            "fw": 1.4,
+            "temp": 32.5,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "11798.600000",
+            "gsv": "11648.565814"
+          },
+          {
+            "name": "3S",
+            "ullage": 1.315,
+            "tcf": 1,
+            "tov": 11850,
+            "fwM": 0.038,
+            "fw": 1.52,
+            "temp": 32.7,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "11848.480000",
+            "gsv": "11696.026650"
+          },
+          {
+            "name": "4P",
+            "ullage": 1.195,
+            "tcf": 1,
+            "tov": 13050,
+            "fwM": 0.042,
+            "fw": 1.68,
+            "temp": 33,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "13048.320000",
+            "gsv": "12877.479679"
+          },
+          {
+            "name": "4S",
+            "ullage": 1.2,
+            "tcf": 1,
+            "tov": 13000,
+            "fwM": 0.048,
+            "fw": 1.92,
+            "temp": 32.8,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "12998.080000",
+            "gsv": "12829.855761"
+          },
+          {
+            "name": "5P",
+            "ullage": 1.29,
+            "tcf": 1,
+            "tov": 11950,
+            "fwM": 0.032,
+            "fw": 1.28,
+            "temp": 32.4,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "11948.720000",
+            "gsv": "11797.676781"
+          },
+          {
+            "name": "5S",
+            "ullage": 1.285,
+            "tcf": 1,
+            "tov": 12000,
+            "fwM": 0.036,
+            "fw": 1.44,
+            "temp": 32.6,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "11998.560000",
+            "gsv": "11845.079345"
+          },
+          {
+            "name": "6P",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "6S",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "SL",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "RES",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          }
+        ]
+      },
+      "ullage-final": {
+        "trim": 1.2,
+        "list": 0.2,
+        "datetime": "2026-04-17T14:45",
+        "tanks": [
+          {
+            "name": "1P",
+            "ullage": 14.82,
+            "tcf": 1,
+            "tov": 125,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.5,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "125.000000",
+            "gsv": "123.786745"
+          },
+          {
+            "name": "1S",
+            "ullage": 14.85,
+            "tcf": 1,
+            "tov": 120,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.3,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "120.000000",
+            "gsv": "118.853320"
+          },
+          {
+            "name": "2P",
+            "ullage": 15.2,
+            "tcf": 1,
+            "tov": 98,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.8,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "98.000000",
+            "gsv": "97.026700"
+          },
+          {
+            "name": "2S",
+            "ullage": 15.18,
+            "tcf": 1,
+            "tov": 102,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.6,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "102.000000",
+            "gsv": "101.002314"
+          },
+          {
+            "name": "3P",
+            "ullage": 14.95,
+            "tcf": 1,
+            "tov": 115,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.4,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "115.000000",
+            "gsv": "113.892452"
+          },
+          {
+            "name": "3S",
+            "ullage": 14.93,
+            "tcf": 1,
+            "tov": 118,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.5,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "118.000000",
+            "gsv": "116.854687"
+          },
+          {
+            "name": "4P",
+            "ullage": 15.1,
+            "tcf": 1,
+            "tov": 108,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.7,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "108.000000",
+            "gsv": "106.935505"
+          },
+          {
+            "name": "4S",
+            "ullage": 15.08,
+            "tcf": 1,
+            "tov": 112,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.5,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "112.000000",
+            "gsv": "110.912923"
+          },
+          {
+            "name": "5P",
+            "ullage": 14.87,
+            "tcf": 1,
+            "tov": 122,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.3,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "122.000000",
+            "gsv": "120.834209"
+          },
+          {
+            "name": "5S",
+            "ullage": 14.89,
+            "tcf": 1,
+            "tov": 119,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 28.4,
+            "api": 24.5,
+            "bsw": 0.15,
+            "gov": "119.000000",
+            "gsv": "117.853929"
+          },
+          {
+            "name": "6P",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "6S",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "SL",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          },
+          {
+            "name": "RES",
+            "ullage": 0,
+            "tcf": 1,
+            "tov": 0,
+            "fwM": 0,
+            "fw": 0,
+            "temp": 0,
+            "api": 0,
+            "bsw": 0,
+            "gov": "",
+            "gsv": ""
+          }
+        ]
+      },
+      "vef": {
+        "shoreGSV": 95080.2,
+        "vesselGSV": 122074.836,
+        "voyages": [
+          {
+            "vessel": "MT STELLAR",
+            "shoreGSV": 88420,
+            "vesselGSV": 88385,
+            "date": "2025-11-12"
+          },
+          {
+            "vessel": "MT MERIDIAN STAR",
+            "shoreGSV": 92100,
+            "vesselGSV": 92068,
+            "date": "2026-01-22"
+          },
+          {
+            "vessel": "MT MERIDIAN STAR",
+            "shoreGSV": 89540,
+            "vesselGSV": 89511,
+            "date": "2026-03-05"
+          }
+        ]
+      }
+    }
+  }
+]
