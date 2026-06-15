@@ -309,8 +309,8 @@ function initModuleData(type) {
       notes: '',
     },
     'key-meeting':    { date: '', time: '', location: '', attendees: [], topics: [], notes: '', decisions: '' },
-    'ullage-inicial': { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'' },
-    'ullage-final':   { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'' },
+    'ullage-inicial': { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' },
+    'ullage-final':   { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' },
     'vef':            { shoreGSV: '', vesselGSV: '', vef: '', notes: '', voyages: [] },
     'time-log':       { events: [], pumpRate: '', startTime: '', hoses: 1, notes: '' },
     'discharge-record': { bl: { qty: '', api: '', bsw: '', temp: '' }, pumpLog: [], notes: '' },
@@ -426,10 +426,10 @@ function apiToDensity15(api) {
 }
 
 // Full quantity summary from GOV, avg temp (°F), API, BS&W
-function calcAllQuantities(govM3, avgTempF, api60, bswPct) {
+function calcAllQuantities(govM3, avgTempF, api60, bswPct, tabla = '6A') {
   if (!govM3 || govM3 <= 0 || !api60 || avgTempF == null) return null;
 
-  const vcf60F  = vcfCalc(api60, avgTempF, '6A');        // to 60°F (MPMS 6A)
+  const vcf60F  = vcfCalc(api60, avgTempF, tabla);        // to 60°F (tabla seleccionada)
   // Para 15°C y 20°C: mismo algoritmo con referencia ajustada en °F
   const _vcfRef = (refF) => {
     const r   = _rho60(api60);
@@ -1652,6 +1652,7 @@ function buildKeyMeeting(d, ctx) {
 function buildUllage(d, mod, ctx) {
   const tanks = d.tanks || TANK_NAMES.map(n => ({ name: n }));
   const title = mod === 'ullage-inicial' ? 'Ullage Inicial (Before)' : 'Ullage Final (After)';
+  const vcfTabla = d.vcfTabla || '6A';
   const totalTOV = ullageTotal(tanks, 'tov');
   const totalGOV = ullageTotal(tanks, 'gov');
   const totalGSV = ullageTotal(tanks, 'gsv');
@@ -1674,7 +1675,7 @@ function buildUllage(d, mod, ctx) {
   const avgApi  = parseFloat(d.avgApi)  || wAvgApi;
   const avgBsw  = parseFloat(d.avgBsw)  !== undefined && d.avgBsw !== '' ? parseFloat(d.avgBsw) : wAvgBsw;
 
-  const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw);
+  const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw, vcfTabla);
 
   return `
     <div class="module-title">📐 ${title}</div>
@@ -1697,6 +1698,16 @@ function buildUllage(d, mod, ctx) {
       </div>
     </div>
 
+    <div class="card" style="padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Tabla VCF MPMS 11.1</span>
+      ${['6A','6B','6C','6D'].map(t => {
+        const labels = {'6A':'6A — Crudos','6B':'6B — Refinados','6C':'6C — MTBE','6D':'6D — Lubricantes'};
+        const active = vcfTabla === t;
+        return `<button class="btn${active?' btn-primary':''}" style="font-size:12px;padding:4px 12px;${active?'':'background:var(--paper);color:var(--text);border:1px solid var(--line)'}"
+          data-action="set-vcf-tabla" data-ctx="${ctx}" data-tabla="${t}">${labels[t]}</button>`;
+      }).join('')}
+    </div>
+
     <div class="card" style="padding:0;overflow:hidden">
       <div class="tbl-wrap">
         <table>
@@ -1713,7 +1724,7 @@ function buildUllage(d, mod, ctx) {
               <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°F)</span></th>
               <th style="font-size:11px">API<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
               <th style="font-size:11px">BS&W<br><span style="font-weight:400;color:var(--muted)">(%)</span></th>
-              <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
+              <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">Tabla ${vcfTabla}</span></th>
               <th style="font-size:11px;background:#e8f4ea">GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#d4edd4">GSV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
             </tr>
@@ -1725,7 +1736,7 @@ function buildUllage(d, mod, ctx) {
               const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
               const govBbl = gov * 6.289812;
               const tempF = parseFloat(t.temp);
-              const vcf = (t.api && tempF) ? vcfCalc(parseFloat(t.api), tempF) : null;
+              const vcf = (t.api && tempF) ? vcfCalc(parseFloat(t.api), tempF, vcfTabla) : null;
               const gsv = vcf && gov > 0 ? gov * vcf : 0;
               const gsvBbl = gsv * 6.289812;
               const fmtC = (v, d=3) => v > 0 ? v.toFixed(d) : (v===0&&tov>0?'0.000':'—');
@@ -2411,7 +2422,7 @@ function saveTank(ctxStr, tankIdx, field, value) {
   const fw  = parseFloat(t.fw)  || 0;
   const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
   const govBbl = gov * 6.289812;
-  const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp)) : null;
+  const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp), ref.data.vcfTabla || '6A') : null;
   const gsv = (vcf && gov > 0) ? gov * vcf : 0;
   const gsvBbl = gsv * 6.289812;
   t.gov = gov > 0 ? gov.toFixed(6) : '';
@@ -2531,6 +2542,16 @@ function handleClick(e) {
     if (op) {
       if (!op.modules[c.mod]) op.modules[c.mod] = {};
       op.modules[c.mod].tempUnit = el.dataset.unit;
+      saveOp(op);
+      render();
+    }
+  }
+  else if (a === 'set-vcf-tabla') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (op) {
+      if (!op.modules[c.mod]) op.modules[c.mod] = {};
+      op.modules[c.mod].vcfTabla = el.dataset.tabla;
       saveOp(op);
       render();
     }
