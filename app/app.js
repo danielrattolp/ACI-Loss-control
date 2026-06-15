@@ -1596,12 +1596,14 @@ function buildUllage(d, mod, ctx) {
     ? govTanks.reduce((s,t) => s + (parseFloat(t.bsw)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
     : 0;
 
-  // Override with manual inputs if provided
-  const avgTemp = parseFloat(d.avgTemp) || wAvgTemp;
+  // Override with manual inputs if provided (temps in °F)
+  const avgTempF = parseFloat(d.avgTemp) || wAvgTemp;
   const avgApi  = parseFloat(d.avgApi)  || wAvgApi;
   const avgBsw  = parseFloat(d.avgBsw)  !== undefined && d.avgBsw !== '' ? parseFloat(d.avgBsw) : wAvgBsw;
 
-  const q = calcAllQuantities(totalGOV, avgTemp, avgApi, avgBsw);
+  // Convert °F → °C for calcAllQuantities
+  const avgTempC_calc = avgTempF ? (avgTempF - 32) / 1.8 : 0;
+  const q = calcAllQuantities(totalGOV, avgTempC_calc, avgApi, avgBsw);
 
   return `
     <div class="module-title">📐 ${title}</div>
@@ -1637,7 +1639,7 @@ function buildUllage(d, mod, ctx) {
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#e8f4f8">GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#d4ecf7">GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
-              <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°C)</span></th>
+              <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°F)</span></th>
               <th style="font-size:11px">API<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
               <th style="font-size:11px">BS&W<br><span style="font-weight:400;color:var(--muted)">(%)</span></th>
               <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
@@ -1651,7 +1653,9 @@ function buildUllage(d, mod, ctx) {
               const fw  = parseFloat(t.fw)  || 0;
               const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
               const govBbl = gov * 6.289812;
-              const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp), 15.556) : null;
+              const tempF = parseFloat(t.temp);
+              const tempC_for_vcf = tempF ? (tempF - 32) / 1.8 : null;
+              const vcf = (t.api && tempC_for_vcf) ? vcfCalc(parseFloat(t.api), tempC_for_vcf, 15.556) : null;
               const gsv = vcf && gov > 0 ? gov * vcf : 0;
               const gsvBbl = gsv * 6.289812;
               const fmtC = (v, d=3) => v > 0 ? v.toFixed(d) : (v===0&&tov>0?'0.000':'—');
@@ -1699,12 +1703,12 @@ function buildUllage(d, mod, ctx) {
       </div>
       <div class="form-row form-row-3">
         <div class="field">
-          <label class="field-label">Temp. promedio observada (°C)</label>
+          <label class="field-label">Temp. promedio observada (°F)</label>
           <input class="field-input" type="number" step="0.01"
             value="${d.avgTemp !== undefined && d.avgTemp !== '' ? d.avgTemp : wAvgTemp.toFixed(2)}"
             placeholder="${wAvgTemp.toFixed(2)}"
             data-action="save-field" data-ctx="${ctx}" data-field="avgTemp">
-          <span class="field-hint">Prom. ponderado: ${wAvgTemp.toFixed(3)} °C</span>
+          <span class="field-hint">Prom. ponderado: ${wAvgTemp.toFixed(3)} °F</span>
         </div>
         <div class="field">
           <label class="field-label">API Gravity @60°F</label>
@@ -2337,7 +2341,8 @@ function saveTank(ctxStr, tankIdx, field, value) {
   const fw  = parseFloat(t.fw)  || 0;
   const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
   const govBbl = gov * 6.289812;
-  const vcf = (t.api && t.temp) ? vcfCalc(parseFloat(t.api), parseFloat(t.temp), 15.556) : null;
+  const _tempC = t.temp ? (parseFloat(t.temp) - 32) / 1.8 : null;
+  const vcf = (t.api && _tempC) ? vcfCalc(parseFloat(t.api), _tempC, 15.556) : null;
   const gsv = (vcf && gov > 0) ? gov * vcf : 0;
   const gsvBbl = gsv * 6.289812;
   t.gov = gov > 0 ? gov.toFixed(6) : '';
