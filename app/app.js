@@ -352,7 +352,7 @@ function vcfCalc(api, tempC, refC = 15.556) {
   if (!api || !tempC) return 1;
   const rho15 = 141.5 / (api + 131.5) * 999.016;
   const alpha = 613.9723 / (rho15 * rho15);
-  const dT = (tempC - refC) * 1.8;  // Δ°C to Δ°F
+  const dT = tempC - refC;  // ΔT en °C — constante 613.9723 ya calibrada para °C
   return Math.exp(-alpha * dT * (1 + 0.8 * alpha * dT));
 }
 
