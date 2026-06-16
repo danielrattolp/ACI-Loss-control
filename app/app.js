@@ -409,13 +409,15 @@ function vcfTable6D(api, tempF) {
 }
 
 // vcfCalc(api, tempF, tabla) — tabla: '6A'|'6B'|'6C'|'6D' (default 6A)
+// Temperature is rounded to 1 decimal per MPMS 11.1 (precision of field measurements)
 function vcfCalc(api, tempF, tabla = '6A') {
   if (!api || tempF == null) return null;
+  const t = Math.round(tempF * 10) / 10;  // ROUND(T, 1) per MPMS convention
   switch (tabla) {
-    case '6B': return vcfTable6B(api, tempF);
-    case '6C': return vcfTable6C(api, tempF);
-    case '6D': return vcfTable6D(api, tempF);
-    default:   return vcfTable6A(api, tempF);
+    case '6B': return vcfTable6B(api, t);
+    case '6C': return vcfTable6C(api, t);
+    case '6D': return vcfTable6D(api, t);
+    default:   return vcfTable6A(api, t);
   }
 }
 
