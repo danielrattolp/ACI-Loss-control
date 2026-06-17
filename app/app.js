@@ -2229,11 +2229,10 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
 
   // Delta quantities (Inicial − Final = lo transferido)
   const dGOV   = ini.totalGOV - fin.totalGOV;
-  const dGSV60 = ini.q && fin.q ? ini.q.gsv60F  - fin.q.gsv60F  : null;
-  const dBBL   = ini.q && fin.q ? ini.q.bbl60F  - fin.q.bbl60F  : null;
-  const dTCV   = ini.q && fin.q ? ini.q.gsv15C  - fin.q.gsv15C  : null;  // TCV @15°C (m³)
-  const dNSV   = ini.q && fin.q ? ini.q.nsv60F  - fin.q.nsv60F  : null;
-  const dTM    = ini.q && fin.q ? ini.q.tmAir   - fin.q.tmAir   : null;
+  const dGSV60 = ini.q && fin.q ? ini.q.gsv60F - fin.q.gsv60F : null;
+  const dBBL   = ini.q && fin.q ? ini.q.bbl60F - fin.q.bbl60F : null;
+  const dNSV   = ini.q && fin.q ? ini.q.nsv60F - fin.q.nsv60F : null;
+  const dTM    = ini.q && fin.q ? ini.q.tmAir  - fin.q.tmAir  : null;
 
   const fv = (v, dec=3) => v != null ? (v >= 0 ? v.toFixed(dec) : `(${Math.abs(v).toFixed(dec)})`) : '—';
   const fc = (v, dec=3) => v != null && v > 0 ? `<strong style="color:var(--green)">${v.toFixed(dec)}</strong>` : fv(v, dec);
@@ -2268,9 +2267,8 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
           <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar — GSV</td></tr>
           ${row('GSV @60°F (m³)', ini.q?.gsv60F, fin.q?.gsv60F, dGSV60, 3, true)}
           ${row('GSV @60°F (BBL)', ini.q?.bbl60F, fin.q?.bbl60F, dBBL, 2, true)}
-          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Total Calculated Volume — TCV</td></tr>
-          ${row('TCV @15°C (m³)', ini.q?.gsv15C, fin.q?.gsv15C, dTCV, 3, true)}
-          ${row('NSV @60°F (m³) — neto BS&W', ini.q?.nsv60F, fin.q?.nsv60F, dNSV)}
+          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Net Standard Volume — NSV @60°F</td></tr>
+          ${row('NSV @60°F (m³) — neto BS&W', ini.q?.nsv60F, fin.q?.nsv60F, dNSV, 3, true)}
           <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Masa</td></tr>
           ${row('TM Aire (MT)', ini.q?.tmAir, fin.q?.tmAir, dTM, 3)}
         </tbody>
