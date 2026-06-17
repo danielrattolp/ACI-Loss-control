@@ -50,7 +50,8 @@ const MODULE_META = {
 // Biblioteca de módulos disponibles para el builder modular
 const MODULE_LIBRARY = [
   { type: 'origen',           label: 'Datos de Origen',    icon: '📦', multi: false, desc: 'B/L, GOV, GSV, API en puerto de carga' },
-  { type: 'ullage',           label: 'Ullage',             icon: '📐', multi: true,  desc: 'Medición de ullage en tanques del buque' },
+  { type: 'ullage-inicial',   label: 'Ullage Inicial',     icon: '📐', multi: true,  desc: 'Medición antes de la transferencia (Before)' },
+  { type: 'ullage-final',     label: 'Ullage Final',       icon: '📏', multi: true,  desc: 'Medición post-transferencia — calcula Δ entregado/recibido' },
   { type: 'vef',              label: 'VEF',                icon: '⚖️', multi: false, desc: 'Vessel Experience Factor (MPMS 17.9)' },
   { type: 'key-meeting',      label: 'Key Meeting',        icon: '🤝', multi: false, desc: 'Acta de reunión pre-inspección' },
   { type: 'time-log',         label: 'Time Log / SOF',     icon: '⏱️', multi: false, desc: 'Cronograma y Statement of Facts' },
@@ -370,7 +371,10 @@ function nextModuleKey(op, type) {
 // Data inicial para una instancia nueva de módulo
 function initModuleInstance(type) {
   const tanks = TANK_NAMES.map(n => ({ name: n, ullage: '', tcf: '', tov: '', temp: '', api: '', bsw: '', fw: '', gov: '', gsv: '' }));
-  if (type === 'ullage')           return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' };
+  if (type === 'ullage' || type === 'ullage-inicial')
+    return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' };
+  if (type === 'ullage-final')
+    return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A', pairedWith: '' };
   if (type === 'vef')              return { shoreGSV: '', vesselGSV: '', vef: '', notes: '', voyages: [] };
   if (type === 'key-meeting')      return { date: '', time: '', location: '', attendees: [], topics: [], notes: '', decisions: '' };
   if (type === 'time-log')         return { events: [], pumpRate: '', startTime: '', hoses: 1, notes: '' };
@@ -1228,7 +1232,7 @@ function buildModuleContentInner(data, mod, ctx) {
   const mtype = moduleType(mod);
   if (mod === 'origen')                                                   return buildOrigen(data, ctxStr);
   if (mod === 'key-meeting')                                              return buildKeyMeeting(data, ctxStr);
-  if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage') return buildUllage(data, mod, ctxStr);
+  if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage' || mtype === 'ullage-inicial' || mtype === 'ullage-final') return buildUllage(data, mod, ctxStr);
   if (mod === 'vef')                                                      return buildVEF(data, ctxStr);
   if (mod === 'time-log')                                                 return buildTimeLog(data, ctxStr);
   if (mod === 'discharge-record')                                         return buildDischargeRecord(data, ctxStr);
@@ -1827,7 +1831,10 @@ function buildKeyMeeting(d, ctx) {
 // ===== MODULE: ULLAGE =====
 function buildUllage(d, mod, ctx) {
   const tanks = d.tanks || TANK_NAMES.map(n => ({ name: n }));
-  const defaultTitle = mod === 'ullage-inicial' ? 'Ullage Inicial (Before)' : mod === 'ullage-final' ? 'Ullage Final (After)' : `Ullage ${parseInt(mod.split('-').pop()||'0',10)+1}`;
+  const isIni = mod.includes('inicial');
+  const isFin = mod.includes('final');
+  const roleIcon = isFin ? '📏' : '📐';
+  const defaultTitle = isIni ? 'Ullage Inicial (Before)' : isFin ? 'Ullage Final (After)' : `Ullage ${parseInt(mod.split('-').pop()||'0',10)+1}`;
   const title = d._label || defaultTitle;
   const vcfTabla = d.vcfTabla || '6A';
   const totalTOV = ullageTotal(tanks, 'tov');
@@ -1855,7 +1862,7 @@ function buildUllage(d, mod, ctx) {
   const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw, vcfTabla);
 
   return `
-    <div class="module-title">📐 ${title}</div>
+    <div class="module-title">${roleIcon} ${title}</div>
     <div class="module-subtitle">Medición de tanques — API MPMS 12.1.1 &nbsp;|&nbsp; 14 tanques</div>
 
     <div class="card" style="padding:12px">
@@ -2162,7 +2169,97 @@ function buildUllage(d, mod, ctx) {
     <div class="card">
       <div class="card-title">Notas</div>
       <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Observaciones de medición..." data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>
+    ${isFin ? buildUllageDelta(d, mod, ctx, tanks, vcfTabla) : ''}`;
+}
+
+function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
+  const ctxObj = JSON.parse(decodeURIComponent(ctx));
+  const op = getOp(ctxObj.opId);
+  if (!op) return '';
+  const order = resolveModuleOrder(op);
+  const inicialKeys = order.filter(k => k === 'ullage-inicial' || moduleType(k) === 'ullage-inicial');
+  if (!inicialKeys.length) return `
+    <div class="card" style="background:rgba(255,193,7,.07);border:1px dashed rgba(255,193,7,.3);padding:14px 18px;color:var(--muted);font-size:13px">
+      ℹ️ Agrega un módulo <strong>Ullage Inicial</strong> a esta operación para calcular el Δ transferido.
     </div>`;
+
+  const pairedKey = d.pairedWith || '';
+  const mods = op.modules || {};
+  const iniD = pairedKey
+    ? (mods[pairedKey] || (op.type ? (initModuleData(op.type)[pairedKey] || null) : null))
+    : null;
+  const iniTanks = iniD ? (iniD.tanks || []) : [];
+
+  // Compute delta per tank
+  let totalDeltaGOV = 0, totalDeltaGSV = 0;
+  const deltaRows = finTanks.map((ft, i) => {
+    const it = iniTanks[i] || {};
+    const iniTov = parseFloat(it.tov) || 0;
+    const iniGov = Math.max(0, iniTov - (parseFloat(it.fw) || 0));
+    const finTov = parseFloat(ft.tov) || 0;
+    const finGov = Math.max(0, finTov - (parseFloat(ft.fw) || 0));
+    const dGov = iniGov - finGov;
+    const tempF = parseFloat(ft.temp);
+    const vcf = (ft.api && tempF) ? vcfCalc(parseFloat(ft.api), tempF, vcfTabla) : null;
+    const dGsv = (vcf && dGov > 0) ? dGov * vcf : 0;
+    totalDeltaGOV += dGov;
+    totalDeltaGSV += dGsv;
+    return { name: ft.name || TANK_NAMES[i], iniGov, finGov, dGov, dGsv };
+  }).filter(r => r.iniGov > 0 || r.finGov > 0);
+
+  const fmtD = (v, dec=3) => v > 0 ? v.toFixed(dec) : v < 0 ? `(${Math.abs(v).toFixed(dec)})` : '—';
+
+  return `
+    <div class="card" style="padding:12px 16px">
+      <div class="card-title" style="margin-bottom:10px">🔗 Comparar con Ullage Inicial</div>
+      <select data-action="save-field" data-ctx="${ctx}" data-field="pairedWith"
+        style="width:300px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--fg);font-size:13px">
+        <option value="">— Seleccionar ullage inicial —</option>
+        ${inicialKeys.map(k => {
+          const lbl = MODULE_META[k]?.label || moduleLabel(op, k);
+          return `<option value="${k}" ${pairedKey===k?'selected':''}>${lbl}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    ${pairedKey && iniD ? `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="background:#0d2e1a;color:#4caf7d;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
+        ⇅ Δ Transferido — ${MODULE_META[pairedKey]?.label || moduleLabel(op, pairedKey)} → ${d._label || 'Ullage Final'}
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="font-size:11px">Tq.</th>
+            <th style="font-size:11px">GOV Ini<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+            <th style="font-size:11px">GOV Fin<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+            <th style="font-size:11px;background:#e8f4ea">Δ GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+            <th style="font-size:11px;background:#d4edd4">Δ GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
+            <th style="font-size:11px;background:#e8f4ea">Δ GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+            <th style="font-size:11px;background:#d4edd4">Δ GSV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
+          </tr></thead>
+          <tbody>
+            ${deltaRows.map(r => `
+              <tr>
+                <td style="font-weight:700;font-size:12px">${r.name}</td>
+                <td style="font-family:monospace;font-size:12px">${r.iniGov > 0 ? r.iniGov.toFixed(3) : '—'}</td>
+                <td style="font-family:monospace;font-size:12px">${r.finGov > 0 ? r.finGov.toFixed(3) : '—'}</td>
+                <td style="background:#e8f4ea;font-weight:600;color:var(--green);font-family:monospace;font-size:12px">${fmtD(r.dGov)}</td>
+                <td style="background:#d4edd4;font-weight:700;color:var(--green);font-family:monospace;font-size:12px">${r.dGov > 0 ? (r.dGov*6.289812).toFixed(2) : '—'}</td>
+                <td style="background:#e8f4ea;font-family:monospace;font-size:12px">${r.dGsv > 0 ? r.dGsv.toFixed(3) : '—'}</td>
+                <td style="background:#d4edd4;font-weight:700;color:var(--green);font-family:monospace;font-size:12px">${r.dGsv > 0 ? (r.dGsv*6.289812).toFixed(2) : '—'}</td>
+              </tr>`).join('')}
+            <tr class="total-row">
+              <td colspan="3">TOTAL TRANSFERIDO</td>
+              <td style="background:#e8f4ea;font-size:13px;font-weight:700;color:var(--green)">${fmtD(totalDeltaGOV)}</td>
+              <td style="background:#d4edd4;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGOV > 0 ? (totalDeltaGOV*6.289812).toFixed(2) : '—'}</td>
+              <td style="background:#e8f4ea;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGSV > 0 ? totalDeltaGSV.toFixed(3) : '—'}</td>
+              <td style="background:#d4edd4;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGSV > 0 ? (totalDeltaGSV*6.289812).toFixed(2) : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}`;
 }
 
 // ===== MODULE: VEF =====
