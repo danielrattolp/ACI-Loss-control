@@ -17,3 +17,4 @@ read_hdm.js
 read_summary.js
 read_ullage.js
 read_excel_tmp.py
+.env

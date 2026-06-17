@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+
+# Carga variables desde .env si existe (ANTHROPIC_API_KEY, etc.)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from datetime import date, datetime
 from pathlib import Path
 
