@@ -2189,28 +2189,30 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
   const iniD = pairedKey
     ? (mods[pairedKey] || (op.type ? (initModuleData(op.type)[pairedKey] || null) : null))
     : null;
-  const iniTanks = iniD ? (iniD.tanks || []) : [];
 
-  // Compute delta per tank
-  let totalDeltaGOV = 0, totalDeltaGSV = 0;
-  const deltaRows = finTanks.map((ft, i) => {
-    const it = iniTanks[i] || {};
-    const iniTov = parseFloat(it.tov) || 0;
-    const iniGov = Math.max(0, iniTov - (parseFloat(it.fw) || 0));
-    const finTov = parseFloat(ft.tov) || 0;
-    const finGov = Math.max(0, finTov - (parseFloat(ft.fw) || 0));
-    const dGov = iniGov - finGov;
-    const tempF = parseFloat(ft.temp);
-    const vcf = (ft.api && tempF) ? vcfCalc(parseFloat(ft.api), tempF, vcfTabla) : null;
-    const dGsv = (vcf && dGov > 0) ? dGov * vcf : 0;
-    totalDeltaGOV += dGov;
-    totalDeltaGSV += dGsv;
-    return { name: ft.name || TANK_NAMES[i], iniGov, finGov, dGov, dGsv };
-  }).filter(r => r.iniGov > 0 || r.finGov > 0);
+  // Helper: compute totals from a set of tanks + module data
+  function ullageQuantities(tankList, modData) {
+    const tanks = tankList || [];
+    const totalTOV = ullageTotal(tanks, 'tov');
+    const totalFW  = ullageTotal(tanks, 'fw');
+    const totalGOV = Math.max(0, totalTOV - totalFW);
+    const govTanks = tanks.filter(t => parseFloat(t.gov || (parseFloat(t.tov||0) - parseFloat(t.fw||0))) > 0 || parseFloat(t.tov||0) > 0);
+    const govForAvg = govTanks.reduce((s,t) => s + Math.max(0, (parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) || 1;
+    const wAvgTemp = govTanks.reduce((s,t) => s + (parseFloat(t.temp)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
+    const wAvgApi  = govTanks.reduce((s,t) => s + (parseFloat(t.api)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
+    const wAvgBsw  = govTanks.reduce((s,t) => s + (parseFloat(t.bsw)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
+    const avgTempF = parseFloat(modData?.avgTemp) || wAvgTemp;
+    const avgApi   = parseFloat(modData?.avgApi)  || wAvgApi;
+    const avgBsw   = (modData?.avgBsw !== '' && modData?.avgBsw != null) ? parseFloat(modData.avgBsw) : wAvgBsw;
+    const tabla    = modData?.vcfTabla || vcfTabla || '6A';
+    const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw, tabla);
+    return { totalTOV, totalFW, totalGOV, avgApi, avgTempF, avgBsw, q };
+  }
 
-  const fmtD = (v, dec=3) => v > 0 ? v.toFixed(dec) : v < 0 ? `(${Math.abs(v).toFixed(dec)})` : '—';
+  const ini = iniD ? ullageQuantities(iniD.tanks, iniD) : null;
+  const fin = ullageQuantities(finTanks, d);
 
-  return `
+  const sel = `
     <div class="card" style="padding:12px 16px">
       <div class="card-title" style="margin-bottom:10px">🔗 Comparar con Ullage Inicial</div>
       <select data-action="save-field" data-ctx="${ctx}" data-field="pairedWith"
@@ -2221,45 +2223,60 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
           return `<option value="${k}" ${pairedKey===k?'selected':''}>${lbl}</option>`;
         }).join('')}
       </select>
-    </div>
-    ${pairedKey && iniD ? `
+    </div>`;
+
+  if (!pairedKey || !iniD) return sel;
+
+  // Delta quantities (Inicial − Final = lo transferido)
+  const dGOV   = ini.totalGOV - fin.totalGOV;
+  const dGSV60 = ini.q && fin.q ? ini.q.gsv60F  - fin.q.gsv60F  : null;
+  const dBBL   = ini.q && fin.q ? ini.q.bbl60F  - fin.q.bbl60F  : null;
+  const dTCV   = ini.q && fin.q ? ini.q.gsv15C  - fin.q.gsv15C  : null;  // TCV @15°C (m³)
+  const dNSV   = ini.q && fin.q ? ini.q.nsv60F  - fin.q.nsv60F  : null;
+  const dTM    = ini.q && fin.q ? ini.q.tmAir   - fin.q.tmAir   : null;
+
+  const fv = (v, dec=3) => v != null ? (v >= 0 ? v.toFixed(dec) : `(${Math.abs(v).toFixed(dec)})`) : '—';
+  const fc = (v, dec=3) => v != null && v > 0 ? `<strong style="color:var(--green)">${v.toFixed(dec)}</strong>` : fv(v, dec);
+  const hdr = (txt, sub='') => `<th style="font-size:11px;text-align:right;padding:8px 12px">${txt}${sub?`<br><span style="font-weight:400;color:var(--muted);font-size:10px">${sub}</span>`:''}`;
+  const row = (label, ini_v, fin_v, delta, dec=3, highlight=false) => `
+    <tr${highlight?' style="background:rgba(76,175,61,.07)"':''}>
+      <td style="font-weight:600;color:var(--ink);font-size:12px;padding:6px 12px">${label}</td>
+      <td style="text-align:right;font-family:monospace;font-size:12px;padding:6px 12px">${fv(ini_v,dec)}</td>
+      <td style="text-align:right;font-family:monospace;font-size:12px;padding:6px 12px">${fv(fin_v,dec)}</td>
+      <td style="text-align:right;font-family:monospace;font-size:12px;padding:6px 12px;${highlight?'font-weight:700;font-size:13px':''}">${fc(delta,dec)}</td>
+    </tr>`;
+
+  const iniLbl = MODULE_META[pairedKey]?.label || moduleLabel(op, pairedKey);
+
+  return sel + `
     <div class="card" style="padding:0;overflow:hidden">
       <div style="background:#0d2e1a;color:#4caf7d;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
-        ⇅ Δ Transferido — ${MODULE_META[pairedKey]?.label || moduleLabel(op, pairedKey)} → ${d._label || 'Ullage Final'}
+        ⇅ Δ Transferido — ${iniLbl} → ${d._label || 'Ullage Final'}
       </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th style="font-size:11px">Tq.</th>
-            <th style="font-size:11px">GOV Ini<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
-            <th style="font-size:11px">GOV Fin<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
-            <th style="font-size:11px;background:#e8f4ea">Δ GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
-            <th style="font-size:11px;background:#d4edd4">Δ GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
-            <th style="font-size:11px;background:#e8f4ea">Δ GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
-            <th style="font-size:11px;background:#d4edd4">Δ GSV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
-          </tr></thead>
-          <tbody>
-            ${deltaRows.map(r => `
-              <tr>
-                <td style="font-weight:700;font-size:12px">${r.name}</td>
-                <td style="font-family:monospace;font-size:12px">${r.iniGov > 0 ? r.iniGov.toFixed(3) : '—'}</td>
-                <td style="font-family:monospace;font-size:12px">${r.finGov > 0 ? r.finGov.toFixed(3) : '—'}</td>
-                <td style="background:#e8f4ea;font-weight:600;color:var(--green);font-family:monospace;font-size:12px">${fmtD(r.dGov)}</td>
-                <td style="background:#d4edd4;font-weight:700;color:var(--green);font-family:monospace;font-size:12px">${r.dGov > 0 ? (r.dGov*6.289812).toFixed(2) : '—'}</td>
-                <td style="background:#e8f4ea;font-family:monospace;font-size:12px">${r.dGsv > 0 ? r.dGsv.toFixed(3) : '—'}</td>
-                <td style="background:#d4edd4;font-weight:700;color:var(--green);font-family:monospace;font-size:12px">${r.dGsv > 0 ? (r.dGsv*6.289812).toFixed(2) : '—'}</td>
-              </tr>`).join('')}
-            <tr class="total-row">
-              <td colspan="3">TOTAL TRANSFERIDO</td>
-              <td style="background:#e8f4ea;font-size:13px;font-weight:700;color:var(--green)">${fmtD(totalDeltaGOV)}</td>
-              <td style="background:#d4edd4;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGOV > 0 ? (totalDeltaGOV*6.289812).toFixed(2) : '—'}</td>
-              <td style="background:#e8f4ea;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGSV > 0 ? totalDeltaGSV.toFixed(3) : '—'}</td>
-              <td style="background:#d4edd4;font-size:13px;font-weight:700;color:var(--green)">${totalDeltaGSV > 0 ? (totalDeltaGSV*6.289812).toFixed(2) : '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>` : ''}`;
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--panel)">
+            <th style="text-align:left;font-size:11px;padding:8px 12px;min-width:220px">Cantidad</th>
+            ${hdr(iniLbl,'Antes')}</th>
+            ${hdr('Ullage Final','Después')}</th>
+            ${hdr('Δ Transferido','Ini − Fin')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Observado</td></tr>
+          ${row('GOV (m³ observado)', ini.totalGOV||0, fin.totalGOV||0, dGOV)}
+          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar — GSV</td></tr>
+          ${row('GSV @60°F (m³)', ini.q?.gsv60F, fin.q?.gsv60F, dGSV60, 3, true)}
+          ${row('GSV @60°F (BBL)', ini.q?.bbl60F, fin.q?.bbl60F, dBBL, 2, true)}
+          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Total Calculated Volume — TCV</td></tr>
+          ${row('TCV @15°C (m³)', ini.q?.gsv15C, fin.q?.gsv15C, dTCV, 3, true)}
+          ${row('NSV @60°F (m³) — neto BS&W', ini.q?.nsv60F, fin.q?.nsv60F, dNSV)}
+          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Masa</td></tr>
+          ${row('TM Aire (MT)', ini.q?.tmAir, fin.q?.tmAir, dTM, 3)}
+        </tbody>
+      </table>
+      ${(!ini.q || !fin.q) ? `<div class="warn-box" style="margin:10px 14px">Ingrese API y temperatura en ambos ullages para calcular GSV y TCV.</div>` : ''}
+    </div>`;
 }
 
 // ===== MODULE: VEF =====
