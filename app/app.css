@@ -157,6 +157,10 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 .module-tab:hover { color: var(--ink); }
 .module-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
 .module-tab .tab-check { font-size: 10px; color: var(--green); }
+.module-tab-remove { font-size: 14px; line-height: 1; color: var(--muted); padding: 1px 3px; border-radius: 3px; margin-left: 2px; }
+.module-tab-remove:hover { color: #e53935; background: rgba(229,57,53,.10); }
+.module-tab-add { color: var(--accent) !important; border-bottom-color: transparent !important; font-size: 12px; letter-spacing: .01em; }
+.module-tab-add:hover { background: rgba(15,133,131,.07); border-radius: 6px 6px 0 0; }
 
 /* ===== MODULE CONTENT ===== */
 .module-content { padding: 28px; flex: 1; overflow-y: auto; }

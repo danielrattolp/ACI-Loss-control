@@ -8,6 +8,7 @@ const COUNTRY_PREFIXES = {
   US: { code: 'ACIUSA', label: 'Estados Unidos' },
 };
 
+// Presets de inicio rápido (compatibilidad con ops existentes y creación rápida)
 const OP_TYPES = {
   'vef': {
     label: 'Buque con VEF',
@@ -45,6 +46,19 @@ const MODULE_META = {
   'checklist-terminal':   { label: 'Checklist Terminal', icon: '✅' },
   'summary':              { label: 'Summary',            icon: '📊' },
 };
+
+// Biblioteca de módulos disponibles para el builder modular
+const MODULE_LIBRARY = [
+  { type: 'origen',           label: 'Datos de Origen',    icon: '📦', multi: false, desc: 'B/L, GOV, GSV, API en puerto de carga' },
+  { type: 'ullage',           label: 'Ullage',             icon: '📐', multi: true,  desc: 'Medición de ullage en tanques del buque' },
+  { type: 'vef',              label: 'VEF',                icon: '⚖️', multi: false, desc: 'Vessel Experience Factor (MPMS 17.9)' },
+  { type: 'key-meeting',      label: 'Key Meeting',        icon: '🤝', multi: false, desc: 'Acta de reunión pre-inspección' },
+  { type: 'time-log',         label: 'Time Log / SOF',     icon: '⏱️', multi: false, desc: 'Cronograma y Statement of Facts' },
+  { type: 'discharge-record', label: 'Discharge Record',   icon: '📋', multi: false, desc: 'Registro de descarga / carga' },
+  { type: 'slops',            label: 'Slops',              icon: '🪣', multi: false, desc: 'Control de slops' },
+  { type: 'checklist',        label: 'Checklist',          icon: '✅', multi: true,  desc: 'Lista de verificación de auditoría' },
+  { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
+];
 
 const TANK_NAMES = ['1P','1S','2P','2S','3P','3S','4P','4S','5P','5S','SLP','SLS','WBP','WBS'];
 
@@ -316,6 +330,80 @@ function saveOp(op) {
   saveOps(ops);
 }
 function newOpId() { return 'op_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+
+// ===== MODULAR BUILDER HELPERS =====
+
+// Extrae el tipo base de una clave de módulo: 'ullage-0' → 'ullage', 'origen' → 'origen'
+function moduleType(key) { return key.replace(/-\d+$/, ''); }
+
+// Label visible de un módulo (custom o default)
+function moduleLabel(op, key) {
+  const customLabel = (op.modules || {})[key]?._label;
+  if (customLabel) return customLabel;
+  // Claves legacy
+  if (MODULE_META[key]) return MODULE_META[key].label;
+  // Nuevas claves tipo 'ullage-0', 'checklist-0', etc.
+  const t = moduleType(key);
+  const lib = MODULE_LIBRARY.find(m => m.type === t);
+  const n = parseInt(key.split('-').pop(), 10);
+  if (lib?.multi) return `${lib.label} ${n + 1}`;
+  return lib?.label || key;
+}
+
+// Devuelve el moduleOrder efectivo (nuevo o derivado de la operación legacy)
+function resolveModuleOrder(op) {
+  if (op.moduleOrder && op.moduleOrder.length) return op.moduleOrder;
+  // Compatibilidad: derivar desde OP_TYPES
+  if (op.type && OP_TYPES[op.type]) return OP_TYPES[op.type].modules;
+  return ['summary'];
+}
+
+// Siguiente clave disponible para un tipo multi: 'ullage' → 'ullage-0', 'ullage-1', ...
+function nextModuleKey(op, type) {
+  const order = resolveModuleOrder(op);
+  const existing = order.filter(k => moduleType(k) === type).map(k => parseInt(k.split('-').pop(), 10) || 0);
+  let n = 0;
+  while (existing.includes(n)) n++;
+  return `${type}-${n}`;
+}
+
+// Data inicial para una instancia nueva de módulo
+function initModuleInstance(type) {
+  const tanks = TANK_NAMES.map(n => ({ name: n, ullage: '', tcf: '', tov: '', temp: '', api: '', bsw: '', fw: '', gov: '', gsv: '' }));
+  if (type === 'ullage')           return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' };
+  if (type === 'vef')              return { shoreGSV: '', vesselGSV: '', vef: '', notes: '', voyages: [] };
+  if (type === 'key-meeting')      return { date: '', time: '', location: '', attendees: [], topics: [], notes: '', decisions: '' };
+  if (type === 'time-log')         return { events: [], pumpRate: '', startTime: '', hoses: 1, notes: '' };
+  if (type === 'discharge-record') return { bl: { qty:'', api:'', bsw:'', temp:'' }, pumpLog: [], notes: '' };
+  if (type === 'slops')            return { before: { tanks: [] }, after: { tanks: [] }, notes: '' };
+  if (type === 'checklist')        return { items: makeChecklistData(CHECKLIST_VESSEL), inspector: '', date: '', signature: '' };
+  if (type === 'summary')          return { notes: '' };
+  return {};
+}
+
+// Agrega un módulo al op y retorna el nuevo op
+function addModuleToOp(op, type) {
+  const lib = MODULE_LIBRARY.find(m => m.type === type);
+  if (!lib) return op;
+  const order = [...resolveModuleOrder(op)];
+  // Singleton: no duplicar
+  if (!lib.multi && order.some(k => moduleType(k) === type)) return op;
+  const key = lib.multi ? nextModuleKey(op, type) : type;
+  // Insertar antes de 'summary' si existe
+  const summaryIdx = order.lastIndexOf('summary');
+  if (summaryIdx >= 0) order.splice(summaryIdx, 0, key);
+  else order.push(key);
+  const modules = { ...(op.modules || {}), [key]: initModuleInstance(type) };
+  return { ...op, moduleOrder: order, modules };
+}
+
+// Elimina un módulo del op
+function removeModuleFromOp(op, key) {
+  const order = resolveModuleOrder(op).filter(k => k !== key);
+  const modules = { ...(op.modules || {}) };
+  delete modules[key];
+  return { ...op, moduleOrder: order, modules };
+}
 
 function initModuleData(type) {
   const tanks = TANK_NAMES.map(n => ({ name: n, ullage: '', tcf: '', tov: '', temp: '', api: '', bsw: '', fw: '', gov: '', gsv: '' }));
@@ -797,7 +885,44 @@ function buildOpCard(op) {
 function buildModal() {
   if (state.modal === 'new-op-1') return buildModalNewOp1();
   if (state.modal === 'new-op-2') return buildModalNewOp2();
+  if (state.modal === 'module-picker') return buildModulePicker();
   return '';
+}
+
+function buildModulePicker() {
+  const opId = state.modalData?.pickerOpId;
+  const op = getOp(opId);
+  if (!op) return '';
+  const order = resolveModuleOrder(op);
+  return `
+    <div class="overlay" data-action="close-modal-bg">
+      <div class="modal" data-stop-propagation="true" style="max-width:520px">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">Agregar Módulo</div>
+            <div class="modal-subtitle">Selecciona el bloque que quieres agregar a esta operación</div>
+          </div>
+          <button class="modal-close" data-action="close-modal">×</button>
+        </div>
+        <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px">
+          ${MODULE_LIBRARY.map(lib => {
+            const alreadyHas = !lib.multi && order.some(k => moduleType(k) === lib.type);
+            return `
+              <div class="module-picker-card ${alreadyHas ? 'disabled' : ''}"
+                   data-action="${alreadyHas ? '' : 'add-module-type'}"
+                   data-opid="${opId}" data-type="${lib.type}"
+                   style="border:1.5px solid var(--line2);border-radius:10px;padding:14px 16px;cursor:${alreadyHas?'default':'pointer'};opacity:${alreadyHas?'0.45':'1'};transition:border-color .15s,box-shadow .15s"
+                   ${alreadyHas?'':'onmouseover="this.style.borderColor=\'var(--gold)\';this.style.boxShadow=\'0 0 0 2px rgba(204,157,61,.18)\'" onmouseout="this.style.borderColor=\'var(--line2)\';this.style.boxShadow=\'none\'"'}>
+                <div style="font-size:22px;margin-bottom:6px">${lib.icon}</div>
+                <div style="font-weight:700;font-size:13px;color:var(--fg)">${lib.label}</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:4px">${lib.desc}</div>
+                ${alreadyHas ? '<div style="font-size:10.5px;color:var(--gold);margin-top:6px">Ya agregado</div>' : ''}
+                ${lib.multi ? '<div style="font-size:10.5px;color:var(--accent);margin-top:4px">Se pueden agregar varios</div>' : ''}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
 }
 
 function buildModalNewOp1() {
@@ -930,11 +1055,11 @@ function buildModalNewOp2() {
   const d = state.modalData;
   return `
     <div class="overlay" data-action="close-modal-bg">
-      <div class="modal" data-stop-propagation="true">
+      <div class="modal modal-lg" data-stop-propagation="true">
         <div class="modal-header">
           <div>
             <div class="modal-step">Paso 2 de 2</div>
-            <div class="modal-title">Tipo de Operación</div>
+            <div class="modal-title">Estructura de la Operación</div>
             <div class="modal-subtitle">${d.code} — ${d.vesselName}</div>
           </div>
           <button class="modal-close" data-action="close-modal">×</button>
@@ -942,9 +1067,11 @@ function buildModalNewOp2() {
         <div class="modal-body">
           <div class="progress-steps">
             <div class="progress-step done">1. Datos generales</div>
-            <div class="progress-step active">2. Tipo de operación</div>
+            <div class="progress-step active">2. Estructura</div>
           </div>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Seleccione el tipo de operación. Los módulos de trabajo se habilitarán según la selección.</p>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Elige un inicio rápido o arma tu operación desde cero con los módulos que necesites.</p>
+
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Inicio rápido</div>
           <div class="type-cards">
             ${Object.entries(OP_TYPES).map(([k, t]) => `
               <div class="type-card ${d.opType===k?'selected':''}" data-action="select-type" data-type="${k}">
@@ -955,6 +1082,20 @@ function buildModalNewOp2() {
                   ${t.modules.map(m => `<span class="type-card-module">${MODULE_META[m]?.label || m}</span>`).join('')}
                 </div>
               </div>`).join('')}
+          </div>
+
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px">Operación personalizada</div>
+          <div class="type-cards">
+            <div class="type-card ${d.opType==='custom'?'selected':''}" data-action="select-type" data-type="custom" style="border-style:dashed">
+              <div class="type-card-icon">🧩</div>
+              <div class="type-card-title">Armar desde cero</div>
+              <div class="type-card-desc">Empieza vacío y agrega los módulos que necesites: ullages, receptores, VEF, checklists y más.</div>
+              <div class="type-card-modules">
+                <span class="type-card-module">+ Módulo</span>
+                <span class="type-card-module">+ Módulo</span>
+                <span class="type-card-module">...</span>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -967,17 +1108,30 @@ function buildModalNewOp2() {
 
 // ===== OPERATION DETAIL =====
 function buildOpDetail(op) {
-  const t = OP_TYPES[op.type];
+  const moduleOrder = resolveModuleOrder(op);
+  const isCustom = !!op.moduleOrder; // true = nueva arquitectura modular
   const clients = (op.clients || []).map(c => `<span class="badge badge-client">${c.name}</span>`).join('');
-  const modules = t.modules;
-  const mod = state.currentModule || modules[0];
+  const mod = state.currentModule || moduleOrder[0];
+  const typeLabel = op.type ? (OP_TYPES[op.type]?.label || op.type) : 'Personalizada';
+  const typeCls = op.type === 'vef' ? 'type-vef' : op.type === 'alije' ? 'type-alije' : 'type-terminal';
 
   let content = '';
-  if (op.type === 'alije' && ['ullage-inicial','ullage-final','time-log','vef','discharge-record','slops','checklist-madre','checklist-alijador'].includes(mod)) {
+  if (op.type === 'alije' && !op.moduleOrder && ['ullage-inicial','ullage-final','time-log','vef','discharge-record','slops','checklist-madre','checklist-alijador'].includes(mod)) {
     content = buildAlijeWrapper(op, mod);
   } else {
     content = buildModuleContent(op, mod, null);
   }
+
+  const tabs = moduleOrder.map(m => {
+    const icon = MODULE_META[m]?.icon || MODULE_LIBRARY.find(l=>l.type===moduleType(m))?.icon || '📄';
+    const label = moduleLabel(op, m);
+    const canRemove = isCustom && moduleOrder.length > 1;
+    return `
+      <div class="module-tab ${mod===m?'active':''}" data-action="switch-module" data-module="${m}" style="display:flex;align-items:center;gap:4px;padding-right:${canRemove?'6px':''}">
+        <span>${icon} ${label}</span>
+        ${canRemove ? `<span class="module-tab-remove" data-action="remove-module" data-mod="${m}" data-opid="${op.id}" title="Eliminar módulo">×</span>` : ''}
+      </div>`;
+  }).join('');
 
   return `
     <div class="op-detail">
@@ -995,7 +1149,7 @@ function buildOpDetail(op) {
             <div class="op-detail-badges" style="margin-top:8px">
               ${clients}
               <span class="badge badge-port">${op.port || '—'}</span>
-              <span class="op-type-badge ${op.type==='vef'?'type-vef':op.type==='alije'?'type-alije':'type-terminal'}">${t?.label}</span>
+              <span class="op-type-badge ${typeCls}">${typeLabel}</span>
             </div>
           </div>
           <div style="display:flex;gap:8px">
@@ -1005,10 +1159,8 @@ function buildOpDetail(op) {
         </div>
       </div>
       <div class="module-tabs">
-        ${modules.map(m => `
-          <div class="module-tab ${mod===m?'active':''}" data-action="switch-module" data-module="${m}">
-            ${MODULE_META[m]?.icon} ${MODULE_META[m]?.label}
-          </div>`).join('')}
+        ${tabs}
+        <div class="module-tab module-tab-add" data-action="open-module-picker" data-opid="${op.id}" title="Agregar módulo">＋ Módulo</div>
       </div>
       <div class="module-content" id="module-content">
         ${content}
@@ -1073,14 +1225,15 @@ function buildModuleContentInner(data, mod, ctx) {
   const meta = MODULE_META[mod] || {};
   const ctxStr = encodeCtx(ctx);
 
+  const mtype = moduleType(mod);
   if (mod === 'origen')                                                   return buildOrigen(data, ctxStr);
   if (mod === 'key-meeting')                                              return buildKeyMeeting(data, ctxStr);
-  if (mod === 'ullage-inicial' || mod === 'ullage-final')                 return buildUllage(data, mod, ctxStr);
+  if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage') return buildUllage(data, mod, ctxStr);
   if (mod === 'vef')                                                      return buildVEF(data, ctxStr);
   if (mod === 'time-log')                                                 return buildTimeLog(data, ctxStr);
   if (mod === 'discharge-record')                                         return buildDischargeRecord(data, ctxStr);
   if (mod === 'slops')                                                    return buildSlops(data, ctxStr);
-  if (mod.startsWith('checklist'))                                        return buildChecklist(data, mod, ctxStr);
+  if (mod.startsWith('checklist') || mtype === 'checklist')              return buildChecklist(data, mod, ctxStr);
   if (mod === 'summary') {
     const c = decodeCtx(ctx);
     const op = getOp(c.opId);
@@ -1674,7 +1827,8 @@ function buildKeyMeeting(d, ctx) {
 // ===== MODULE: ULLAGE =====
 function buildUllage(d, mod, ctx) {
   const tanks = d.tanks || TANK_NAMES.map(n => ({ name: n }));
-  const title = mod === 'ullage-inicial' ? 'Ullage Inicial (Before)' : 'Ullage Final (After)';
+  const defaultTitle = mod === 'ullage-inicial' ? 'Ullage Inicial (Before)' : mod === 'ullage-final' ? 'Ullage Final (After)' : `Ullage ${parseInt(mod.split('-').pop()||'0',10)+1}`;
+  const title = d._label || defaultTitle;
   const vcfTabla = d.vcfTabla || '6A';
   const totalTOV = ullageTotal(tanks, 'tov');
   const totalGOV = ullageTotal(tanks, 'gov');
@@ -2533,6 +2687,36 @@ function handleClick(e) {
   else if (a === 'switch-module') { state.currentModule=el.dataset.module; render(); }
   else if (a === 'switch-alijo') { state.currentAlijoIdx=parseInt(el.dataset.idx); render(); }
   else if (a === 'add-alijo') addAlijo();
+  else if (a === 'open-module-picker') {
+    state.modal = 'module-picker';
+    state.modalData = { pickerOpId: el.dataset.opid };
+    render();
+  }
+  else if (a === 'add-module-type') {
+    e.stopPropagation();
+    const op = getOp(el.dataset.opid);
+    if (op) {
+      const updated = addModuleToOp(op, el.dataset.type);
+      // Actualizar moduleOrder en op y guardar
+      const ops = loadOps().map(o => o.id === op.id ? updated : o);
+      saveOps(ops);
+      state.modal = null;
+      state.currentModule = updated.moduleOrder[updated.moduleOrder.length - 2] || updated.moduleOrder[0];
+      render();
+    }
+  }
+  else if (a === 'remove-module') {
+    e.stopPropagation();
+    const op = getOp(el.dataset.opid);
+    const modKey = el.dataset.mod;
+    if (op && modKey) {
+      const updated = removeModuleFromOp(op, modKey);
+      const ops = loadOps().map(o => o.id === op.id ? updated : o);
+      saveOps(ops);
+      if (state.currentModule === modKey) state.currentModule = null;
+      render();
+    }
+  }
   else if (a === 'km-add-att') kmAddAtt(el.dataset.ctx);
   else if (a === 'km-rm-att') kmRmAtt(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'km-add-topic') kmAddTopic(el.dataset.ctx);
@@ -2692,23 +2876,46 @@ function handleModalNext() {
 
 function handleModalCreate() {
   const d = state.modalData;
-  if (!d.opType) { alert('Seleccione el tipo de operación.'); return; }
+  if (!d.opType) { alert('Seleccione el tipo de operación o "Armar desde cero".'); return; }
 
-  const op = {
-    id: newOpId(),
-    code: d.code,
-    country: d.country,
-    vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
-    product: { type: d.product, crudeName: d.crudeName || '' },
-    clients: d.clients,
-    port: d.port,
-    terminal: d.terminal || '',
-    inspectionCompany: d.inspectionCompany || '',
-    type: d.opType,
-    createdAt: Date.now(),
-    modules: initModuleData(d.opType),
-    alijos: d.opType === 'alije' ? [initAlijo()] : [],
-  };
+  let op;
+  if (d.opType === 'custom') {
+    // Operación modular personalizada: empieza con Origen + Summary
+    op = {
+      id: newOpId(),
+      code: d.code,
+      country: d.country,
+      vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
+      product: { type: d.product, crudeName: d.crudeName || '' },
+      clients: d.clients,
+      port: d.port,
+      terminal: d.terminal || '',
+      inspectionCompany: d.inspectionCompany || '',
+      createdAt: Date.now(),
+      moduleOrder: ['origen', 'summary'],
+      modules: {
+        'origen': initModuleInstance('origen') || initModuleData('vef')['origen'],
+        'summary': { notes: '' },
+      },
+      alijos: [],
+    };
+  } else {
+    op = {
+      id: newOpId(),
+      code: d.code,
+      country: d.country,
+      vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
+      product: { type: d.product, crudeName: d.crudeName || '' },
+      clients: d.clients,
+      port: d.port,
+      terminal: d.terminal || '',
+      inspectionCompany: d.inspectionCompany || '',
+      type: d.opType,
+      createdAt: Date.now(),
+      modules: initModuleData(d.opType),
+      alijos: d.opType === 'alije' ? [initAlijo()] : [],
+    };
+  }
 
   saveOp(op);
   state.modal = null;
