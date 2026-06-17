@@ -875,7 +875,7 @@ function buildOpCard(op) {
       <div class="op-card-meta">Viaje ${op.vessel.voyage || '—'} &nbsp;·&nbsp; IMO ${op.vessel.imo || '—'}</div>
       <div class="op-card-meta" style="margin-top:4px">${clients}</div>
       <div class="op-card-footer">
-        <span class="op-type-badge ${op.type === 'vef' ? 'type-vef' : op.type === 'alije' ? 'type-alije' : 'type-terminal'}">${t?.label || op.type}</span>
+        <span class="op-type-badge ${op.type === 'vef' ? 'type-vef' : op.type === 'alije' ? 'type-alije' : op.type === 'terminal' ? 'type-terminal' : 'type-custom'}">${t?.label || (op.type ? op.type : 'Personalizada')}</span>
         <span class="op-card-date">${date}</span>
       </div>
     </div>`;
@@ -1892,7 +1892,6 @@ function buildUllage(d, mod, ctx) {
             <tr>
               <th style="width:44px;font-size:11px">Tq.</th>
               <th style="font-size:11px">Ullage<br><span style="font-weight:400;color:var(--muted)">(m)</span></th>
-              <th style="font-size:11px">TCF</th>
               <th style="font-size:11px">TOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m)</span></th>
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
@@ -1921,7 +1920,6 @@ function buildUllage(d, mod, ctx) {
               <tr>
                 <td style="font-weight:700;font-size:12px">${t.name || TANK_NAMES[i]}</td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.ullage||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="ullage"></td>
-                <td><input class="tbl-input" type="number" step="0.0001" value="${t.tcf||''}" placeholder="1.0000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="tcf"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.tov||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="tov"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fwM||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fwM"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>

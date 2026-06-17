@@ -74,6 +74,7 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 .type-vef { background: #e8f0f8; color: var(--sea); }
 .type-alije { background: #f5ece0; color: #8b5e2a; }
 .type-terminal { background: #e8f4ea; color: var(--green); }
+.type-custom { background: #f0ece8; color: #6b5a4e; }
 .op-card-date { font-size: 11px; color: var(--muted); }
 .empty-state { padding: 80px 32px; text-align: center; }
 .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .4; }
