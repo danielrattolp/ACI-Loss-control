@@ -1239,8 +1239,7 @@ function buildModuleContentInner(data, mod, ctx) {
   if (mod === 'slops')                                                    return buildSlops(data, ctxStr);
   if (mod.startsWith('checklist') || mtype === 'checklist')              return buildChecklist(data, mod, ctxStr);
   if (mod === 'summary') {
-    const c = decodeCtx(ctx);
-    const op = getOp(c.opId);
+    const op = getOp(ctx.opId);
     return op ? buildSummary(op, ctxStr) : '<div class="text-muted">Operación no encontrada.</div>';
   }
   return `<div class="module-title">${meta.label}</div><div class="text-muted">Módulo en desarrollo.</div>`;
