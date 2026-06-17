@@ -273,12 +273,33 @@ function loadOps() {
 }
 function saveOps(ops) {
   localStorage.setItem('aci_ops', JSON.stringify(ops));
+  fetch('/api/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ops) }).catch(() => {});
 }
 function loadCounters() {
   try { return JSON.parse(localStorage.getItem('aci_counters') || '{}'); } catch { return {}; }
 }
 function saveCounters(c) {
   localStorage.setItem('aci_counters', JSON.stringify(c));
+  fetch('/api/counters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) }).catch(() => {});
+}
+
+// Al iniciar: carga desde servidor y sincroniza localStorage
+async function syncFromServer() {
+  try {
+    const [opsRes, cntRes] = await Promise.all([fetch('/api/ops'), fetch('/api/counters')]);
+    if (opsRes.ok) {
+      const ops = await opsRes.json();
+      if (Array.isArray(ops) && ops.length > 0) {
+        localStorage.setItem('aci_ops', JSON.stringify(ops));
+      }
+    }
+    if (cntRes.ok) {
+      const cnt = await cntRes.json();
+      if (cnt && Object.keys(cnt).length > 0) {
+        localStorage.setItem('aci_counters', JSON.stringify(cnt));
+      }
+    }
+  } catch (_) {}
 }
 function nextCode(countryKey) {
   const counters = loadCounters();
@@ -2927,5 +2948,4 @@ function editOp(id) {
 }
 
 // ===== INIT =====
-render();
-initEvents();
+syncFromServer().then(() => { render(); initEvents(); });

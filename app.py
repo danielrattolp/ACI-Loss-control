@@ -902,6 +902,56 @@ def serve_favicon_ico():
 
 
 # ---------------------------------------------------------------------------
+# Persistencia de datos de la SPA (ops.json / counters.json)
+# ---------------------------------------------------------------------------
+
+_DATA_DIR = BASE_DIR / "data"
+_DATA_DIR.mkdir(exist_ok=True)
+
+def _read_json(name: str):
+    p = _DATA_DIR / name
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return None
+
+def _write_json(name: str, payload) -> None:
+    (_DATA_DIR / name).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+@app.get("/api/ops")
+def spa_get_ops():
+    data = _read_json("ops.json")
+    return jsonify(data if data is not None else [])
+
+
+@app.post("/api/ops")
+def spa_save_ops():
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"ok": False, "error": "JSON inválido"}), 400
+    _write_json("ops.json", payload)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/counters")
+def spa_get_counters():
+    data = _read_json("counters.json")
+    return jsonify(data if data is not None else {})
+
+
+@app.post("/api/counters")
+def spa_save_counters():
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"ok": False, "error": "JSON inválido"}), 400
+    _write_json("counters.json", payload)
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # SPA principal — sirve app/ en la raíz
 # ---------------------------------------------------------------------------
 
