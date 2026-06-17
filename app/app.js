@@ -596,7 +596,7 @@ function buildConsultorView() {
           </button>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:6px">
-          Requiere Flask en localhost:5000 con <code>ANTHROPIC_API_KEY</code> configurada.
+          Requiere <code>ANTHROPIC_API_KEY</code> configurada en el servidor.
           &nbsp;·&nbsp; Presiona Enter para enviar, Shift+Enter para nueva línea.
         </div>
       </div>
@@ -699,7 +699,7 @@ async function chatSend() {
   scrollChatToBottom();
 
   try {
-    const res = await fetch('http://localhost:5000/api/consultar', {
+    const res = await fetch('/api/consultar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: state.chatHistory }),
@@ -711,7 +711,7 @@ async function chatSend() {
       state.chatHistory.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'Error desconocido.') });
     }
   } catch (err) {
-    state.chatHistory.push({ role: 'assistant', content: '⚠️ No se pudo conectar con el servidor Flask (localhost:5000). Asegúrate de que esté corriendo.' });
+    state.chatHistory.push({ role: 'assistant', content: '⚠️ No se pudo conectar con el servidor (localhost:3030). Asegúrate de que esté corriendo.' });
   }
 
   state.chatLoading = false;

@@ -52,26 +52,6 @@ DEFAULT_TANK_NAMES = [
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "aci-latam-local-development"
 
-_CORS_ORIGINS = {"http://localhost:3030", "http://127.0.0.1:3030"}
-
-@app.after_request
-def add_cors(response):
-    origin = request.headers.get("Origin", "")
-    if origin in _CORS_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    return response
-
-@app.route("/api/consultar", methods=["OPTIONS"])
-def api_consultar_preflight():
-    resp = app.make_response("")
-    origin = request.headers.get("Origin", "")
-    if origin in _CORS_ORIGINS:
-        resp.headers["Access-Control-Allow-Origin"] = origin
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    resp.headers["Access-Control-Allow-Methods"] = "POST,OPTIONS"
-    return resp, 204
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +298,7 @@ def build_summary(operation: dict) -> dict:
 
 @app.route("/")
 def index():
-    return render_template("index.html", operations=list_operations())
+    return send_from_directory("app", "index.html")
 
 
 @app.post("/operations/new")
@@ -915,6 +895,33 @@ def serve_favicon_ico():
 
 
 # ---------------------------------------------------------------------------
+# SPA principal — sirve app/ en la raíz
+# ---------------------------------------------------------------------------
+
+@app.route("/app.js")
+def serve_spa_js():
+    return send_from_directory("app", "app.js")
+
+
+@app.route("/app.css")
+def serve_spa_css():
+    return send_from_directory("app", "app.css")
+
+
+@app.route("/demo-acich002.json")
+def serve_spa_demo():
+    return send_from_directory("app", "demo-acich002.json")
+
+
+@app.route("/spa")
+@app.route("/spa/")
+@app.route("/loss-control")
+@app.route("/loss-control/")
+def serve_spa():
+    return send_from_directory("app", "index.html")
+
+
+# ---------------------------------------------------------------------------
 # Consultor IA — API MPMS
 # ---------------------------------------------------------------------------
 
@@ -1045,4 +1052,4 @@ def checklist_page():
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=3030, debug=True)
