@@ -1860,9 +1860,17 @@ function buildUllage(d, mod, ctx) {
 
   const q = calcAllQuantities(totalGOV, avgTempF, avgApi, avgBsw, vcfTabla);
 
+  const vesselNameField = d._vesselName !== undefined ? `
+    <div class="card" style="padding:10px 14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap">🚢 Buque</span>
+      <input class="field-input" style="flex:1;margin:0" value="${d._vesselName||''}" placeholder="Nombre del buque…"
+        data-action="save-field" data-ctx="${ctx}" data-field="_vesselName">
+    </div>` : '';
+
   return `
     <div class="module-title">${roleIcon} ${title}</div>
     <div class="module-subtitle">Medición de tanques — API MPMS 12.1.1 &nbsp;|&nbsp; 14 tanques</div>
+    ${vesselNameField}
 
     <div class="card" style="padding:12px">
       <div class="form-row form-row-3" style="margin-bottom:0">
@@ -2226,12 +2234,14 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
 
   if (!pairedKey || !iniD) return sel;
 
-  // Delta quantities (Inicial − Final = lo transferido)
-  const dGOV   = ini.totalGOV - fin.totalGOV;
-  const dGSV60 = ini.q && fin.q ? ini.q.gsv60F - fin.q.gsv60F : null;
-  const dBBL   = ini.q && fin.q ? ini.q.bbl60F - fin.q.bbl60F : null;
-  const dNSV   = ini.q && fin.q ? ini.q.nsv60F - fin.q.nsv60F : null;
-  const dTM    = ini.q && fin.q ? ini.q.tmAir  - fin.q.tmAir  : null;
+  // Direction: delivery = buque madre entrega (Ini − Fin), reception = receptor recibe (Fin − Ini)
+  const isReception = d._direction === 'reception';
+  const sign = isReception ? -1 : 1;
+  const dGOV   = sign * (ini.totalGOV - fin.totalGOV);
+  const dGSV60 = ini.q && fin.q ? sign * (ini.q.gsv60F - fin.q.gsv60F) : null;
+  const dBBL   = ini.q && fin.q ? sign * (ini.q.bbl60F - fin.q.bbl60F) : null;
+  const dNSV   = ini.q && fin.q ? sign * (ini.q.nsv60F - fin.q.nsv60F) : null;
+  const dTM    = ini.q && fin.q ? sign * (ini.q.tmAir  - fin.q.tmAir)  : null;
 
   const fv = (v, dec=3) => v != null ? (v >= 0 ? v.toFixed(dec) : `(${Math.abs(v).toFixed(dec)})`) : '—';
   const fc = (v, dec=3) => v != null && v > 0 ? `<strong style="color:var(--green)">${v.toFixed(dec)}</strong>` : fv(v, dec);
@@ -2245,11 +2255,14 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
     </tr>`;
 
   const iniLbl = MODULE_META[pairedKey]?.label || moduleLabel(op, pairedKey);
+  const deltaIcon  = isReception ? '⇧' : '⇩';
+  const deltaTitle = isReception ? 'Recibido por buque receptor' : 'Entregado por buque madre';
+  const deltaFormula = isReception ? 'Fin − Ini' : 'Ini − Fin';
 
   return sel + `
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="background:#0d2e1a;color:#4caf7d;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
-        ⇅ Δ Transferido — ${iniLbl} → ${d._label || 'Ullage Final'}
+      <div style="background:${isReception?'#0d1e2e':'#0d2e1a'};color:${isReception?'#4c9faf':'#4caf7d'};font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
+        ${deltaIcon} Δ ${deltaTitle} — ${iniLbl} → ${d._label || 'Ullage Final'}
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead>
@@ -2257,7 +2270,7 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
             <th style="text-align:left;font-size:11px;padding:8px 12px;min-width:220px">Cantidad</th>
             ${hdr(iniLbl,'Antes')}</th>
             ${hdr('Ullage Final','Después')}</th>
-            ${hdr('Δ Transferido','Ini − Fin')}</th>
+            ${hdr('Δ ' + (isReception ? 'Recibido' : 'Entregado'), deltaFormula)}</th>
           </tr>
         </thead>
         <tbody>
@@ -2272,7 +2285,7 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
           ${row('TM Aire (MT)', ini.q?.tmAir, fin.q?.tmAir, dTM, 3)}
         </tbody>
       </table>
-      ${(!ini.q || !fin.q) ? `<div class="warn-box" style="margin:10px 14px">Ingrese API y temperatura en ambos ullages para calcular GSV y TCV.</div>` : ''}
+      ${(!ini.q || !fin.q) ? `<div class="warn-box" style="margin:10px 14px">Ingrese API y temperatura en ambos ullages para calcular GSV.</div>` : ''}
     </div>`;
 }
 
@@ -2983,6 +2996,67 @@ function handleModalNext() {
   render();
 }
 
+function buildPresetModules(opType) {
+  const mk = (type, extra={}) => ({ ...initModuleInstance(type), ...extra });
+  if (opType === 'alije') {
+    return {
+      moduleOrder: ['origen', 'key-meeting', 'ullage-inicial-0', 'ullage-final-0', 'ullage-inicial-1', 'ullage-final-1', 'vef', 'time-log', 'discharge-record', 'slops', 'checklist-madre', 'checklist-alijador', 'summary'],
+      modules: {
+        'origen':            mk('origen'),
+        'key-meeting':       mk('key-meeting'),
+        'ullage-inicial-0':  mk('ullage-inicial', { _label: 'Ullage Ini Madre',    _vesselName: '' }),
+        'ullage-final-0':    mk('ullage-final',   { _label: 'Ullage Fin Madre',    _direction: 'delivery',  pairedWith: 'ullage-inicial-0', _vesselName: '' }),
+        'ullage-inicial-1':  mk('ullage-inicial', { _label: 'Ullage Ini Receptor', _vesselName: '' }),
+        'ullage-final-1':    mk('ullage-final',   { _label: 'Ullage Fin Receptor', _direction: 'reception', pairedWith: 'ullage-inicial-1', _vesselName: '' }),
+        'vef':               mk('vef'),
+        'time-log':          mk('time-log'),
+        'discharge-record':  mk('discharge-record'),
+        'slops':             mk('slops'),
+        'checklist-madre':   mk('checklist'),
+        'checklist-alijador':mk('checklist'),
+        'summary':           { notes: '' },
+      },
+      alijos: [],
+    };
+  }
+  if (opType === 'vef') {
+    return {
+      moduleOrder: ['origen', 'key-meeting', 'ullage-inicial-0', 'vef', 'time-log', 'checklist-inspeccion', 'summary'],
+      modules: {
+        'origen':               mk('origen'),
+        'key-meeting':          mk('key-meeting'),
+        'ullage-inicial-0':     mk('ullage-inicial', { _label: 'Ullage Inicial' }),
+        'vef':                  mk('vef'),
+        'time-log':             mk('time-log'),
+        'checklist-inspeccion': mk('checklist'),
+        'summary':              { notes: '' },
+      },
+      alijos: [],
+    };
+  }
+  if (opType === 'terminal') {
+    return {
+      moduleOrder: ['origen', 'key-meeting', 'ullage-inicial-0', 'ullage-final-0', 'vef', 'time-log', 'discharge-record', 'slops', 'checklist-buque', 'checklist-terminal', 'summary'],
+      modules: {
+        'origen':              mk('origen'),
+        'key-meeting':         mk('key-meeting'),
+        'ullage-inicial-0':    mk('ullage-inicial', { _label: 'Ullage Ini Buque' }),
+        'ullage-final-0':      mk('ullage-final',   { _label: 'Ullage Fin Buque', _direction: 'delivery', pairedWith: 'ullage-inicial-0' }),
+        'vef':                 mk('vef'),
+        'time-log':            mk('time-log'),
+        'discharge-record':    mk('discharge-record'),
+        'slops':               mk('slops'),
+        'checklist-buque':     mk('checklist'),
+        'checklist-terminal':  mk('checklist'),
+        'summary':             { notes: '' },
+      },
+      alijos: [],
+    };
+  }
+  // Fallback for unknown types
+  return { modules: initModuleData(opType), alijos: [] };
+}
+
 function handleModalCreate() {
   const d = state.modalData;
   if (!d.opType) { alert('Seleccione el tipo de operación o "Armar desde cero".'); return; }
@@ -3009,6 +3083,7 @@ function handleModalCreate() {
       alijos: [],
     };
   } else {
+    const presetModules = buildPresetModules(d.opType);
     op = {
       id: newOpId(),
       code: d.code,
@@ -3021,8 +3096,7 @@ function handleModalCreate() {
       inspectionCompany: d.inspectionCompany || '',
       type: d.opType,
       createdAt: Date.now(),
-      modules: initModuleData(d.opType),
-      alijos: d.opType === 'alije' ? [initAlijo()] : [],
+      ...presetModules,
     };
   }
 
