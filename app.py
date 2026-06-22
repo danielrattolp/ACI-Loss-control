@@ -1074,11 +1074,34 @@ def api_consultar():
     if not messages:
         return jsonify({"error": "Sin mensajes."}), 400
 
-    # Validate message structure
+    # Validate message structure — supports text strings OR multimodal content arrays
     valid = []
     for m in messages:
-        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content"):
-            valid.append({"role": m["role"], "content": str(m["content"])[:8000]})
+        if not isinstance(m, dict) or m.get("role") not in ("user", "assistant"):
+            continue
+        content = m.get("content")
+        if not content:
+            continue
+        if isinstance(content, str):
+            valid.append({"role": m["role"], "content": content[:12000]})
+        elif isinstance(content, list):
+            # Multimodal: list of {type, ...} blocks (text + image)
+            blocks = []
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text":
+                    blocks.append({"type": "text", "text": str(block.get("text", ""))[:12000]})
+                elif block.get("type") == "image":
+                    src = block.get("source", {})
+                    if src.get("type") == "base64" and src.get("data") and src.get("media_type"):
+                        blocks.append({"type": "image", "source": {
+                            "type": "base64",
+                            "media_type": src["media_type"],
+                            "data": src["data"],
+                        }})
+            if blocks:
+                valid.append({"role": m["role"], "content": blocks})
     if not valid:
         return jsonify({"error": "Mensajes inválidos."}), 400
 
@@ -1086,7 +1109,7 @@ def api_consultar():
         client = _anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model="claude-opus-4-8",
-            max_tokens=2048,
+            max_tokens=4096,
             system=CONSULTOR_SYSTEM_PROMPT,
             messages=valid,
         )

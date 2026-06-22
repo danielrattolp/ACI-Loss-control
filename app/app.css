@@ -307,6 +307,17 @@ tr.total-row td:first-child { color: var(--amber); }
 
 /* ===== PRINT ===== */
 @media print {
-  .sidebar, .topbar, .module-tabs, .btn, .summary-bar { display: none !important; }
-  .module-content { padding: 0; }
+  .sidebar, .topbar, .module-tabs, .btn, .summary-bar,
+  [data-action], button, a.btn { display: none !important; }
+  .op-detail { box-shadow: none; border: none; }
+  .op-detail-header { border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 16px; }
+  .module-content { padding: 0; max-height: none !important; overflow: visible !important; }
+  .card { break-inside: avoid; border: 1px solid #ccc; margin-bottom: 12px; page-break-inside: avoid; }
+  body { background: #fff; color: #000; font-size: 12px; }
+  .module-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .module-subtitle { font-size: 11px; color: #555; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 700; border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-bottom: 10px; }
+  div[style*="max-height"] { max-height: none !important; overflow: visible !important; }
+  textarea, input { border: none !important; background: transparent !important; resize: none !important; }
+  @page { margin: 20mm; size: A4 portrait; }
 }

@@ -8,43 +8,48 @@ const COUNTRY_PREFIXES = {
   US: { code: 'ACIUSA', label: 'Estados Unidos' },
 };
 
-// Presets de inicio rápido (compatibilidad con ops existentes y creación rápida)
+// Tipos de operación activos (nuevos)
 const OP_TYPES = {
-  'vef': {
-    label: 'Buque con VEF',
+  'vef-arribo': {
+    label: 'Buque con VEF al Arribo',
     icon: '🛢️',
-    desc: 'Medición a bordo con cálculo de VEF y ullage inicial.',
-    modules: ['origen', 'key-meeting', 'ullage-inicial', 'vef', 'time-log', 'checklist-inspeccion', 'summary'],
+    desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'reporte-evolutivo'],
   },
-  'alije': {
-    label: 'Alije (STS)',
+  'completa': {
+    label: 'Operación Completa',
     icon: '⚓',
-    desc: 'Transferencia ship-to-ship con buque madre y alijadores.',
-    modules: ['origen', 'key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-madre', 'checklist-alijador', 'summary'],
+    desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'reporte-evolutivo'],
   },
-  'terminal': {
-    label: 'Descarga a Terminal',
-    icon: '🏭',
-    desc: 'Descarga desde buque a instalaciones en tierra.',
-    modules: ['origen', 'key-meeting', 'ullage-inicial', 'ullage-final', 'time-log', 'vef', 'discharge-record', 'slops', 'checklist-buque', 'checklist-terminal', 'summary'],
-  },
+  // Legacy — compatibilidad con operaciones existentes
+  'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
+  'alije':    { label: 'Alije STS (legacy)',      icon: '⚓', desc: '', modules: ['origen','key-meeting','ullage-inicial','ullage-final','time-log','vef','discharge-record','slops','checklist-madre','checklist-alijador','summary'] },
+  'terminal': { label: 'Terminal (legacy)',        icon: '🏭', desc: '', modules: ['origen','key-meeting','ullage-inicial','ullage-final','time-log','vef','discharge-record','slops','checklist-buque','checklist-terminal','summary'] },
 };
 
 const MODULE_META = {
-  'origen':               { label: 'Datos Origen',       icon: '📦' },
-  'key-meeting':          { label: 'Key Meeting',        icon: '🤝' },
-  'ullage-inicial':       { label: 'Ullage Inicial',     icon: '📐' },
-  'ullage-final':         { label: 'Ullage Final',       icon: '📏' },
-  'vef':                  { label: 'VEF',                icon: '⚖️' },
-  'time-log':             { label: 'Time Log',           icon: '⏱️' },
-  'discharge-record':     { label: 'Discharge Record',   icon: '📋' },
-  'slops':                { label: 'Slops',              icon: '🪣' },
-  'checklist-inspeccion': { label: 'Checklist Inspector',icon: '✅' },
-  'checklist-madre':      { label: 'Checklist B. Madre', icon: '✅' },
-  'checklist-alijador':   { label: 'Checklist Alijador', icon: '✅' },
-  'checklist-buque':      { label: 'Checklist Buque',    icon: '✅' },
-  'checklist-terminal':   { label: 'Checklist Terminal', icon: '✅' },
-  'summary':              { label: 'Summary',            icon: '📊' },
+  // Nuevos módulos
+  'datos-origen':        { label: 'Datos de Origen',      icon: '📦' },
+  'ullage-arribo':       { label: 'Ullage Arribo',        icon: '📐' },
+  'vef-comparativo':     { label: 'VEF Comparativo',      icon: '⚖️' },
+  'discharge-record':    { label: 'Discharge Record',     icon: '📋' },
+  'termometros':         { label: 'Termómetros',          icon: '🌡️' },
+  'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
+  // Legacy
+  'origen':               { label: 'Datos Origen',        icon: '📦' },
+  'key-meeting':          { label: 'Key Meeting',         icon: '🤝' },
+  'ullage-inicial':       { label: 'Ullage Inicial',      icon: '📐' },
+  'ullage-final':         { label: 'Ullage Final',        icon: '📏' },
+  'vef':                  { label: 'VEF',                 icon: '⚖️' },
+  'time-log':             { label: 'Time Log',            icon: '⏱️' },
+  'slops':                { label: 'Slops',               icon: '🪣' },
+  'checklist-inspeccion': { label: 'Checklist Inspector', icon: '✅' },
+  'checklist-madre':      { label: 'Checklist B. Madre',  icon: '✅' },
+  'checklist-alijador':   { label: 'Checklist Alijador',  icon: '✅' },
+  'checklist-buque':      { label: 'Checklist Buque',     icon: '✅' },
+  'checklist-terminal':   { label: 'Checklist Terminal',  icon: '✅' },
+  'summary':              { label: 'Summary',             icon: '📊' },
 };
 
 // Biblioteca de módulos disponibles para el builder modular
@@ -317,11 +322,16 @@ async function syncFromServer() {
   } catch (_) {}
 }
 function nextCode(countryKey) {
+  const yy = String(new Date().getFullYear()).slice(-2);
   const counters = loadCounters();
   const prefix = COUNTRY_PREFIXES[countryKey].code;
+  // Global sequential (never resets)
   counters[countryKey] = (counters[countryKey] || 0) + 1;
+  // Per-year counter (for stats)
+  const yearKey = `${countryKey}_${yy}`;
+  counters[yearKey] = (counters[yearKey] || 0) + 1;
   saveCounters(counters);
-  return `${prefix}-${String(counters[countryKey]).padStart(3, '0')}`;
+  return `${prefix}-${yy}-${String(counters[countryKey]).padStart(3, '0')}`;
 }
 function getOp(id) { return loadOps().find(o => o.id === id); }
 function saveOp(op) {
@@ -371,17 +381,54 @@ function nextModuleKey(op, type) {
 // Data inicial para una instancia nueva de módulo
 function initModuleInstance(type) {
   const tanks = TANK_NAMES.map(n => ({ name: n, ullage: '', tcf: '', tov: '', temp: '', api: '', bsw: '', fw: '', gov: '', gsv: '' }));
+  const ullTanks = () => TANK_NAMES.map(n => ({ name: n, refHeight: '', measured: '', api: '', temp: '', vcf: '', gsv: '', tcv: '' }));
+  const emptyQty = () => ({ gsv:'', tcv:'', fw:'', api:'', bsw:'', densityAt15:'', densityAt60:'', m3At15:'', longTons:'', metricTons:'' });
+
+  if (type === 'datos-origen') return {
+    blNumber:'', blDate:'', loadPort:'', loadTerminal:'', loadBerth:'',
+    bl: emptyQty(),
+    vefOrigen: { value:'', docRef:'', notes:'' },
+    ullageOrigen: { tanks: ullTanks(), notes:'' },
+    notes:'',
+  };
+  if (type === 'ullage-arribo') return {
+    tanks: ullTanks(), trim:'', list:'', date:'', time:'',
+    totals: emptyQty(),
+    docs: { vessel:[], surveyor:[], aci:[] },
+    media: [],
+    notes:'',
+  };
+  if (type === 'vef-comparativo') return {
+    vefOrigen:'', vefArribo:'',
+    govObserved:'', govEstandar:'', govVoyages:[],
+    notes:'',
+  };
+  if (type === 'discharge-record') return {
+    enabled: true,
+    startDate:'', startTime:'',
+    records: [],   // [{ time:'', volPumped:'', pressure:'', observations:'' }]
+    notes:'',
+  };
+  if (type === 'termometros') return {
+    enabled: true,
+    date:'', startTime:'', endTime:'',
+    vessel:   { id:'', calibDate:'', tempF:'' },
+    surveyor: { id:'', calibDate:'', tempF:'' },
+    aci:      { id:'', calibDate:'', tempF:'' },
+    generalRemarks:'', sigInspector:'', sigVesselRep:'',
+    photos:[],
+  };
+  if (type === 'reporte-evolutivo') return { notes:'' };
+  if (type === 'key-meeting')      return { date:'', time:'', location:'', attendees:[], answers:{}, acta:'', notes:'' };
+  if (type === 'time-log')         return { events:[], notes:'' };
   if (type === 'ullage' || type === 'ullage-inicial')
-    return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A' };
+    return { tanks: JSON.parse(JSON.stringify(tanks)), trim:'', list:'', notes:'', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A', tempUnit:'C' };
   if (type === 'ullage-final')
-    return { tanks: JSON.parse(JSON.stringify(tanks)), trim: '', list: '', notes: '', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A', pairedWith: '' };
-  if (type === 'vef')              return { shoreGSV: '', vesselGSV: '', vef: '', notes: '', voyages: [] };
-  if (type === 'key-meeting')      return { date: '', time: '', location: '', attendees: [], topics: [], notes: '', decisions: '' };
-  if (type === 'time-log')         return { events: [], pumpRate: '', startTime: '', hoses: 1, notes: '' };
-  if (type === 'discharge-record') return { bl: { qty:'', api:'', bsw:'', temp:'' }, pumpLog: [], notes: '' };
-  if (type === 'slops')            return { before: { tanks: [] }, after: { tanks: [] }, notes: '' };
-  if (type === 'checklist')        return { items: makeChecklistData(CHECKLIST_VESSEL), inspector: '', date: '', signature: '' };
-  if (type === 'summary')          return { notes: '' };
+    return { tanks: JSON.parse(JSON.stringify(tanks)), trim:'', list:'', notes:'', avgTemp:'', avgApi:'', avgBsw:'', vcfTabla:'6A', pairedWith:'', tempUnit:'C' };
+  if (type === 'vef')              return { shoreGSV:'', vesselGSV:'', vef:'', notes:'', voyages:[] };
+  if (type === 'slops')            return { before:{ tanks:[] }, after:{ tanks:[] }, notes:'' };
+  if (type === 'checklist')        return { items: makeChecklistData(CHECKLIST_VESSEL), inspector:'', date:'', signature:'' };
+  if (type === 'summary')          return { notes:'' };
   return {};
 }
 
@@ -1075,9 +1122,9 @@ function buildModalNewOp2() {
           </div>
           <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Elige un inicio rápido o arma tu operación desde cero con los módulos que necesites.</p>
 
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Inicio rápido</div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Tipo de operación</div>
           <div class="type-cards">
-            ${Object.entries(OP_TYPES).map(([k, t]) => `
+            ${['vef-arribo','completa'].map(k => { const t = OP_TYPES[k]; return `
               <div class="type-card ${d.opType===k?'selected':''}" data-action="select-type" data-type="${k}">
                 <div class="type-card-icon">${t.icon}</div>
                 <div class="type-card-title">${t.label}</div>
@@ -1085,21 +1132,17 @@ function buildModalNewOp2() {
                 <div class="type-card-modules">
                   ${t.modules.map(m => `<span class="type-card-module">${MODULE_META[m]?.label || m}</span>`).join('')}
                 </div>
-              </div>`).join('')}
+              </div>`; }).join('')}
           </div>
 
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px">Operación personalizada</div>
-          <div class="type-cards">
-            <div class="type-card ${d.opType==='custom'?'selected':''}" data-action="select-type" data-type="custom" style="border-style:dashed">
-              <div class="type-card-icon">🧩</div>
-              <div class="type-card-title">Armar desde cero</div>
-              <div class="type-card-desc">Empieza vacío y agrega los módulos que necesites: ullages, receptores, VEF, checklists y más.</div>
-              <div class="type-card-modules">
-                <span class="type-card-module">+ Módulo</span>
-                <span class="type-card-module">+ Módulo</span>
-                <span class="type-card-module">...</span>
-              </div>
-            </div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 6px">Módulos opcionales</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Se incluyen por defecto. Desactiva los que el cliente no requiera.</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            ${[['discharge-record','📋 Discharge Record'],['termometros','🌡️ Termómetros (API 7.1)']].map(([k,label]) => `
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:var(--paper)">
+                <input type="checkbox" id="opt-${k}" ${d['opt_'+k]===false?'':'checked'} onchange="state.modalData['opt_${k}']=this.checked">
+                ${label}
+              </label>`).join('')}
           </div>
         </div>
         <div class="modal-footer">
@@ -1230,6 +1273,13 @@ function buildModuleContentInner(data, mod, ctx) {
   const ctxStr = encodeCtx(ctx);
 
   const mtype = moduleType(mod);
+  // Nuevos módulos
+  if (mod === 'datos-origen')                                             return buildDatosOrigen(data, ctxStr);
+  if (mod === 'ullage-arribo' || mtype === 'ullage-ini' || mtype === 'ullage-fin') return buildUllageArribo(data, mod, ctxStr);
+  if (mod === 'vef-comparativo')                                          return buildVEFComparativo(data, ctxStr);
+  if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
+  if (mod === 'termometros')                                              return buildTermometros(data, ctxStr);
+  // Legacy
   if (mod === 'origen')                                                   return buildOrigen(data, ctxStr);
   if (mod === 'key-meeting')                                              return buildKeyMeeting(data, ctxStr);
   if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage' || mtype === 'ullage-inicial' || mtype === 'ullage-final') return buildUllage(data, mod, ctxStr);
@@ -1763,67 +1813,801 @@ function analyzeCauses(diffShipShore, diffBLShip, diffBLShore, op) {
   return causes;
 }
 
+// ===== MODULE: DATOS DE ORIGEN =====
+function buildDatosOrigen(d, ctx) {
+  const bl = d.bl || {};
+  const vef = d.vefOrigen || {};
+  const ull = d.ullageOrigen || {};
+  const ullTanks = ull.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'', gsv:'', tcv:'' }));
+
+  const row = (label, field, step='0.001', unit='') => `
+    <tr>
+      <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
+      <td><input class="tbl-input" type="number" step="${step}" value="${bl[field]||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+
+  const ullRow = (t, i) => `
+    <tr>
+      <td style="font-weight:600;font-size:12px;text-align:center">${t.name}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="measured" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="api" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="temp" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.00001" value="${t.vcf||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.gsv||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="gsv" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.tcv||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="tcv" placeholder="—"></td>
+    </tr>`;
+
+  return `
+    <div class="module-title">📦 Datos de Origen</div>
+    <div class="module-subtitle">Bill of Lading · Ullage de Origen · VEF</div>
+
+    <div class="card">
+      <div class="card-title">Bill of Lading</div>
+      <div class="form-row form-row-3" style="margin-bottom:12px">
+        <div class="field">
+          <label class="field-label">N° BL</label>
+          <input class="field-input" value="${d.blNumber||''}" placeholder="Número de BL"
+            data-action="save-field" data-ctx="${ctx}" data-field="blNumber">
+        </div>
+        <div class="field">
+          <label class="field-label">Fecha BL</label>
+          <input class="field-input" type="date" value="${d.blDate||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="blDate">
+        </div>
+        <div class="field">
+          <label class="field-label">Puerto de carga</label>
+          <input class="field-input" value="${d.loadPort||''}" placeholder="Puerto"
+            data-action="save-field" data-ctx="${ctx}" data-field="loadPort">
+        </div>
+      </div>
+      <div class="form-row form-row-2" style="margin-bottom:0">
+        <div class="field">
+          <label class="field-label">Terminal</label>
+          <input class="field-input" value="${d.loadTerminal||''}" placeholder="Terminal"
+            data-action="save-field" data-ctx="${ctx}" data-field="loadTerminal">
+        </div>
+        <div class="field">
+          <label class="field-label">Berth / Muelle</label>
+          <input class="field-input" value="${d.loadBerth||''}" placeholder="Berth"
+            data-action="save-field" data-ctx="${ctx}" data-field="loadBerth">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Cantidades BL</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr>
+          <th style="width:180px">Parámetro</th><th>Valor</th><th style="width:80px">Unidad</th>
+        </tr></thead>
+        <tbody>
+          ${row('GSV @60°F','gsv','0.001','BBL')}
+          ${row('TCV (GSV+FW)','tcv','0.001','BBL')}
+          ${row('Free Water','fw','0.001','BBL')}
+          ${row('API Gravity @60°F','api','0.1','°API')}
+          ${row('BS&W','bsw','0.01','%')}
+          ${row('Densidad @15°C','densityAt15','0.0001','kg/m³')}
+          ${row('Densidad @60°F','densityAt60','0.0001','kg/m³')}
+          ${row('GSV m³ @15°C','m3At15','0.001','m³')}
+          ${row('Toneladas largas','longTons','0.001','LT')}
+          ${row('Toneladas métricas','metricTons','0.001','MT')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">VEF de Origen</div>
+      <div class="form-row form-row-3">
+        <div class="field">
+          <label class="field-label">VEF declarado</label>
+          <input class="field-input" type="number" step="0.0001" value="${vef.value||''}" placeholder="Ej: 0.9998"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="value">
+        </div>
+        <div class="field">
+          <label class="field-label">Referencia documento</label>
+          <input class="field-input" value="${vef.docRef||''}" placeholder="N° certificado / ref."
+            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="docRef">
+        </div>
+        <div class="field">
+          <label class="field-label">Notas</label>
+          <input class="field-input" value="${vef.notes||''}" placeholder="Observaciones"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="notes">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ullage de Origen — por tanque</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="min-width:700px">
+          <thead><tr>
+            <th>Tanque</th>
+            <th>Alt. Ref. (m)</th>
+            <th>Alt. Medida (m)</th>
+            <th>API @60°F</th>
+            <th>Temp (°C)</th>
+            <th>VCF</th>
+            <th>GSV (BBL)</th>
+            <th>TCV (BBL)</th>
+          </tr></thead>
+          <tbody>${ullTanks.map((t,i) => ullRow(t,i)).join('')}</tbody>
+        </table>
+      </div>
+      <textarea class="field-input" style="margin-top:12px;height:60px" placeholder="Notas ullage de origen…"
+        data-action="save-nested" data-ctx="${ctx}" data-obj="ullageOrigen" data-field="notes">${ull.notes||''}</textarea>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Observaciones generales</label>
+      <textarea class="field-input" style="height:70px" placeholder="Notas adicionales…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
+// ===== MODULE: ULLAGE ARRIBO =====
+function buildUllageArribo(d, mod, ctx) {
+  const label = d._label || 'Ullage Arribo';
+  const totals = d.totals || {};
+  const tanks = d.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'' }));
+
+  const tankRow = (t, i) => `
+    <tr>
+      <td style="font-weight:600;font-size:12px;text-align:center">${t.name}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="measured" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="api" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.01" value="${t.temp||''}"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="temp" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.00001" value="${t.vcf||''}"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
+    </tr>`;
+
+  const totRow = (label, field, unit) => `
+    <tr>
+      <td style="font-weight:600;font-size:12px;color:var(--ink)">${label}</td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${totals[field]||''}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="${field}" placeholder="—"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+
+  return `
+    <div class="module-title">📐 ${label}</div>
+    <div class="module-subtitle">Medición de arribo · API MPMS 17</div>
+
+    ${d._vesselName !== undefined ? `
+    <div class="card" style="padding:10px 14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap">🚢 Buque</span>
+      <input class="field-input" style="flex:1;margin:0" value="${d._vesselName||''}" placeholder="Nombre del buque…"
+        data-action="save-field" data-ctx="${ctx}" data-field="_vesselName">
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">Condiciones del Buque</div>
+      <div class="form-row form-row-4">
+        <div class="field"><label class="field-label">Fecha</label>
+          <input class="field-input" type="date" value="${d.date||''}" data-action="save-field" data-ctx="${ctx}" data-field="date"></div>
+        <div class="field"><label class="field-label">Hora</label>
+          <input class="field-input" type="time" value="${d.time||''}" data-action="save-field" data-ctx="${ctx}" data-field="time"></div>
+        <div class="field"><label class="field-label">Trim (m)</label>
+          <input class="field-input" type="number" step="0.01" value="${d.trim||''}" placeholder="0.00" data-action="save-field" data-ctx="${ctx}" data-field="trim"></div>
+        <div class="field"><label class="field-label">Lista (°)</label>
+          <input class="field-input" type="number" step="0.1" value="${d.list||''}" placeholder="0.0" data-action="save-field" data-ctx="${ctx}" data-field="list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Medición por Tanque</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="min-width:600px">
+          <thead><tr>
+            <th>Tanque</th>
+            <th>Alt. Ref. (m)</th>
+            <th>Alt. Medida (m)</th>
+            <th>API @60°F</th>
+            <th>Temp (°C)</th>
+            <th>VCF</th>
+          </tr></thead>
+          <tbody>${tanks.map((t,i) => tankRow(t,i)).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Totales Calculados <span style="font-size:11px;font-weight:400;color:var(--muted)">(ingresar desde Excel)</span></div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th style="width:180px">Cantidad</th><th>Valor</th><th style="width:80px">Unidad</th></tr></thead>
+        <tbody>
+          ${totRow('GSV @60°F','gsv','BBL')}
+          ${totRow('TCV (GSV+FW)','tcv','BBL')}
+          ${totRow('Free Water','fw','BBL')}
+          ${totRow('API Gravity @60°F','api','°API')}
+          ${totRow('BS&W','bsw','%')}
+          ${totRow('Densidad @15°C','densityAt15','kg/m³')}
+          ${totRow('GSV m³ @15°C','m3At15','m³')}
+          ${totRow('Toneladas largas','longTons','LT')}
+          ${totRow('Toneladas métricas','metricTons','MT')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Documentos Adjuntos</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        ${[['vessel','📄 Documentos Nave'],['surveyor','📄 Documentos Surveyor'],['aci','📊 Excel ACI (Calculado)']].map(([k,lbl]) => `
+          <div style="border:1px dashed var(--line);border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">${lbl}</div>
+            <div style="font-size:11px;color:var(--muted2)">${(d.docs?.[k]||[]).length} archivo(s)</div>
+            <div style="font-size:10px;color:var(--muted2);margin-top:4px">📎 Próximamente</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Observaciones</label>
+      <textarea class="field-input" style="height:70px" placeholder="Notas…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📷 Evidencia Fotográfica / Video</div>
+      <div class="info-box" style="margin-bottom:12px">Sube fotos de la medición (cinta, gabazo, nivel, termómetros, documentos). El Consultor IA las analiza junto con los datos numéricos. Videos: captura pantallazos y súbelos como imágenes.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px" id="media-preview-${ctx}">
+        ${(d.media||[]).map((m,i) => `
+          <div style="position:relative;display:inline-block">
+            <img src="${m.data}" alt="${m.name||'img'}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:2px solid var(--line);cursor:pointer"
+              onclick="this.parentElement.querySelector('.media-caption').style.display='block'" title="${m.name||''}">
+            <div class="media-caption" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);color:#fff;font-size:9px;padding:2px 4px;border-radius:0 0 6px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.caption||m.name||''}</div>
+            <button style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;padding:0;line-height:18px;text-align:center"
+              data-action="media-remove" data-ctx="${ctx}" data-idx="${i}">×</button>
+          </div>`).join('')}
+        ${!(d.media||[]).length ? `<div style="color:var(--muted2);font-size:12px;padding:12px 0">Sin imágenes cargadas</div>` : ''}
+      </div>
+      <label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-block">
+        ＋ Agregar Fotos
+        <input type="file" accept="image/*" multiple style="display:none" data-action="media-upload" data-ctx="${ctx}">
+      </label>
+      <span style="font-size:11px;color:var(--muted);margin-left:10px">JPG, PNG, HEIC — máx. 5 MB por imagen</span>
+    </div>
+
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div class="card-title">🤖 Análisis Comparativo IA — Origen vs Arribo</div>
+      <div class="info-box" style="margin-bottom:12px">El Consultor IA analiza los datos del BL de origen versus arribo <strong>y las fotos de evidencia</strong>. Evalúa desvíos volumétricos, validez de la medición y posibles causas según API MPMS.</div>
+      ${(d.media||[]).length ? `<div style="font-size:12px;color:var(--accent);margin-bottom:10px">📷 ${d.media.length} imagen(es) incluida(s) en el análisis</div>` : '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Sin imágenes — el análisis usará solo los datos numéricos</div>'}
+      ${d.iaAnalysis ? `
+        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13px;white-space:pre-wrap;line-height:1.7;margin-bottom:12px;max-height:400px;overflow-y:auto">${d.iaAnalysis}</div>
+        ${d.iaDate ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Generado: ${new Date(d.iaDate).toLocaleString('es-CL')}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" style="flex:1" data-action="ia-analizar-arribo" data-ctx="${ctx}">🔄 Re-analizar</button>
+          <button class="btn btn-ghost btn-sm" data-action="ia-clear-arribo" data-ctx="${ctx}">✕ Limpiar</button>
+        </div>
+      ` : `<button class="btn btn-primary" style="width:100%" data-action="ia-analizar-arribo" data-ctx="${ctx}">🔍 Analizar con Consultor IA</button>`}
+    </div>`;
+}
+
+// ===== MODULE: VEF COMPARATIVO =====
+function buildVEFComparativo(d, ctx) {
+  const vefO = parseFloat(d.vefOrigen) || null;
+  const vefA = parseFloat(d.vefArribo) || null;
+  const diff = (vefO && vefA) ? (vefA - vefO).toFixed(5) : null;
+  const pct  = (vefO && vefA) ? (((vefA - vefO) / vefO) * 100).toFixed(3) : null;
+
+  return `
+    <div class="module-title">⚖️ VEF Comparativo</div>
+    <div class="module-subtitle">Vessel Experience Factor · Origen vs Arribo · API MPMS 17.9</div>
+
+    <div class="card">
+      <div class="card-title">VEF Origen vs VEF Arribo</div>
+      <div class="form-row form-row-2" style="margin-bottom:16px">
+        <div class="field">
+          <label class="field-label">VEF de Origen (BL)</label>
+          <input class="field-input" type="number" step="0.0001" value="${d.vefOrigen||''}" placeholder="Ej: 0.9998"
+            data-action="save-field" data-ctx="${ctx}" data-field="vefOrigen">
+          <span class="field-hint">Declarado en documentos de origen</span>
+        </div>
+        <div class="field">
+          <label class="field-label">VEF de Arribo (Calculado)</label>
+          <input class="field-input" type="number" step="0.0001" value="${d.vefArribo||''}" placeholder="Ej: 0.9995"
+            data-action="save-field" data-ctx="${ctx}" data-field="vefArribo">
+          <span class="field-hint">Calculado al arribo (ingresar desde Excel)</span>
+        </div>
+      </div>
+
+      ${(diff !== null) ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
+        <div class="stat-box" style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">VEF Origen</div>
+          <div style="font-size:22px;font-weight:700;color:var(--ink)">${vefO?.toFixed(4)}</div>
+        </div>
+        <div class="stat-box" style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">VEF Arribo</div>
+          <div style="font-size:22px;font-weight:700;color:var(--ink)">${vefA?.toFixed(4)}</div>
+        </div>
+        <div class="stat-box" style="text-align:center;padding:16px;border-radius:8px;border:1px solid ${parseFloat(diff)<0?'#e57373':'#66bb6a'};background:${parseFloat(diff)<0?'#fff5f5':'#f5fff5'}">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Δ VEF</div>
+          <div style="font-size:22px;font-weight:700;color:${parseFloat(diff)<0?'#c62828':'#2e7d32'}">${parseFloat(diff)>0?'+':''}${diff}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${parseFloat(pct)>0?'+':''}${pct}%</div>
+        </div>
+      </div>` : `<div class="info-box">Ingrese VEF Origen y VEF Arribo para ver la comparativa.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Viajes Incluidos en Cálculo VEF</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="field-input" id="vef-voyage-input" placeholder="Número de viaje…" style="flex:1;margin:0">
+        <button class="btn btn-secondary" style="white-space:nowrap" data-action="add-vef-voyage" data-ctx="${ctx}">＋ Agregar</button>
+      </div>
+      ${(d.govVoyages||[]).length === 0
+        ? '<div style="font-size:12px;color:var(--muted);padding:8px 0">Sin viajes registrados.</div>'
+        : `<div style="display:flex;flex-wrap:wrap;gap:6px">${(d.govVoyages||[]).map((v,i) => `
+            <span style="display:inline-flex;align-items:center;gap:6px;background:var(--line2);border-radius:20px;padding:4px 12px;font-size:12px">
+              ${v} <button style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" data-action="rm-vef-voyage" data-ctx="${ctx}" data-idx="${i}">×</button>
+            </span>`).join('')}</div>`}
+    </div>
+
+    <div class="card">
+      <label class="field-label">Notas / Análisis</label>
+      <textarea class="field-input" style="height:80px" placeholder="Análisis del desvío de VEF, causas posibles…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
+// ===== MODULE: TERMÓMETROS =====
+function buildTermometros(d, ctx) {
+  const tV = parseFloat(d.vessel?.tempF) || null;
+  const tS = parseFloat(d.surveyor?.tempF) || null;
+  const tA = parseFloat(d.aci?.tempF) || null;
+  const diffVS = (tV !== null && tS !== null) ? Math.abs(tV - tS).toFixed(2) : null;
+  const limitF = 0.5, limitC = 0.25;
+  const vsOK = diffVS !== null ? parseFloat(diffVS) <= limitF : null;
+
+  const eqBlock = (key, label, ed) => `
+    <div style="border:1px solid var(--line);border-radius:10px;padding:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px">${label}</div>
+      <div class="form-row form-row-2">
+        <div class="field"><label class="field-label">ID / Serie</label>
+          <input class="field-input" value="${ed?.id||''}" placeholder="Nº equipo"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${key}" data-field="id"></div>
+        <div class="field"><label class="field-label">Fecha calibración</label>
+          <input class="field-input" type="date" value="${ed?.calibDate||''}"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${key}" data-field="calibDate"></div>
+      </div>
+      <div class="field" style="margin-top:8px"><label class="field-label">Temperatura (°F)</label>
+        <input class="field-input" type="number" step="0.1" value="${ed?.tempF||''}" placeholder="—"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="${key}" data-field="tempF"></div>
+    </div>`;
+
+  return `
+    <div class="module-title">🌡️ Comparativo de Termómetros</div>
+    <div class="module-subtitle">API MPMS Cap. 7.1 §8.2.1 · Verificación de equipos</div>
+
+    <div class="card">
+      <div class="card-title">Datos de la Verificación</div>
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">Fecha</label>
+          <input class="field-input" type="date" value="${d.date||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="date"></div>
+        <div class="field"><label class="field-label">Hora inicio</label>
+          <input class="field-input" type="time" value="${d.startTime||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="startTime"></div>
+        <div class="field"><label class="field-label">Hora fin</label>
+          <input class="field-input" type="time" value="${d.endTime||''}"
+            data-action="save-field" data-ctx="${ctx}" data-field="endTime"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Equipos Comparados</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        ${eqBlock('vessel',   '🚢 Buque (UTI/MMC)',   d.vessel)}
+        ${eqBlock('surveyor', '🔬 Surveyor',          d.surveyor)}
+        ${eqBlock('aci',      '🏢 ACI Loss Control',  d.aci)}
+      </div>
+    </div>
+
+    ${diffVS !== null ? `
+    <div class="card" style="border-color:${vsOK?'#66bb6a':'#e57373'}">
+      <div class="card-title">Resultado API MPMS 7.1</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="text-align:center;padding:16px;border-radius:8px;background:${vsOK?'#f5fff5':'#fff5f5'}">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Diferencia Buque vs Surveyor</div>
+          <div style="font-size:28px;font-weight:700;color:${vsOK?'#2e7d32':'#c62828'}">${diffVS}°F</div>
+          <div style="font-size:12px;margin-top:6px;color:${vsOK?'#2e7d32':'#c62828'};font-weight:600">
+            ${vsOK ? '✓ Dentro de tolerancia (≤ 0.5°F)' : '⚠ EXCEDE tolerancia (> 0.5°F / 0.25°C)'}
+          </div>
+        </div>
+        <div style="padding:12px;background:var(--paper);border-radius:8px;font-size:12px">
+          <div style="font-weight:600;margin-bottom:8px">Tolerancias API MPMS 7.1 §8.2.1</div>
+          <div>• Máximo: <strong>0.5°F</strong> ó <strong>0.25°C</strong></div>
+          <div style="margin-top:6px;color:var(--muted)">Si excede: probar equipo de respaldo. Si diferencias son aceptables, usar equipo respaldo. Si no, notificar supervisor inmediatamente.</div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <label class="field-label">Observaciones generales</label>
+      <textarea class="field-input" style="height:70px" placeholder="Observaciones…"
+        data-action="save-field" data-ctx="${ctx}" data-field="generalRemarks">${d.generalRemarks||''}</textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Firmantes</div>
+      <div class="form-row form-row-2">
+        <div class="field"><label class="field-label">Inspector / Surveyor</label>
+          <input class="field-input" value="${d.sigInspector||''}" placeholder="Nombre"
+            data-action="save-field" data-ctx="${ctx}" data-field="sigInspector"></div>
+        <div class="field"><label class="field-label">Representante del Buque</label>
+          <input class="field-input" value="${d.sigVesselRep||''}" placeholder="Nombre"
+            data-action="save-field" data-ctx="${ctx}" data-field="sigVesselRep"></div>
+      </div>
+    </div>`;
+}
+
+// ===== MODULE: REPORTE EVOLUTIVO =====
+function buildReporteEvolutivo(op, ctx) {
+  const mods = op.modules || {};
+  const re = mods['reporte-evolutivo'] || {};
+  const origen = mods['datos-origen'] || {};
+  const bl = origen.bl || {};
+  const vefO = parseFloat(origen.vefOrigen?.value) || null;
+  const vefComp = mods['vef-comparativo'] || {};
+  const vefA = parseFloat(vefComp.vefArribo) || null;
+
+  // Collect arrival ullage modules
+  const arriboKeys = (op.moduleOrder||[]).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
+  const firstArribo = arriboKeys.map(k => mods[k]).find(m => m?.totals?.gsv);
+  const tot = firstArribo?.totals || {};
+
+  // Volume comparison rows
+  const fmtN = v => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3}) : '—';
+  const diffRow = (label, blVal, arrVal, unit) => {
+    const b = parseFloat(blVal)||null, a = parseFloat(arrVal)||null;
+    const d = (b&&a) ? a-b : null;
+    const p = (b&&d) ? ((d/b)*100).toFixed(3) : null;
+    const color = d===null?'':d<0?'color:#c62828':'color:#2e7d32';
+    return `<tr>
+      <td style="font-weight:600;font-size:12px">${label}</td>
+      <td style="text-align:right">${fmtN(blVal)}</td>
+      <td style="text-align:right">${fmtN(arrVal)}</td>
+      <td style="text-align:right;font-weight:700;${color}">${d!==null?(d>0?'+':'')+fmtN(d):'—'}</td>
+      <td style="text-align:right;${color};font-size:11px">${p!==null?(parseFloat(p)>0?'+':'')+p+'%':'—'}</td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+  };
+
+  // Collect all IA analyses from modules in order
+  const analyses = (op.moduleOrder||[]).map(k => {
+    const m = mods[k];
+    if (!m) return null;
+    // Key Meeting acta
+    if (k === 'key-meeting' && m.acta) return { key: k, label: '🤝 Key Meeting — Acta Formal', date: m.date, content: m.acta };
+    // Ullage arribo IA
+    if (m.iaAnalysis) return { key: k, label: `📐 ${m._label||'Ullage Arribo'} — Análisis Comparativo`, date: m.iaDate, content: m.iaAnalysis };
+    return null;
+  }).filter(Boolean);
+
+  // Build text for email/PDF
+  const now = new Date().toLocaleDateString('es-CL');
+  const vesselName = op.vessel?.name || '';
+  const opCode = op.code || '';
+  const product = op.product?.crudeName || op.product?.type || '';
+
+  const opId = op.id;
+
+  return `
+    <div class="module-title">📊 Reporte Evolutivo</div>
+    <div class="module-subtitle">${opCode} · ${vesselName} · ${product} · Generado: ${now}</div>
+
+    <div class="card">
+      <div class="card-title">Balance de Cantidades — Origen vs Arribo</div>
+      ${(bl.gsv || tot.gsv) ? `
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%">
+          <thead><tr>
+            <th>Parámetro</th>
+            <th style="text-align:right">Origen (BL)</th>
+            <th style="text-align:right">Arribo</th>
+            <th style="text-align:right">Δ Diferencia</th>
+            <th style="text-align:right">Δ %</th>
+            <th>Unidad</th>
+          </tr></thead>
+          <tbody>
+            ${diffRow('GSV @60°F',    bl.gsv,        tot.gsv,        'BBL')}
+            ${diffRow('TCV (GSV+FW)', bl.tcv,        tot.tcv,        'BBL')}
+            ${diffRow('Free Water',   bl.fw,         tot.fw,         'BBL')}
+            ${diffRow('API @60°F',    bl.api,        tot.api,        '°API')}
+            ${diffRow('BS&W',         bl.bsw,        tot.bsw,        '%')}
+            ${diffRow('Densidad @15°C',bl.densityAt15,tot.densityAt15,'kg/m³')}
+            ${diffRow('GSV m³ @15°C', bl.m3At15,     tot.m3At15,     'm³')}
+            ${diffRow('Ton. métricas',bl.metricTons,  tot.metricTons, 'MT')}
+          </tbody>
+        </table>
+      </div>` : `<div class="info-box">Completa Datos de Origen y Ullage Arribo para ver el balance.</div>`}
+    </div>
+
+    ${(vefO || vefA) ? `
+    <div class="card">
+      <div class="card-title">VEF Comparativo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--paper)">
+          <div style="font-size:11px;color:var(--muted)">VEF Origen</div>
+          <div style="font-size:22px;font-weight:700">${vefO?.toFixed(4)||'—'}</div>
+        </div>
+        <div style="text-align:center;padding:12px;border-radius:8px;background:var(--paper)">
+          <div style="font-size:11px;color:var(--muted)">VEF Arribo</div>
+          <div style="font-size:22px;font-weight:700">${vefA?.toFixed(4)||'—'}</div>
+        </div>
+        <div style="text-align:center;padding:12px;border-radius:8px;background:${(vefO&&vefA&&vefA-vefO<0)?'#fff5f5':'#f5fff5'}">
+          <div style="font-size:11px;color:var(--muted)">Δ VEF</div>
+          <div style="font-size:22px;font-weight:700;color:${(vefO&&vefA)?(vefA-vefO<0?'#c62828':'#2e7d32'):'var(--ink)'}">
+            ${(vefO&&vefA)?((vefA-vefO>0?'+':'')+(vefA-vefO).toFixed(5)):'—'}
+          </div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${analyses.length ? `
+    <div class="card">
+      <div class="card-title">Análisis IA — Registro Cronológico</div>
+      ${analyses.map(a => `
+        <div style="border-left:3px solid var(--accent);padding:12px 16px;margin-bottom:16px;background:var(--paper);border-radius:0 8px 8px 0">
+          <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px">${a.label}</div>
+          ${a.date ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">${new Date(a.date).toLocaleString('es-CL')}</div>` : ''}
+          <div style="font-size:13px;white-space:pre-wrap;line-height:1.65;max-height:300px;overflow-y:auto">${a.content}</div>
+        </div>`).join('')}
+    </div>` : `
+    <div class="card">
+      <div class="card-title">Análisis IA — Registro Cronológico</div>
+      <div class="info-box">Los análisis del Consultor IA aparecerán aquí a medida que se completen los módulos (Key Meeting, Ullage Arribo, etc.).</div>
+    </div>`}
+
+    <div class="card">
+      <div class="card-title">Conclusión Final del Inspector</div>
+      <textarea class="field-input" style="height:150px" placeholder="Análisis final, explicación de desvíos, causas identificadas, recomendaciones al cliente…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${re.notes||''}</textarea>
+    </div>
+
+    <div class="card" style="background:var(--line2)">
+      <div class="card-title">Exportar Reporte</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="flex:1;min-width:160px" onclick="window.print()">
+          📄 Descargar PDF
+        </button>
+        <button class="btn btn-secondary" style="flex:1;min-width:160px" data-action="re-send-email" data-ctx="${ctx}" data-opid="${opId}">
+          ✉️ Enviar por Correo
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">El PDF incluye balance de cantidades, todos los análisis IA y la conclusión final. El correo abre tu cliente de email con el reporte completo.</div>
+    </div>`;
+}
+
+// ===== KEY MEETING QUESTION BLOCKS (API MPMS 17.1 / 17.11) =====
+const KM_BLOCKS = [
+  { id:'A', title:'Identificación del Buque', questions:[
+    { id:'q1',  text:'Nombre del buque, bandera, número IMO y año de construcción', type:'text' },
+    { id:'q2',  text:'DWT, LOA y calado máximo', type:'text' },
+    { id:'q3',  text:'Master (Capitán) y Chief Officer responsable del cargo', type:'text' },
+    { id:'q4',  text:'Certificados vigentes (IOPP, Class, P&I) y fechas de vencimiento', type:'textarea' },
+    { id:'q5',  text:'Nombre del armador (Shipowner) y operador comercial (Charterer)', type:'text' },
+    { id:'q6',  text:'Número de tanques de cargo y capacidad total (m³ / BBL)', type:'text' },
+    { id:'q7',  text:'¿El buque opera con sistema de gas inerte (IGS)? ¿Está operativo?', type:'text' },
+    { id:'q8',  text:'¿El buque tiene sistema de Crude Oil Washing (COW)? ¿Se va a usar?', type:'text' },
+  ]},
+  { id:'B', title:'Identificación de la Operación y el Cargo', questions:[
+    { id:'q9',  text:'Tipo de operación', type:'check', options:['Carga','Descarga','STS'] },
+    { id:'q10', text:'Nombre y grado del cargo (ej. Vasconia Blend, Brent, Fuel Oil 380)', type:'text' },
+    { id:'q11', text:'Densidad / API gravity esperada del cargo', type:'text' },
+    { id:'q12', text:'Cantidad nominada a transferir (BBL / MT / m³)', type:'text' },
+    { id:'q13', text:'Tolerancia contractual (option) en % si aplica', type:'text' },
+    { id:'q14', text:'Temperatura esperada o target del cargo durante la transferencia', type:'text' },
+    { id:'q15', text:'¿El cargo tiene presión de vapor elevada (RVP > 0.18 kg/cm²)? Si SÍ — ¿Se usarán exclusivamente equipos cerrados (Cap. 17.11)?', type:'textarea' },
+    { id:'q16', text:'Contenido previsto de S&W y si se realizará BSW antes del B/L', type:'text' },
+    { id:'q17', text:'¿El cargo fue calentado (heated)? ¿A qué temperatura llegó al puerto?', type:'text' },
+    { id:'q18', text:'¿Hay carga en tránsito (transit cargo) que NO forma parte de esta operación?', type:'text' },
+  ]},
+  { id:'C', title:'Método de Medición Acordado', questions:[
+    { id:'q19', text:'Método de medición primario para el buque', type:'check', options:['Ullage manual','ATG','Draft Survey','Metering'] },
+    { id:'q20', text:'¿Quién realiza la medición primaria del buque?', type:'check', options:['Inspector independiente','Jefe de Cargo','Conjunta'] },
+    { id:'q21', text:'¿Se tomará medición de shore tanks? ¿Cuántos tanques y cuáles destinos/origen?', type:'textarea' },
+    { id:'q22', text:'¿Hay medidor de flujo (flow meter/LACT) en la terminal? Fecha del último meter proving y meter factor vigente', type:'textarea' },
+    { id:'q23', text:'¿Se aplicará Vessel Experience Factor (VEF)? Número de viajes del VEF y fecha de última actualización', type:'textarea' },
+    { id:'q24', text:'¿Las tablas de aforo (capacity tables) del buque están certificadas y disponibles? Fecha y entidad que las elaboró', type:'textarea' },
+    { id:'q25', text:'¿Se verificarán las alturas de referencia (reference gauge heights) antes de comenzar las mediciones?', type:'yesno' },
+    { id:'q26', text:'Método de medición de agua libre (Free Water)', type:'text' },
+  ]},
+  { id:'D', title:'Condición del Buque (Trim, Lista, Rolling)', questions:[
+    { id:'q27', text:'Calado a proa (forward draft) actual en metros', type:'number' },
+    { id:'q28', text:'Calado a popa (aft draft) actual en metros', type:'number' },
+    { id:'q29', text:'Trim actual (diferencia F/A en metros) y si está dentro del rango de las tablas de corrección del buque', type:'text' },
+    { id:'q30', text:'¿Hay escora (list) actualmente? Grados y dirección (port / starboard)', type:'text' },
+    { id:'q31', text:'¿Hay rolling activo? ¿Es estable para tomar lecturas? Si rolling > 2° — procedimiento acordado', type:'check', options:['Esperar','Promediar lecturas','ATG con damping'] },
+    { id:'q32', text:'¿Se aplicarán correcciones de trim y list por tanque individualmente?', type:'yesno' },
+  ]},
+  { id:'E', title:'OBQ / ROB', questions:[
+    { id:'q33', text:'¿Hay material a bordo antes de comenzar (OBQ / ROB)?', type:'yesno' },
+    { id:'q34', text:'Tanques con OBQ/ROB, tipo de material en cada uno', type:'check', options:['Agua libre','Oil residue','Slops','Emulsión','Sólido'] },
+    { id:'q35', text:'¿Se aplicará fórmula de cuña (wedge formula) para OBQ en tanques parcialmente llenos? (Cap. 17.4)', type:'yesno' },
+    { id:'q36', text:'¿Se tomará muestra del OBQ/ROB? ¿Se analizará en laboratorio?', type:'textarea' },
+    { id:'q37', text:'¿Cómo se contabilizará el OBQ en el cálculo final de TCV?', type:'textarea' },
+    { id:'q38', text:'¿Hay material en líneas del buque (vessel lines)? ¿Cómo se manejará?', type:'textarea' },
+  ]},
+  { id:'F', title:'Muestreo', questions:[
+    { id:'q39', text:'Método de muestreo acordado para el buque', type:'check', options:['Manual (thief/beaker)','Continuous (running)','Automático (in-line sampler)','UTI integrado'] },
+    { id:'q40', text:'Punto de muestreo acordado', type:'check', options:['Manifold del buque','Línea de shore','Tanque individual'] },
+    { id:'q41', text:'Custodio de muestras primarias y de arbitraje (referee)', type:'text' },
+    { id:'q42', text:'Número de sets de muestras a tomar (ej. primary + ship retain + shore retain + arbitraje)', type:'text' },
+    { id:'q43', text:'Procedimiento de etiquetado, sellado y almacenamiento de muestras', type:'textarea' },
+    { id:'q44', text:'Período de retención de muestras acordado', type:'text' },
+    { id:'q45', text:'¿Se tomará muestra de "first foot" al inicio de la carga?', type:'yesno' },
+    { id:'q46', text:'¿Se tomará muestra de línea (line sample) al inicio de la descarga?', type:'yesno' },
+    { id:'q47', text:'[STS / Cap. 17.11] ¿Todos los equipos de muestreo son cerrados/restringidos? ¿Están calibrados y con certificado vigente?', type:'textarea' },
+  ]},
+  { id:'G', title:'Temperatura', questions:[
+    { id:'q48', text:'Equipo con que se medirá la temperatura en tanques del buque', type:'check', options:['Termómetro portátil','UTI con termómetro','ATG con sensor'] },
+    { id:'q49', text:'¿Se medirá temperatura en cada tanque individualmente? (Obligatorio per §17.1.9.11 — no se acepta temperatura promedio global)', type:'yesno' },
+    { id:'q50', text:'Niveles de toma de temperatura por tanque', type:'check', options:['Upper/Middle/Lower','Perfil completo'] },
+    { id:'q51', text:'Temperatura del agua de mar (sea water temperature) en °C', type:'number' },
+    { id:'q52', text:'Temperatura ambiente (air temperature) en °C', type:'number' },
+    { id:'q53', text:'¿El cargo tiene heating coils activos? ¿A qué temperatura se mantiene?', type:'text' },
+    { id:'q54', text:'¿Se registrará temperatura al inicio Y al final de la operación?', type:'yesno' },
+  ]},
+  { id:'H', title:'Líneas y Válvulas', questions:[
+    { id:'q55', text:'Diámetro y longitud estimada de la línea entre buque y terminal', type:'text' },
+    { id:'q56', text:'¿Las líneas están llenas (line full) o vacías antes de comenzar? Método de verificación (Cap. 17.6)', type:'textarea' },
+    { id:'q57', text:'Número de manifolds a usar y ubicación (Puerto / Estribor)', type:'text' },
+    { id:'q58', text:'¿Las válvulas de mar (sea valves) y overboard están cerradas y precintadas? Responsable de verificación y firma del precinto', type:'textarea' },
+    { id:'q59', text:'¿Las válvulas de lastre están cerradas y segregadas del cargo?', type:'yesno' },
+    { id:'q60', text:'¿Se verificarán los strainers (filtros) de la línea antes de la operación?', type:'yesno' },
+    { id:'q61', text:'[Si metering] ¿El prover está disponible y en condiciones? ¿El meter factor fue verificado dentro del período válido?', type:'textarea' },
+  ]},
+  { id:'I', title:'Lastre, Slops y Bunkers', questions:[
+    { id:'q62', text:'¿Hay agua de lastre en tanques? ¿En cuáles? Cantidad aproximada', type:'textarea' },
+    { id:'q63', text:'¿Hay slops a bordo? ¿En cuáles tanques? Tipo y cantidad', type:'textarea' },
+    { id:'q64', text:'Bunkers a bordo (HFO / MDO / MGO) en cantidad por tanque — deben medirse y registrarse para excluirlos del cargo (§17.1.9.10)', type:'textarea' },
+    { id:'q65', text:'¿Hay void spaces o cofferdams con líquido? Detalle', type:'textarea' },
+  ]},
+  { id:'J', title:'Comunicaciones y Coordinación Operativa', questions:[
+    { id:'q66', text:'Canal VHF principal buque-terminal y canal de respaldo', type:'text' },
+    { id:'q67', text:'Señal acordada para START / STOP / EMERGENCIA', type:'text' },
+    { id:'q68', text:'Tasa de transferencia inicial (initial transfer rate) y cuándo se autoriza tasa máxima (full rate)', type:'textarea' },
+    { id:'q69', text:'Presión máxima permitida en la línea (bar / psi / kg/cm²)', type:'text' },
+    { id:'q70', text:'Stop gauge acordado (nivel de tanque para inicio de reducción / parada)', type:'text' },
+    { id:'q71', text:'Responsable de dar la orden de parada final', type:'text' },
+    { id:'q72', text:'Procedimiento en caso de derrame (spill response)', type:'textarea' },
+    { id:'q73', text:'¿Se ha completado el Ship-Shore Safety Checklist (ISGOTT)?', type:'yesno' },
+  ]},
+  { id:'K', title:'Documentación y Distribución', questions:[
+    { id:'q74', text:'Partes que firman el informe del inspector independiente', type:'text' },
+    { id:'q75', text:'Número de copias del reporte y lista de destinatarios', type:'textarea' },
+    { id:'q76', text:'¿Quién emite el Bill of Lading (B/L) y en base a qué figuras?', type:'check', options:['Shore figures','Vessel figures','NOR figures'] },
+    { id:'q77', text:'Formato de Time Log acordado y responsable de llevarlo', type:'text' },
+    { id:'q78', text:'¿Existe Letter of Protest (LOP) por alguna condición preexistente? Motivo y emisor', type:'textarea' },
+    { id:'q79', text:'Plazo máximo para emisión y distribución del informe final', type:'text' },
+    { id:'q80', text:'¿Se requiere Voyage Analysis Report (Cap. 17.5)?', type:'yesno' },
+  ]},
+  { id:'L', title:'Adicionales STS (Cap. 17.11 / EI HM 52)', stsOnly: true, questions:[
+    { id:'q81', text:'Nombre y rol del buque contraparte (Mother / Daughter vessel)', type:'text' },
+    { id:'q82', text:'¿Ambos buques tienen equipos de medición cerrados/restringidos disponibles? Certificados de calibración vigentes de UTI / ATG', type:'textarea' },
+    { id:'q83', text:'Estado del IGS en ambos buques y procedimiento coordinado de apertura de ports bajo presión de gas inerte', type:'textarea' },
+    { id:'q84', text:'Tipo, número y estado de los fenders instalados', type:'textarea' },
+    { id:'q85', text:'¿El STS Plan ha sido elaborado y firmado por ambos Masters?', type:'yesno' },
+    { id:'q86', text:'Diferencia de calado entre ambos buques (trim compatibility)', type:'text' },
+    { id:'q87', text:'¿Hay in-transit difference a registrar antes de la transferencia?', type:'text' },
+    { id:'q88', text:'Protocolo acordado ante cargo no homogéneo donde la muestra representativa no es garantizable (§17.11)', type:'textarea' },
+    { id:'q89', text:'Estado de manifolds y hoses de interconexión — certificación para la presión de operación', type:'textarea' },
+    { id:'q90', text:'¿Cuál buque es el "control vessel" para la tasa de transferencia?', type:'text' },
+  ]},
+];
+
 // ===== MODULE: KEY MEETING =====
 function buildKeyMeeting(d, ctx) {
   const att = d.attendees || [];
   const topics = d.topics || [];
   return `
-    <div class="module-title">🤝 Key Meeting</div>
-    <div class="module-subtitle">Reunión de inicio de operación — registro de asistentes y acuerdos</div>
+    <div class="module-title">🤝 Key Meeting / Pre-Transfer Conference</div>
+    <div class="module-subtitle">API MPMS Cap. 17.1 (7ª Ed. 2022) · Cap. 17.11 / EI HM 52 · ${d.date||''} ${d.time||''}</div>
+
     <div class="card">
-      <div class="card-title">Información General</div>
-      <div class="form-row form-row-3">
-        <div class="field">
-          <label class="field-label">Fecha</label>
-          <input class="field-input" type="date" value="${d.date||''}" data-action="save-field" data-ctx="${ctx}" data-field="date">
-        </div>
-        <div class="field">
-          <label class="field-label">Hora</label>
-          <input class="field-input" type="time" value="${d.time||''}" data-action="save-field" data-ctx="${ctx}" data-field="time">
-        </div>
-        <div class="field">
-          <label class="field-label">Lugar</label>
-          <input class="field-input" placeholder="Ej: Sala de Chart Room" value="${d.location||''}" data-action="save-field" data-ctx="${ctx}" data-field="location">
-        </div>
+      <div class="card-title">Datos de la Reunión</div>
+      <div class="form-row form-row-3" style="margin-bottom:12px">
+        <div class="field"><label class="field-label">Fecha</label>
+          <input class="field-input" type="date" value="${d.date||''}" data-action="save-field" data-ctx="${ctx}" data-field="date"></div>
+        <div class="field"><label class="field-label">Hora</label>
+          <input class="field-input" type="time" value="${d.time||''}" data-action="save-field" data-ctx="${ctx}" data-field="time"></div>
+        <div class="field"><label class="field-label">Lugar</label>
+          <input class="field-input" value="${d.location||''}" placeholder="Ej: Chart Room" data-action="save-field" data-ctx="${ctx}" data-field="location"></div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Asistentes</div>
-      <div class="attendee-list" id="km-att-list">
+      <div class="card-title" style="margin-top:8px">Asistentes</div>
+      <div id="km-att-list" style="margin-bottom:10px">
         ${att.map((a,i) => `
-          <div class="attendee-item">
-            <span>${a.name}${a.company?' — '+a.company:''} ${a.role?'('+a.role+')':''}</span>
-            <button class="attendee-rm" data-action="km-rm-att" data-ctx="${ctx}" data-idx="${i}">✕</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line2);font-size:13px">
+            <span><strong>${a.name}</strong>${a.company?' — '+a.company:''} ${a.role?'<span style="color:var(--muted)">('+a.role+')</span>':''}</span>
+            <button class="btn btn-ghost btn-sm" data-action="km-rm-att" data-ctx="${ctx}" data-idx="${i}">✕</button>
           </div>`).join('')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
         <div class="field"><label class="field-label">Nombre</label><input class="field-input" id="km-att-name" placeholder="Nombre completo"></div>
         <div class="field"><label class="field-label">Empresa</label><input class="field-input" id="km-att-company" placeholder="Empresa"></div>
-        <div class="field"><label class="field-label">Cargo</label><input class="field-input" id="km-att-role" placeholder="Cargo / Rol"></div>
-        <button class="btn btn-secondary" data-action="km-add-att" data-ctx="${ctx}" style="margin-bottom:0">Agregar</button>
+        <div class="field"><label class="field-label">Cargo / Rol</label><input class="field-input" id="km-att-role" placeholder="Cargo"></div>
+        <button class="btn btn-secondary" data-action="km-add-att" data-ctx="${ctx}" style="margin-bottom:0">＋</button>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">Temas Tratados</div>
-      <div class="attendee-list" id="km-topics-list">
-        ${topics.map((t,i) => `
-          <div class="attendee-item">
-            <span>${t}</span>
-            <button class="attendee-rm" data-action="km-rm-topic" data-ctx="${ctx}" data-idx="${i}">✕</button>
-          </div>`).join('')}
-      </div>
-      <div class="add-row">
-        <input class="field-input" id="km-topic-input" placeholder="Agregar tema..." style="flex:1">
-        <button class="btn btn-secondary" data-action="km-add-topic" data-ctx="${ctx}">Agregar</button>
-      </div>
+
+    ${KM_BLOCKS.map(block => {
+      const ans = d.answers || {};
+      const questions = block.questions.map(q => {
+        const val = ans[q.id] || '';
+        let input = '';
+        if (q.type === 'text' || q.type === 'number') {
+          input = `<input class="field-input" type="${q.type==='number'?'number':'text'}" step="any" value="${val}"
+            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—" style="margin:0">`;
+        } else if (q.type === 'textarea') {
+          input = `<textarea class="field-input" rows="2" style="resize:vertical"
+            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—">${val}</textarea>`;
+        } else if (q.type === 'yesno') {
+          input = `<div style="display:flex;gap:8px">
+            ${['Sí','No','N/A'].map(opt => `
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="radio" name="km-${q.id}-${ctx}" value="${opt}" ${val===opt?'checked':''}
+                  data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}"> ${opt}
+              </label>`).join('')}
+          </div>`;
+        } else if (q.type === 'check') {
+          const selected = val ? val.split('||') : [];
+          input = `<div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${(q.options||[]).map(opt => `
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="checkbox" value="${opt}" ${selected.includes(opt)?'checked':''}
+                  data-action="save-km-check" data-ctx="${ctx}" data-qid="${q.id}"> ${opt}
+              </label>`).join('')}
+          </div>`;
+        }
+        return `
+          <div style="padding:10px 0;border-bottom:1px solid var(--line2)">
+            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px">
+              <span style="color:var(--accent);margin-right:6px">${q.id.replace('q','')}</span>${q.text}
+            </div>
+            ${input}
+          </div>`;
+      }).join('');
+      return `
+        <div class="card">
+          <div class="card-title" style="display:flex;align-items:center;gap:8px">
+            <span style="background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px">Bloque ${block.id}</span>
+            ${block.title}
+            ${block.stsOnly ? '<span style="font-size:10px;color:var(--muted);font-style:italic">(solo STS)</span>' : ''}
+          </div>
+          ${questions}
+        </div>`;
+    }).join('')}
+
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div class="card-title">🤖 Generar Acta Formal</div>
+      <div class="info-box" style="margin-bottom:12px">El Consultor IA analizará todas las respuestas, redactará el acta formal, identificará incumplimientos normativos y señalará si se requiere Letter of Protest (LOP).</div>
+      ${d.acta ? `
+        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13px;white-space:pre-wrap;line-height:1.7;margin-bottom:12px;max-height:500px;overflow-y:auto">${d.acta}</div>
+        <button class="btn btn-secondary" data-action="km-gen-acta" data-ctx="${ctx}" style="width:100%">🔄 Regenerar Acta</button>
+      ` : `
+        <button class="btn btn-primary" data-action="km-gen-acta" data-ctx="${ctx}" style="width:100%">✍️ Generar Acta con Consultor IA</button>
+      `}
     </div>
+
     <div class="card">
-      <div class="card-title">Acuerdos y Decisiones</div>
-      <textarea class="field-textarea" style="width:100%;min-height:100px" placeholder="Documentar acuerdos alcanzados en la reunión..." data-action="save-field" data-ctx="${ctx}" data-field="decisions">${d.decisions||''}</textarea>
-    </div>
-    <div class="card">
-      <div class="card-title">Notas Adicionales</div>
-      <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Observaciones generales..." data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+      <label class="field-label">Notas adicionales</label>
+      <textarea class="field-input" style="height:70px" placeholder="Observaciones…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
     </div>`;
 }
 
@@ -1835,16 +2619,18 @@ function buildUllage(d, mod, ctx) {
   const roleIcon = isFin ? '📏' : '📐';
   const defaultTitle = isIni ? 'Ullage Inicial (Before)' : isFin ? 'Ullage Final (After)' : `Ullage ${parseInt(mod.split('-').pop()||'0',10)+1}`;
   const title = d._label || defaultTitle;
-  const vcfTabla = d.vcfTabla || '6A';
+  const vcfTabla  = d.vcfTabla  || '6A';
+  const tempUnit  = d.tempUnit  || 'F';   // 'C' = Celsius input, 'F' = Fahrenheit input
+  const toF = tObs => tempUnit === 'C' ? tObs * 1.8 + 32 : tObs;
   const totalTOV = ullageTotal(tanks, 'tov');
   const totalGOV = ullageTotal(tanks, 'gov');
   const totalGSV = ullageTotal(tanks, 'gsv');
   const totalFW  = ullageTotal(tanks, 'fw');
 
-  // Weighted averages for summary calculations
+  // Weighted averages for summary calculations (temps converted to °F internally)
   const govTanks = tanks.filter(t => parseFloat(t.gov) > 0);
   const wAvgTemp = govTanks.length
-    ? govTanks.reduce((s,t) => s + (parseFloat(t.temp)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
+    ? govTanks.reduce((s,t) => s + toF(parseFloat(t.temp)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
     : 0;
   const wAvgApi = govTanks.length
     ? govTanks.reduce((s,t) => s + (parseFloat(t.api)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
@@ -1853,8 +2639,8 @@ function buildUllage(d, mod, ctx) {
     ? govTanks.reduce((s,t) => s + (parseFloat(t.bsw)||0)*(parseFloat(t.gov)||0), 0) / totalGOV
     : 0;
 
-  // Override with manual inputs if provided (temps in °F)
-  const avgTempF = parseFloat(d.avgTemp) || wAvgTemp;
+  // Override with manual inputs if provided (avgTemp stored in selected unit → convert to °F)
+  const avgTempF = d.avgTemp !== '' && d.avgTemp != null ? toF(parseFloat(d.avgTemp)) : wAvgTemp;
   const avgApi  = parseFloat(d.avgApi)  || wAvgApi;
   const avgBsw  = parseFloat(d.avgBsw)  !== undefined && d.avgBsw !== '' ? parseFloat(d.avgBsw) : wAvgBsw;
 
@@ -1897,6 +2683,13 @@ function buildUllage(d, mod, ctx) {
         return `<button class="btn${active?' btn-primary':''}" style="font-size:12px;padding:4px 12px;${active?'':'background:var(--paper);color:var(--text);border:1px solid var(--line)'}"
           data-action="set-vcf-tabla" data-ctx="${ctx}" data-tabla="${t}">${labels[t]}</button>`;
       }).join('')}
+      <span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>
+      <span style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Temp.</span>
+      ${['C','F'].map(u => {
+        const active = tempUnit === u;
+        return `<button class="btn${active?' btn-primary':''}" style="font-size:12px;padding:4px 12px;${active?'':'background:var(--paper);color:var(--text);border:1px solid var(--line)'}"
+          data-action="set-temp-unit" data-ctx="${ctx}" data-unit="${u}">°${u}</button>`;
+      }).join('')}
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
@@ -1911,7 +2704,7 @@ function buildUllage(d, mod, ctx) {
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#e8f4f8">GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#d4ecf7">GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
-              <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°F)</span></th>
+              <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°${tempUnit})</span></th>
               <th style="font-size:11px">API<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
               <th style="font-size:11px">BS&W<br><span style="font-weight:400;color:var(--muted)">(%)</span></th>
               <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">Tabla ${vcfTabla}</span></th>
@@ -1925,8 +2718,9 @@ function buildUllage(d, mod, ctx) {
               const fw  = parseFloat(t.fw)  || 0;
               const gov = tov > 0 ? Math.max(0, tov - fw) : 0;
               const govBbl = gov * 6.289812;
-              const tempF = parseFloat(t.temp);
-              const vcf = (t.api && tempF) ? vcfCalc(parseFloat(t.api), tempF, vcfTabla) : null;
+              const tempRaw = parseFloat(t.temp);
+              const tempF = isNaN(tempRaw) ? NaN : toF(tempRaw);
+              const vcf = (t.api && !isNaN(tempF)) ? vcfCalc(parseFloat(t.api), tempF, vcfTabla) : null;
               const gsv = vcf && gov > 0 ? gov * vcf : 0;
               const gsvBbl = gsv * 6.289812;
               const fmtC = (v, d=3) => v > 0 ? v.toFixed(d) : (v===0&&tov>0?'0.000':'—');
@@ -1973,12 +2767,12 @@ function buildUllage(d, mod, ctx) {
       </div>
       <div class="form-row form-row-3">
         <div class="field">
-          <label class="field-label">Temp. promedio observada (°F)</label>
+          <label class="field-label">Temp. promedio observada (°${tempUnit})</label>
           <input class="field-input" type="number" step="0.01"
-            value="${d.avgTemp !== undefined && d.avgTemp !== '' ? d.avgTemp : wAvgTemp.toFixed(2)}"
-            placeholder="${wAvgTemp.toFixed(2)}"
+            value="${d.avgTemp !== undefined && d.avgTemp !== '' ? d.avgTemp : (tempUnit==='C'?(wAvgTemp-32)/1.8:wAvgTemp).toFixed(2)}"
+            placeholder="${(tempUnit==='C'?(wAvgTemp-32)/1.8:wAvgTemp).toFixed(2)}"
             data-action="save-field" data-ctx="${ctx}" data-field="avgTemp">
-          <span class="field-hint">Prom. ponderado: ${wAvgTemp.toFixed(3)} °F</span>
+          <span class="field-hint">Prom. ponderado: ${(tempUnit==='C'?(wAvgTemp-32)/1.8:wAvgTemp).toFixed(3)} °${tempUnit} → ${wAvgTemp.toFixed(2)} °F</span>
         </div>
         <div class="field">
           <label class="field-label">API Gravity @60°F</label>
@@ -2205,10 +2999,12 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
     const totalGOV = Math.max(0, totalTOV - totalFW);
     const govTanks = tanks.filter(t => parseFloat(t.gov || (parseFloat(t.tov||0) - parseFloat(t.fw||0))) > 0 || parseFloat(t.tov||0) > 0);
     const govForAvg = govTanks.reduce((s,t) => s + Math.max(0, (parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) || 1;
-    const wAvgTemp = govTanks.reduce((s,t) => s + (parseFloat(t.temp)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
+    const tUnit = modData?.tempUnit || 'F';
+    const toFu = v => tUnit === 'C' ? v * 1.8 + 32 : v;
+    const wAvgTemp = govTanks.reduce((s,t) => s + toFu(parseFloat(t.temp)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
     const wAvgApi  = govTanks.reduce((s,t) => s + (parseFloat(t.api)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
     const wAvgBsw  = govTanks.reduce((s,t) => s + (parseFloat(t.bsw)||0)*Math.max(0,(parseFloat(t.tov)||0)-(parseFloat(t.fw)||0)), 0) / govForAvg;
-    const avgTempF = parseFloat(modData?.avgTemp) || wAvgTemp;
+    const avgTempF = modData?.avgTemp != null && modData?.avgTemp !== '' ? toFu(parseFloat(modData.avgTemp)) : wAvgTemp;
     const avgApi   = parseFloat(modData?.avgApi)  || wAvgApi;
     const avgBsw   = (modData?.avgBsw !== '' && modData?.avgBsw != null) ? parseFloat(modData.avgBsw) : wAvgBsw;
     const tabla    = modData?.vcfTabla || vcfTabla || '6A';
@@ -2771,6 +3567,19 @@ function saveNested(ctxStr, obj, field, value) {
   ref.save();
 }
 
+// Save a tank field inside a module (used by ullage-arribo and ullage-origen)
+// subObj: 'ullageOrigen' for datos-origen tanks, null for direct module.tanks
+function saveUllTank(ctxStr, subObj, idx, field, value) {
+  const ctx = decodeCtx(ctxStr);
+  const ref = getModuleRef(ctx);
+  if (!ref) return;
+  const target = subObj ? (ref.data[subObj] || (ref.data[subObj] = {})) : ref.data;
+  if (!target.tanks) target.tanks = TANK_NAMES.map(n => ({ name: n }));
+  if (!target.tanks[idx]) target.tanks[idx] = {};
+  target.tanks[idx][field] = value;
+  ref.save();
+}
+
 // ===== EVENT HANDLERS =====
 function initEvents() {
   document.addEventListener('click', handleClick);
@@ -2885,6 +3694,154 @@ function handleClick(e) {
       render();
     }
   }
+  else if (a === 'set-temp-unit') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (op) {
+      if (!op.modules[c.mod]) op.modules[c.mod] = {};
+      op.modules[c.mod].tempUnit = el.dataset.unit;
+      saveOp(op);
+      render();
+    }
+  }
+  else if (a === 'km-gen-acta') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (!op) return;
+    const d = op.modules[c.mod] || {};
+    const ans = d.answers || {};
+    // Build filled questionnaire text
+    let filled = `Actúa como inspector independiente de cargo (QPIC) certificado con dominio completo de API MPMS Capítulo 17.1 (7ª Edición 2022) y Capítulo 17.11 / EI HM 52.\n\nA continuación las respuestas al cuestionario de Key Meeting / Pre-Transfer Conference:\n\nOperación: ${op.code} — ${op.vessel?.name||''}\nFecha: ${d.date||'—'} Hora: ${d.time||'—'} Lugar: ${d.location||'—'}\n\n`;
+    KM_BLOCKS.forEach(block => {
+      filled += `BLOQUE ${block.id} — ${block.title}\n`;
+      block.questions.forEach(q => {
+        const v = ans[q.id] || '(Sin respuesta)';
+        filled += `${q.id.replace('q','')}. ${q.text}: ${v}\n`;
+      });
+      filled += '\n';
+    });
+    filled += `Con base en todas las respuestas anteriores:\n1. Redacta el acta formal de Key Meeting con encabezado, fecha, hora, lugar, partes presentes y todos los acuerdos alcanzados.\n2. Genera una tabla de resumen de parámetros de medición acordados.\n3. Señala en negrita cualquier punto donde detectes incumplimiento de API MPMS Cap. 17.1 o 17.11, condición que requiere LOP, o riesgo de error de medición.\n4. Lista los documentos que deben estar disponibles antes de iniciar la operación.`;
+    el.disabled = true; el.textContent = '⏳ Generando acta…';
+    fetch('/api/consultar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: filled }] }),
+    }).then(r => r.json()).then(res => {
+      if (res.reply) {
+        op.modules[c.mod].acta = res.reply;
+        saveOp(op); render();
+      } else { el.disabled=false; el.textContent='✍️ Generar Acta con Consultor IA'; alert(res.error||'Error al generar acta.'); }
+    }).catch(() => { el.disabled=false; el.textContent='✍️ Generar Acta con Consultor IA'; alert('No se pudo conectar con el servidor.'); });
+  }
+  else if (a === 'ia-analizar-arribo') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (!op) return;
+    const origen = op.modules?.['datos-origen'] || {};
+    const bl = origen.bl || {};
+    const arribo = op.modules?.[c.mod] || {};
+    const tot = arribo.totals || {};
+    const vefO = origen.vefOrigen?.value || '—';
+    const vefA = (op.modules?.['vef-comparativo']||{}).vefArribo || '—';
+    const fmt = (v,u) => v ? `${parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3})} ${u}` : '—';
+    const dGSV = (bl.gsv && tot.gsv) ? ((parseFloat(tot.gsv)-parseFloat(bl.gsv)).toFixed(3)) : null;
+    const pGSV = (bl.gsv && tot.gsv && parseFloat(bl.gsv)) ? (((parseFloat(tot.gsv)-parseFloat(bl.gsv))/parseFloat(bl.gsv))*100).toFixed(4) : null;
+    const hasPhotos = (arribo.media || []).length > 0;
+    const photoNote = hasPhotos ? `\n\nEVIDENCIA FOTOGRÁFICA: Se adjuntan ${arribo.media.length} imagen(es) de la operación de medición. Analiza cada imagen: verifica que la cinta esté correctamente posicionada, que la lectura sea legible y consistente con los valores numéricos declarados, que las condiciones del tanque sean apropiadas, y que el procedimiento sea conforme a API MPMS Cap. 17.` : '';
+    const prompt = `Actúa como QPIC certificado con dominio de API MPMS Cap. 17 y 11.1.\n\nRealiza un análisis comparativo exhaustivo de las cantidades de origen (BL) versus arribo para la operación ${op.code} — ${op.vessel?.name||''}, producto: ${op.product?.crudeName||op.product?.type||'—'}.${photoNote}\n\nDATOS DE ORIGEN (Bill of Lading):\n- GSV @60°F: ${fmt(bl.gsv,'BBL')}\n- TCV: ${fmt(bl.tcv,'BBL')}\n- Free Water: ${fmt(bl.fw,'BBL')}\n- API @60°F: ${bl.api||'—'} °API\n- BS&W: ${bl.bsw||'—'} %\n- Densidad @15°C: ${bl.densityAt15||'—'} kg/m³\n- VEF de origen: ${vefO}\n- Puerto de carga: ${origen.loadPort||'—'}\n- B/L N°: ${origen.blNumber||'—'}\n\nDATOS DE ARRIBO (Ullage Medición):\n- GSV @60°F: ${fmt(tot.gsv,'BBL')}\n- TCV: ${fmt(tot.tcv,'BBL')}\n- Free Water: ${fmt(tot.fw,'BBL')}\n- API @60°F: ${tot.api||'—'} °API\n- BS&W: ${tot.bsw||'—'} %\n- Densidad @15°C: ${tot.densityAt15||'—'} kg/m³\n- VEF de arribo: ${vefA}\n- Trim: ${arribo.trim||'—'} m  |  Lista: ${arribo.list||'—'}°\n\nDIFERENCIA:\n- ΔGSV: ${dGSV !== null ? dGSV+' BBL ('+pGSV+'%)' : '—'}\n\nNotas ullage arribo: ${arribo.notes||'—'}\n\nPor favor, estructura tu respuesta así:\n\n1. VALIDACIÓN FOTOGRÁFICA (solo si hay imágenes): Describe lo que observas en cada foto — posición de la cinta, lectura, condición del tanque, conformidad con API MPMS.\n2. ANÁLISIS DEL DESVÍO VOLUMÉTRICO: Evalúa si la diferencia está dentro de los rangos normales (±0.5% según API MPMS 17.11). Desglosa posibles causas.\n3. ANÁLISIS DEL VEF: Compara VEF origen vs arribo y su impacto en el volumen.\n4. CALIDAD DEL CARGO: Variaciones de API, BS&W, temperatura entre origen y arribo.\n5. ACCIONES RECOMENDADAS: Letter of Protest, OBQ/ROB, nota al cliente, observaciones para el reporte final.\n6. CONCLUSIÓN TÉCNICA: Dictamen final sobre la operación.`;
+    // Build multimodal content: images first, then the text prompt
+    const media = arribo.media || [];
+    let msgContent;
+    if (media.length) {
+      const imgBlocks = media.map(m => ({
+        type: 'image',
+        source: { type: 'base64', media_type: m.mediaType || 'image/jpeg', data: m.base64 }
+      }));
+      msgContent = [...imgBlocks, { type: 'text', text: prompt }];
+    } else {
+      msgContent = prompt;
+    }
+    const btnLabel = media.length ? `🔍 Analizar con IA (${media.length} foto${media.length>1?'s':''})` : '🔍 Analizar con Consultor IA';
+    el.disabled = true; el.textContent = `⏳ Analizando${media.length ? ' imágenes y datos' : ''}…`;
+    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messages:[{role:'user',content:msgContent}] }) })
+      .then(r=>r.json()).then(res=>{
+        if (res.reply) { op.modules[c.mod].iaAnalysis = res.reply; op.modules[c.mod].iaDate = new Date().toISOString(); saveOp(op); render(); }
+        else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error.'); }
+      }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
+  }
+  else if (a === 're-send-email') {
+    const opId2 = el.dataset.opid;
+    const op2 = getOp(opId2);
+    if (!op2) return;
+    const mods2 = op2.modules || {};
+    const re2 = mods2['reporte-evolutivo'] || {};
+    const origen2 = mods2['datos-origen'] || {};
+    const bl2 = origen2.bl || {};
+    const arriboKeys2 = (op2.moduleOrder||[]).filter(k => k==='ullage-arribo'||k.startsWith('ullage-ini')||k.startsWith('ullage-fin'));
+    const firstA2 = arriboKeys2.map(k=>mods2[k]).find(m=>m?.totals?.gsv);
+    const tot2 = firstA2?.totals || {};
+    const fmtN2 = v => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3}) : '—';
+    const vefO2 = parseFloat(origen2.vefOrigen?.value)||null;
+    const vefA2 = parseFloat((mods2['vef-comparativo']||{}).vefArribo)||null;
+    const analyses2 = (op2.moduleOrder||[]).map(k=>{
+      const m=mods2[k]; if(!m) return null;
+      if(k==='key-meeting'&&m.acta) return {label:'KEY MEETING — Acta Formal',content:m.acta};
+      if(m.iaAnalysis) return {label:'ULLAGE ARRIBO — Análisis Comparativo',content:m.iaAnalysis};
+      return null;
+    }).filter(Boolean);
+    const ln = s => `${s}\n`;
+    let body = ln(`REPORTE EVOLUTIVO — ${op2.code||''}`);
+    body += ln(`${op2.vessel?.name||''} | ${op2.product?.crudeName||op2.product?.type||''}`);
+    body += ln(new Date().toLocaleDateString('es-CL')) + '\n';
+    body += ln('BALANCE DE CANTIDADES');
+    body += ln('─'.repeat(55));
+    [['GSV @60°F',bl2.gsv,tot2.gsv,'BBL'],['TCV',bl2.tcv,tot2.tcv,'BBL'],
+     ['Free Water',bl2.fw,tot2.fw,'BBL'],['API @60°F',bl2.api,tot2.api,'°API'],['BS&W',bl2.bsw,tot2.bsw,'%'],
+     ['GSV m³ @15°C',bl2.m3At15,tot2.m3At15,'m³'],['Ton. Métricas',bl2.metricTons,tot2.metricTons,'MT']
+    ].forEach(([l,b,a,u])=>{
+      const bv=parseFloat(b)||null, av=parseFloat(a)||null;
+      const dv=(bv&&av)?av-bv:null;
+      body += ln(`${l.padEnd(16)} ${fmtN2(b).padEnd(14)} ${fmtN2(a).padEnd(14)} ${dv!==null?(dv>0?'+':'')+fmtN2(dv)+' '+u:'—'}`);
+    });
+    if (vefO2||vefA2) { body += ln(''); body += ln(`VEF Origen: ${vefO2?.toFixed(4)||'—'}  |  VEF Arribo: ${vefA2?.toFixed(4)||'—'}${(vefO2&&vefA2)?' | Δ VEF: '+(vefA2-vefO2>0?'+':'')+(vefA2-vefO2).toFixed(5):''}`);}
+    analyses2.forEach(a2=>{ body += '\n' + ln('═'.repeat(55)) + ln(a2.label) + ln('─'.repeat(55)) + ln(a2.content); });
+    if (re2.notes) { body += '\n' + ln('═'.repeat(55)) + ln('CONCLUSIÓN FINAL') + ln('─'.repeat(55)) + ln(re2.notes); }
+    const subject = encodeURIComponent(`${op2.code||''} — Reporte Evolutivo — ${op2.vessel?.name||''}`);
+    const bodyEnc = encodeURIComponent(body);
+    window.location.href = `mailto:?subject=${subject}&body=${bodyEnc}`;
+  }
+  else if (a === 'ia-clear-arribo') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (op) { delete op.modules[c.mod].iaAnalysis; delete op.modules[c.mod].iaDate; saveOp(op); render(); }
+  }
+  else if (a === 'media-remove') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const idx = parseInt(el.dataset.idx);
+    if (ref.data.media && ref.data.media[idx] !== undefined) {
+      ref.data.media.splice(idx, 1); ref.save(); render();
+    }
+  }
+  else if (a === 'add-vef-voyage') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    const inp = document.getElementById('vef-voyage-input');
+    const val = inp?.value.trim();
+    if (op && val) {
+      if (!op.modules[c.mod]) op.modules[c.mod] = {};
+      if (!op.modules[c.mod].govVoyages) op.modules[c.mod].govVoyages = [];
+      op.modules[c.mod].govVoyages.push(val);
+      saveOp(op); render();
+    }
+  }
+  else if (a === 'rm-vef-voyage') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (op) {
+      op.modules[c.mod].govVoyages.splice(parseInt(el.dataset.idx), 1);
+      saveOp(op); render();
+    }
+  }
 }
 
 function handleChange(e) {
@@ -2895,6 +3852,24 @@ function handleChange(e) {
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
+  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-km-answer') {
+    const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
+    if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
+  }
+  else if (a === 'save-km-check') {
+    const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
+    if (ref) {
+      if (!ref.data.answers) ref.data.answers = {};
+      const qid = el.dataset.qid;
+      const cur = ref.data.answers[qid] ? ref.data.answers[qid].split('||') : [];
+      if (el.checked) { if (!cur.includes(el.value)) cur.push(el.value); }
+      else { const i = cur.indexOf(el.value); if (i >= 0) cur.splice(i,1); }
+      ref.data.answers[qid] = cur.join('||');
+      ref.save();
+    }
+  }
   else if (a === 'chk-comment') chkComment(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.value);
   else if (a === 'import-ops') {
     const file = el.files[0];
@@ -2915,6 +3890,30 @@ function handleChange(e) {
       } catch { alert('Error al leer el archivo JSON.'); }
     };
     reader.readAsText(file);
+  }
+  else if (a === 'media-upload') {
+    const files = Array.from(el.files);
+    if (!files.length) return;
+    const ctx2 = decodeCtx(el.dataset.ctx);
+    const ref = getModuleRef(ctx2);
+    if (!ref) return;
+    if (!ref.data.media) ref.data.media = [];
+    const MAX = 5 * 1024 * 1024;
+    let loaded = 0;
+    files.forEach(file => {
+      if (file.size > MAX) { alert(`"${file.name}" supera 5 MB. Comprime la imagen y vuelve a intentar.`); return; }
+      const reader2 = new FileReader();
+      reader2.onload = (ev2) => {
+        const raw = ev2.target.result; // data:image/jpeg;base64,...
+        const [header, b64] = raw.split(',');
+        const mtype = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+        ref.data.media.push({ name: file.name, data: raw, base64: b64, mediaType: mtype, ts: Date.now() });
+        loaded++;
+        if (loaded === files.length) { ref.save(); render(); }
+      };
+      reader2.readAsDataURL(file);
+    });
+    el.value = '';
   }
 }
 
@@ -2998,6 +3997,44 @@ function handleModalNext() {
 
 function buildPresetModules(opType) {
   const mk = (type, extra={}) => ({ ...initModuleInstance(type), ...extra });
+
+  if (opType === 'vef-arribo') {
+    return {
+      moduleOrder: ['datos-origen','key-meeting','ullage-arribo','vef-comparativo','discharge-record','termometros','checklist-inspeccion','reporte-evolutivo'],
+      modules: {
+        'datos-origen':        mk('datos-origen'),
+        'key-meeting':         mk('key-meeting'),
+        'ullage-arribo':       mk('ullage-arribo', { _label: 'Ullage Arribo' }),
+        'vef-comparativo':     mk('vef-comparativo'),
+        'discharge-record':    mk('discharge-record'),
+        'termometros':         mk('termometros'),
+        'checklist-inspeccion':mk('checklist'),
+        'reporte-evolutivo':   mk('reporte-evolutivo'),
+      },
+      alijos: [],
+    };
+  }
+
+  if (opType === 'completa') {
+    return {
+      moduleOrder: ['datos-origen','key-meeting','ullage-ini-madre','ullage-fin-madre','ullage-ini-alijador','ullage-fin-alijador','vef-comparativo','discharge-record','termometros','checklist-inspeccion','reporte-evolutivo'],
+      modules: {
+        'datos-origen':          mk('datos-origen'),
+        'key-meeting':           mk('key-meeting'),
+        'ullage-ini-madre':      mk('ullage-arribo', { _label: 'Ullage Ini Madre',    _vesselName:'' }),
+        'ullage-fin-madre':      mk('ullage-arribo', { _label: 'Ullage Fin Madre',    _vesselName:'', _direction:'delivery',  pairedWith:'ullage-ini-madre' }),
+        'ullage-ini-alijador':   mk('ullage-arribo', { _label: 'Ullage Ini Alijador', _vesselName:'' }),
+        'ullage-fin-alijador':   mk('ullage-arribo', { _label: 'Ullage Fin Alijador', _vesselName:'', _direction:'reception', pairedWith:'ullage-ini-alijador' }),
+        'vef-comparativo':       mk('vef-comparativo'),
+        'discharge-record':      mk('discharge-record'),
+        'termometros':           mk('termometros'),
+        'checklist-inspeccion':  mk('checklist'),
+        'reporte-evolutivo':     mk('reporte-evolutivo'),
+      },
+      alijos: [],
+    };
+  }
+
   if (opType === 'alije') {
     return {
       moduleOrder: ['origen', 'key-meeting', 'ullage-inicial-0', 'ullage-final-0', 'ullage-inicial-1', 'ullage-final-1', 'vef', 'time-log', 'discharge-record', 'slops', 'checklist-madre', 'checklist-alijador', 'summary'],
@@ -3084,6 +4121,14 @@ function handleModalCreate() {
     };
   } else {
     const presetModules = buildPresetModules(d.opType);
+    // Remove optional modules if unchecked
+    const optionals = ['discharge-record', 'termometros'];
+    optionals.forEach(k => {
+      if (d['opt_' + k] === false) {
+        presetModules.moduleOrder = presetModules.moduleOrder.filter(m => m !== k);
+        delete presetModules.modules[k];
+      }
+    });
     op = {
       id: newOpId(),
       code: d.code,
