@@ -1,6 +1,7 @@
 // ===== CONSTANTS =====
 const COUNTRY_PREFIXES = {
   CL: { code: 'ACICH',  label: 'Chile' },
+  AR: { code: 'ACIAR',  label: 'Argentina' },
   CO: { code: 'ACICO',  label: 'Colombia' },
   EC: { code: 'ACIEC',  label: 'Ecuador' },
   PE: { code: 'ACIPE',  label: 'Perú' },
