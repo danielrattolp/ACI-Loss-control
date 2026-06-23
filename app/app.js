@@ -32,7 +32,7 @@ const MODULE_META = {
   // Nuevos módulos
   'datos-origen':        { label: 'Datos de Origen',      icon: '📦' },
   'ullage-arribo':       { label: 'Ullage Arribo',        icon: '📐' },
-  'vef-comparativo':     { label: 'VEF Comparativo',      icon: '⚖️' },
+  'vef-comparativo':     { label: 'VEF al Arribo',         icon: '⚖️' },
   'discharge-record':    { label: 'Discharge Record',     icon: '📋' },
   'termometros':         { label: 'Termómetros',          icon: '🌡️' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
@@ -387,7 +387,7 @@ function initModuleInstance(type) {
   if (type === 'datos-origen') return {
     blNumber:'', blDate:'', loadPort:'', loadTerminal:'', loadBerth:'',
     bl: emptyQty(),
-    vefOrigen: { value:'', docRef:'', notes:'' },
+    vefOrigen: { voyages: [], notes: '' },
     ullageOrigen: { tanks: ullTanks(), notes:'' },
     notes:'',
   };
@@ -399,9 +399,7 @@ function initModuleInstance(type) {
     notes:'',
   };
   if (type === 'vef-comparativo') return {
-    vefOrigen:'', vefArribo:'',
-    govObserved:'', govEstandar:'', govVoyages:[],
-    notes:'',
+    voyages: [], notes: '',
   };
   if (type === 'discharge-record') return {
     enabled: true,
@@ -1813,6 +1811,188 @@ function analyzeCauses(diffShipShore, diffBLShip, diffBLShore, op) {
   return causes;
 }
 
+// ===== VEF TABLE HELPERS =====
+const VEF_CATS = {
+  'TERMINAL':            { label:'Terminal (Shore)',              k:'Shore', autoReject:false },
+  'BUQUE_CON_VEF':      { label:'Buque con VEF (Ship)',          k:'Ship',  autoReject:true  },
+  'MODIFICACION_TABLA': { label:'Modificación Tabla Capacidad',  k:'Shore', autoReject:true  },
+  'ENTRADA_DIQUE':      { label:'Entrada a Dique (Dry Dock)',     k:'Shore', autoReject:true  },
+  'SIN_REGISTRO_FISICO':{ label:'Sin Registro Físico',           k:'Shore', autoReject:true  },
+};
+
+function emptyVEFVoyage() {
+  return { voyageNum:'', product:'', terminal:'', date:'', vesselTCV:'', obq:'0', shoreTCV:'', category:'TERMINAL', comment:'', manualReject:false };
+}
+
+function computeVEFStats(voyages) {
+  const GROSS_ERR = 0.02, BAND = 0.003;
+  const rows = voyages.map(v => {
+    const vessel = parseFloat(v.vesselTCV) || 0;
+    const obq    = parseFloat(v.obq) || 0;
+    const shore  = parseFloat(v.shoreTCV) || 0;
+    const discharged = vessel - obq;
+    const ratio = shore > 0 ? discharged / shore : null;
+    const cat = VEF_CATS[v.category] || VEF_CATS['TERMINAL'];
+    const grossErr = ratio !== null && Math.abs(ratio - 1) > GROSS_ERR;
+    const isRejected = v.manualReject || cat.autoReject || grossErr;
+    return { ...v, discharged, ratio, grossErr, cat, isRejected, qualifying: false };
+  });
+  const nonRej = rows.filter(r => !r.isRejected && r.ratio !== null);
+  const sumNRV = nonRej.reduce((s,r) => s + r.discharged, 0);
+  const sumNRS = nonRej.reduce((s,r) => s + (parseFloat(r.shoreTCV)||0), 0);
+  const meanRatio = sumNRS > 0 ? sumNRV / sumNRS : null;
+  const lo = meanRatio !== null ? meanRatio - BAND : null;
+  const hi = meanRatio !== null ? meanRatio + BAND : null;
+  const rows2 = rows.map(r => ({
+    ...r,
+    qualifying: !r.isRejected && r.ratio !== null && lo !== null && r.ratio >= lo && r.ratio <= hi && r.cat.k !== 'Ship'
+  }));
+  const qualRows = rows2.filter(r => r.qualifying);
+  const sumQV = qualRows.reduce((s,r) => s + r.discharged, 0);
+  const sumQS = qualRows.reduce((s,r) => s + (parseFloat(r.shoreTCV)||0), 0);
+  const vef = qualRows.length >= 5 && sumQS > 0 ? sumQV / sumQS : (qualRows.length > 0 && sumQS > 0 ? sumQV / sumQS : 1);
+  return { rows: rows2, meanRatio, lo, hi, qualCount: qualRows.length, sumQV, sumQS, vef, sumNRV, sumNRS };
+}
+
+function buildVEFTableSection(vefData, ctx, sub) {
+  const voyages = vefData.voyages || [];
+  const stats = computeVEFStats(voyages);
+  const ds = sub ? `data-sub="${sub}"` : '';
+  const fmtR = v => v !== null ? v.toFixed(5) : '—';
+  const fmtN = v => v ? Math.round(v).toLocaleString('en-US') : '—';
+  const vefColor = Math.abs(stats.vef - 1) < 0.003 ? 'var(--ink)' : (stats.vef < 1 ? '#c62828' : '#1565c0');
+
+  // Ordinal for non-rejected rows
+  let ord = 0;
+  const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th',
+    '11th','12th','13th','14th','15th','16th','17th','18th','19th','20th'];
+
+  const voyageRows = voyages.map((v, i) => {
+    const r = stats.rows[i];
+    const rejClass = r.isRejected ? 'color:var(--muted);text-decoration:line-through' : '';
+    const seq = r.isRejected ? '' : (ordinals[ord++] || `${ord}th`);
+    const ratioColor = r.ratio === null ? '' : (Math.abs(r.ratio - 1) > 0.02 ? 'color:#c62828;font-weight:700' : '');
+    const qualBadge = r.qualifying
+      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">Y</span>'
+      : '<span style="background:var(--line2);color:var(--muted);padding:1px 6px;border-radius:10px;font-size:10px">N</span>';
+    const rejBadge = r.isRejected
+      ? `<span style="background:#ffebee;color:#c62828;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">YES${r.cat.autoReject||r.grossErr?'*':''}</span>`
+      : '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px">No</span>';
+    const catOpts = Object.entries(VEF_CATS).map(([k,c]) =>
+      `<option value="${k}"${v.category===k?' selected':''}>${c.label}</option>`).join('');
+    return `
+      <tr>
+        <td style="font-weight:600;font-size:11px;color:var(--muted);text-align:center;min-width:40px">${seq}</td>
+        <td style="min-width:95px"><input class="tbl-input" type="date" value="${v.date||''}"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="date"></td>
+        <td style="min-width:70px"><input class="tbl-input" value="${v.voyageNum||''}" placeholder="N° viaje"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="voyageNum"></td>
+        <td style="min-width:130px"><input class="tbl-input" value="${v.terminal||''}" placeholder="Puerto/Terminal"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="terminal"></td>
+        <td style="min-width:110px"><input class="tbl-input" value="${v.product||''}" placeholder="Cargo"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="product"></td>
+        <td style="min-width:100px"><input class="tbl-input" type="number" step="1" value="${v.vesselTCV||''}" placeholder="0"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="vesselTCV"></td>
+        <td style="min-width:80px"><input class="tbl-input" type="number" step="1" value="${v.obq||'0'}" placeholder="0"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="obq"></td>
+        <td style="min-width:90px;font-size:12px;color:var(--ink);${rejClass}">${fmtN(r.discharged)}</td>
+        <td style="min-width:100px"><input class="tbl-input" type="number" step="1" value="${v.shoreTCV||''}" placeholder="0 (B/L)"
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="shoreTCV"></td>
+        <td style="min-width:160px">
+          <select class="tbl-input" data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="category" style="font-size:11px">
+            ${catOpts}
+          </select>
+        </td>
+        <td style="min-width:70px;font-size:12px;${ratioColor}">${fmtR(r.ratio)}</td>
+        <td style="text-align:center">${r.grossErr ? '<span style="color:#c62828;font-weight:700;font-size:11px">Y</span>' : '<span style="color:var(--muted);font-size:11px">N</span>'}</td>
+        <td style="text-align:center">${qualBadge}</td>
+        <td style="text-align:center">${rejBadge}</td>
+        <td style="min-width:130px"><input class="tbl-input" value="${v.comment||''}" placeholder="Obs."
+          data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="comment"></td>
+        <td><button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:2px 6px"
+          data-action="vef-del-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}">×</button></td>
+      </tr>`;
+  }).join('');
+
+  const vefDisplay = stats.qualCount >= 5
+    ? `<span style="font-size:28px;font-weight:800;color:${vefColor}">${stats.vef.toFixed(4)}</span>`
+    : `<span style="font-size:28px;font-weight:800;color:var(--muted)">1.0000</span><span style="font-size:11px;color:var(--muted);margin-left:8px">(< 5 viajes calificantes → VEF=1)</span>`;
+
+  return `
+    <div style="overflow-x:auto;margin-bottom:0">
+      <table class="data-table" style="min-width:1100px;font-size:12px">
+        <thead>
+          <tr style="background:var(--line2)">
+            <th style="min-width:40px">#</th>
+            <th>Fecha</th>
+            <th>Viaje</th>
+            <th>Puerto / Terminal</th>
+            <th>Cargo</th>
+            <th>TCV Nave<br><span style="font-weight:400;font-size:10px">Arribo (BBL)</span></th>
+            <th>OBQ/ROB<br><span style="font-weight:400;font-size:10px">(BBL)</span></th>
+            <th>TCV Descarg.<br><span style="font-weight:400;font-size:10px">(BBL)</span></th>
+            <th>TCV Shore<br><span style="font-weight:400;font-size:10px">B/L (BBL)</span></th>
+            <th>Categoría</th>
+            <th>Ratio V/S</th>
+            <th>Gross<br>Err</th>
+            <th>Qual.</th>
+            <th>Rechaz.</th>
+            <th>Comentario</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${voyageRows || `<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sin viajes registrados. Use "＋ Agregar Viaje" para iniciar el historial.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:10px 0 4px">
+      <button class="btn btn-secondary btn-sm" data-action="vef-add-voyage" ${ds} data-ctx="${ctx}">＋ Agregar Viaje</button>
+      <span style="font-size:11px;color:var(--muted);margin-left:10px">Registros rechazados (*) son automáticos por categoría o Gross Error &gt;2%. El ratio se calcula: TCV Descargado / TCV Shore.</span>
+    </div>
+
+    ${voyages.length > 0 ? `
+    <div style="margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Resultados VEF</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Viajes no rechazados</div>
+          <div style="font-size:18px;font-weight:700">${stats.rows.filter(r=>!r.isRejected).length}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Ratio Medio V/S</div>
+          <div style="font-size:18px;font-weight:700">${fmtR(stats.meanRatio)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Banda ±0.30%</div>
+          <div style="font-size:14px;font-weight:600">${fmtR(stats.lo)} – ${fmtR(stats.hi)}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Viajes calificantes</div>
+          <div style="font-size:18px;font-weight:700;color:${stats.qualCount>=5?'#2e7d32':'#c62828'}">${stats.qualCount}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">ΣVessel calificantes</div>
+          <div style="font-size:14px;font-weight:600">${fmtN(stats.sumQV)} BBL</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--muted)">ΣShore calificantes</div>
+          <div style="font-size:14px;font-weight:600">${fmtN(stats.sumQS)} BBL</div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:12px;border-top:1px solid var(--line);margin-top:4px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">VESSEL EXPERIENCE FACTOR</div>
+        ${vefDisplay}
+      </div>
+    </div>` : ''}
+
+    <div style="margin-top:12px">
+      <label class="field-label">Observaciones VEF</label>
+      <textarea class="field-input" style="height:60px" placeholder="Notas del VEF, fuente del historial, observaciones…"
+        data-action="${sub ? 'vef-save-notes' : 'save-field'}" ${ds} data-ctx="${ctx}" data-field="notes">${vefData.notes||''}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: DATOS DE ORIGEN =====
 function buildDatosOrigen(d, ctx) {
   const bl = d.bl || {};
@@ -1906,24 +2086,9 @@ function buildDatosOrigen(d, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">VEF de Origen</div>
-      <div class="form-row form-row-3">
-        <div class="field">
-          <label class="field-label">VEF declarado</label>
-          <input class="field-input" type="number" step="0.0001" value="${vef.value||''}" placeholder="Ej: 0.9998"
-            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="value">
-        </div>
-        <div class="field">
-          <label class="field-label">Referencia documento</label>
-          <input class="field-input" value="${vef.docRef||''}" placeholder="N° certificado / ref."
-            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="docRef">
-        </div>
-        <div class="field">
-          <label class="field-label">Notas</label>
-          <input class="field-input" value="${vef.notes||''}" placeholder="Observaciones"
-            data-action="save-nested" data-ctx="${ctx}" data-obj="vefOrigen" data-field="notes">
-        </div>
-      </div>
+      <div class="card-title">VEF de Origen — Historial de Viajes</div>
+      <div class="info-box" style="margin-bottom:12px">Registra el historial de viajes del buque para calcular el VEF según API MPMS 17.9. Mínimo 5 viajes calificantes para un VEF distinto de 1.0000. Los viajes con Buque con VEF, Gross Error &gt;2%, dique o modificación de tabla se rechazan automáticamente.</div>
+      ${buildVEFTableSection(d.vefOrigen || {voyages:[],notes:''}, ctx, 'vefOrigen')}
     </div>
 
     <div class="card">
@@ -2099,68 +2264,47 @@ function buildUllageArribo(d, mod, ctx) {
 
 // ===== MODULE: VEF COMPARATIVO =====
 function buildVEFComparativo(d, ctx) {
-  const vefO = parseFloat(d.vefOrigen) || null;
-  const vefA = parseFloat(d.vefArribo) || null;
-  const diff = (vefO && vefA) ? (vefA - vefO).toFixed(5) : null;
-  const pct  = (vefO && vefA) ? (((vefA - vefO) / vefO) * 100).toFixed(3) : null;
+  // Get VEF from datos-origen for comparison
+  const opId = decodeCtx(ctx)?.opId;
+  const op = opId ? getOp(opId) : null;
+  const origenVEF = op?.modules?.['datos-origen']?.vefOrigen;
+  const origenStats = origenVEF?.voyages?.length ? computeVEFStats(origenVEF.voyages) : null;
+  const arriboStats = (d.voyages||[]).length ? computeVEFStats(d.voyages) : null;
+  const vefO = origenStats?.vef;
+  const vefA = arriboStats?.vef;
+  const diff = (vefO && vefA) ? (vefA - vefO) : null;
 
   return `
-    <div class="module-title">⚖️ VEF Comparativo</div>
-    <div class="module-subtitle">Vessel Experience Factor · Origen vs Arribo · API MPMS 17.9</div>
+    <div class="module-title">⚖️ VEF al Arribo</div>
+    <div class="module-subtitle">Vessel Experience Factor · Historial al Arribo · API MPMS 17.9</div>
 
+    ${(vefO || vefA) ? `
     <div class="card">
-      <div class="card-title">VEF Origen vs VEF Arribo</div>
-      <div class="form-row form-row-2" style="margin-bottom:16px">
-        <div class="field">
-          <label class="field-label">VEF de Origen (BL)</label>
-          <input class="field-input" type="number" step="0.0001" value="${d.vefOrigen||''}" placeholder="Ej: 0.9998"
-            data-action="save-field" data-ctx="${ctx}" data-field="vefOrigen">
-          <span class="field-hint">Declarado en documentos de origen</span>
+      <div class="card-title">Comparativa VEF Origen vs VEF Arribo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase">VEF Origen</div>
+          <div style="font-size:24px;font-weight:800;color:var(--ink)">${vefO ? vefO.toFixed(4) : '—'}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${origenStats?.qualCount||0} viajes cal.</div>
         </div>
-        <div class="field">
-          <label class="field-label">VEF de Arribo (Calculado)</label>
-          <input class="field-input" type="number" step="0.0001" value="${d.vefArribo||''}" placeholder="Ej: 0.9995"
-            data-action="save-field" data-ctx="${ctx}" data-field="vefArribo">
-          <span class="field-hint">Calculado al arribo (ingresar desde Excel)</span>
+        <div style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase">VEF Arribo</div>
+          <div style="font-size:24px;font-weight:800;color:var(--ink)">${vefA ? vefA.toFixed(4) : '—'}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${arriboStats?.qualCount||0} viajes cal.</div>
         </div>
+        ${diff !== null ? `
+        <div style="text-align:center;padding:16px;border-radius:8px;border:1px solid ${diff<0?'#e57373':'#66bb6a'};background:${diff<0?'#fff5f5':'#f5fff5'}">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase">Δ VEF</div>
+          <div style="font-size:24px;font-weight:800;color:${diff<0?'#c62828':'#2e7d32'}">${diff>0?'+':''}${diff.toFixed(5)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${diff>0?'+':''}${((diff/vefO)*100).toFixed(3)}%</div>
+        </div>` : '<div></div>'}
       </div>
-
-      ${(diff !== null) ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
-        <div class="stat-box" style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">VEF Origen</div>
-          <div style="font-size:22px;font-weight:700;color:var(--ink)">${vefO?.toFixed(4)}</div>
-        </div>
-        <div class="stat-box" style="text-align:center;padding:16px;background:var(--paper);border-radius:8px;border:1px solid var(--line)">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">VEF Arribo</div>
-          <div style="font-size:22px;font-weight:700;color:var(--ink)">${vefA?.toFixed(4)}</div>
-        </div>
-        <div class="stat-box" style="text-align:center;padding:16px;border-radius:8px;border:1px solid ${parseFloat(diff)<0?'#e57373':'#66bb6a'};background:${parseFloat(diff)<0?'#fff5f5':'#f5fff5'}">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Δ VEF</div>
-          <div style="font-size:22px;font-weight:700;color:${parseFloat(diff)<0?'#c62828':'#2e7d32'}">${parseFloat(diff)>0?'+':''}${diff}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${parseFloat(pct)>0?'+':''}${pct}%</div>
-        </div>
-      </div>` : `<div class="info-box">Ingrese VEF Origen y VEF Arribo para ver la comparativa.</div>`}
-    </div>
+    </div>` : ''}
 
     <div class="card">
-      <div class="card-title">Viajes Incluidos en Cálculo VEF</div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input class="field-input" id="vef-voyage-input" placeholder="Número de viaje…" style="flex:1;margin:0">
-        <button class="btn btn-secondary" style="white-space:nowrap" data-action="add-vef-voyage" data-ctx="${ctx}">＋ Agregar</button>
-      </div>
-      ${(d.govVoyages||[]).length === 0
-        ? '<div style="font-size:12px;color:var(--muted);padding:8px 0">Sin viajes registrados.</div>'
-        : `<div style="display:flex;flex-wrap:wrap;gap:6px">${(d.govVoyages||[]).map((v,i) => `
-            <span style="display:inline-flex;align-items:center;gap:6px;background:var(--line2);border-radius:20px;padding:4px 12px;font-size:12px">
-              ${v} <button style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" data-action="rm-vef-voyage" data-ctx="${ctx}" data-idx="${i}">×</button>
-            </span>`).join('')}</div>`}
-    </div>
-
-    <div class="card">
-      <label class="field-label">Notas / Análisis</label>
-      <textarea class="field-input" style="height:80px" placeholder="Análisis del desvío de VEF, causas posibles…"
-        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+      <div class="card-title">VEF al Arribo — Historial de Viajes</div>
+      <div class="info-box" style="margin-bottom:12px">Registra el historial de viajes al arribo para calcular el VEF actual del buque según API MPMS 17.9. Puede ser diferente al VEF de origen si el buque realizó viajes adicionales en tránsito.</div>
+      ${buildVEFTableSection(d, ctx, null)}
     </div>`;
 }
 
@@ -2261,9 +2405,10 @@ function buildReporteEvolutivo(op, ctx) {
   const re = mods['reporte-evolutivo'] || {};
   const origen = mods['datos-origen'] || {};
   const bl = origen.bl || {};
-  const vefO = parseFloat(origen.vefOrigen?.value) || null;
-  const vefComp = mods['vef-comparativo'] || {};
-  const vefA = parseFloat(vefComp.vefArribo) || null;
+  const origenVEFStats = origen.vefOrigen?.voyages?.length ? computeVEFStats(origen.vefOrigen.voyages) : null;
+  const vefO = origenVEFStats?.vef || null;
+  const arriboVEFStats = mods['vef-comparativo']?.voyages?.length ? computeVEFStats(mods['vef-comparativo'].voyages) : null;
+  const vefA = arriboVEFStats?.vef || null;
 
   // Collect arrival ullage modules
   const arriboKeys = (op.moduleOrder||[]).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
@@ -3654,8 +3799,33 @@ function handleClick(e) {
   else if (a === 'km-rm-topic') kmRmTopic(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'tl-add-event') tlAddEvent(el.dataset.ctx);
   else if (a === 'tl-rm-event') tlRmEvent(el.dataset.ctx, parseInt(el.dataset.idx));
-  else if (a === 'vef-add-voyage') vefAddVoyage(el.dataset.ctx);
-  else if (a === 'vef-rm-voyage') vefRmVoyage(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'vef-add-voyage') {
+    const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
+    if (!_ref) return;
+    const _sub = el.dataset.sub;
+    const _tgt = _sub ? (_ref.data[_sub] || (_ref.data[_sub] = {voyages:[],notes:''})) : _ref.data;
+    if (!_tgt.voyages) _tgt.voyages = [];
+    _tgt.voyages.push(emptyVEFVoyage());
+    _ref.save(); render();
+  }
+  else if (a === 'vef-del-voyage') {
+    const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
+    if (!_ref) return;
+    const _sub = el.dataset.sub;
+    const _tgt = _sub ? _ref.data[_sub] : _ref.data;
+    if (!_tgt?.voyages) return;
+    _tgt.voyages.splice(parseInt(el.dataset.idx), 1);
+    _ref.save(); render();
+  }
+  else if (a === 'vef-rm-voyage') {
+    const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
+    if (!_ref) return;
+    const _sub = el.dataset.sub;
+    const _tgt = _sub ? _ref.data[_sub] : _ref.data;
+    if (!_tgt?.voyages) return;
+    _tgt.voyages.splice(parseInt(el.dataset.idx), 1);
+    _ref.save(); render();
+  }
   else if (a === 'dr-add-row') drAddRow(el.dataset.ctx);
   else if (a === 'dr-rm-row') drRmRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'chk-set') chkSet(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.dataset.val);
@@ -3741,7 +3911,8 @@ function handleClick(e) {
     const bl = origen.bl || {};
     const arribo = op.modules?.[c.mod] || {};
     const tot = arribo.totals || {};
-    const vefO = origen.vefOrigen?.value || '—';
+    const _ovStats = origen.vefOrigen?.voyages?.length ? computeVEFStats(origen.vefOrigen.voyages) : null;
+    const vefO = _ovStats ? _ovStats.vef.toFixed(4) : '—';
     const vefA = (op.modules?.['vef-comparativo']||{}).vefArribo || '—';
     const fmt = (v,u) => v ? `${parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3})} ${u}` : '—';
     const dGSV = (bl.gsv && tot.gsv) ? ((parseFloat(tot.gsv)-parseFloat(bl.gsv)).toFixed(3)) : null;
@@ -3781,8 +3952,10 @@ function handleClick(e) {
     const firstA2 = arriboKeys2.map(k=>mods2[k]).find(m=>m?.totals?.gsv);
     const tot2 = firstA2?.totals || {};
     const fmtN2 = v => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3}) : '—';
-    const vefO2 = parseFloat(origen2.vefOrigen?.value)||null;
-    const vefA2 = parseFloat((mods2['vef-comparativo']||{}).vefArribo)||null;
+    const _ov2Stats = origen2.vefOrigen?.voyages?.length ? computeVEFStats(origen2.vefOrigen.voyages) : null;
+    const vefO2 = _ov2Stats?.vef || null;
+    const _av2Stats = mods2['vef-comparativo']?.voyages?.length ? computeVEFStats(mods2['vef-comparativo'].voyages) : null;
+    const vefA2 = _av2Stats?.vef || null;
     const analyses2 = (op2.moduleOrder||[]).map(k=>{
       const m=mods2[k]; if(!m) return null;
       if(k==='key-meeting'&&m.acta) return {label:'KEY MEETING — Acta Formal',content:m.acta};
@@ -3869,6 +4042,33 @@ function handleChange(e) {
       ref.data.answers[qid] = cur.join('||');
       ref.save();
     }
+  }
+  else if (a === 'vef-save-voyage') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const sub = el.dataset.sub;
+    const target = sub ? (ref.data[sub] || (ref.data[sub] = {voyages:[],notes:''})) : ref.data;
+    if (!target.voyages) target.voyages = [];
+    const idx = parseInt(el.dataset.idx);
+    if (!target.voyages[idx]) target.voyages[idx] = emptyVEFVoyage();
+    target.voyages[idx][el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
+    ref.save();
+    // Re-render just the results section without full render for performance
+    // (full render would reset focus — defer to next tick if field not date/select)
+    if (el.type === 'date' || el.tagName === 'SELECT') render();
+    else {
+      // update just the stats display
+      const opData = getOp(c.opId);
+      if (opData) saveOp(opData);
+    }
+  }
+  else if (a === 'vef-save-notes') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const sub = el.dataset.sub;
+    const target = sub ? (ref.data[sub] || (ref.data[sub] = {voyages:[],notes:''})) : ref.data;
+    target.notes = el.value;
+    ref.save();
   }
   else if (a === 'chk-comment') chkComment(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.value);
   else if (a === 'import-ops') {
