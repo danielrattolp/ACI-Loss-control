@@ -2,12 +2,20 @@
   "rewrites": [
     { "source": "/app.js",  "destination": "/app/app.js"  },
     { "source": "/app.css", "destination": "/app/app.css" },
+    { "source": "/brochure", "destination": "/assets/ACI-LATAM-Brochure-Corporativo.pdf" },
     { "source": "/((?!api/).*)", "destination": "/app/index.html" }
   ],
   "headers": [
     {
       "source": "/app/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+    },
+    {
+      "source": "/brochure",
+      "headers": [
+        { "key": "Content-Type", "value": "application/pdf" },
+        { "key": "Content-Disposition", "value": "attachment; filename=\"ACI-LATAM-Brochure-Corporativo.pdf\"" }
+      ]
     }
   ]
 }
