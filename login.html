@@ -139,7 +139,7 @@
         });
         const data = await res.json();
         if (data.ok) {
-          document.cookie = `aci_session=${data.token}; path=/; max-age=${60*60*8}; SameSite=Strict`;
+          document.cookie = `aci_session=${data.token}; path=/; SameSite=Strict`;
           window.location.href = '/operaciones';
         } else {
           err.textContent = data.error || 'Credenciales incorrectas';
