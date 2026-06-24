@@ -2058,6 +2058,11 @@ function buildDatosOrigen(d, ctx) {
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
 
+  const blTcvCalc = (parseFloat(bl.gsv)||0) + (parseFloat(bl.fw)||0);
+  const blTcvDisplay = blTcvCalc > 0 ? blTcvCalc.toFixed(3) : (bl.tcv || '—');
+  const blNsvCalc = (parseFloat(bl.gsv)||0) * (1 - (parseFloat(bl.bsw)||0) / 100);
+  const blNsvDisplay = blNsvCalc > 0 ? blNsvCalc.toFixed(3) : (bl.nsv || '—');
+
   const ullRow = (t, i) => `
     <tr>
       <td style="font-weight:600;font-size:12px;text-align:center">${t.name}</td>
@@ -2122,10 +2127,19 @@ function buildDatosOrigen(d, ctx) {
         </tr></thead>
         <tbody>
           ${row('GSV @60°F','gsv','0.001','BBL')}
-          ${row('TCV (GSV+FW)','tcv','0.001','BBL')}
+          <tr>
+            <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">TCV (GSV+FW)</td>
+            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blTcvDisplay}</span></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+          </tr>
           ${row('Free Water','fw','0.001','BBL')}
           ${row('API Gravity @60°F','api','0.1','°API')}
           ${row('BS&W','bsw','0.01','%')}
+          <tr>
+            <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">NSV @60°F</td>
+            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blNsvDisplay}</span></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+          </tr>
           ${row('Densidad @15°C','densityAt15','0.0001','kg/m³')}
           ${row('Densidad @60°F','densityAt60','0.0001','kg/m³')}
           ${row('GSV m³ @15°C','m3At15','0.001','m³')}
@@ -2200,6 +2214,8 @@ function buildUllageArribo(d, mod, ctx) {
 
   const tcvCalc = (parseFloat(totals.gsv)||0) + (parseFloat(totals.fw)||0);
   const tcvDisplay = tcvCalc > 0 ? tcvCalc.toFixed(3) : (totals.tcv || '—');
+  const nsvCalc = (parseFloat(totals.gsv)||0) * (1 - (parseFloat(totals.bsw)||0) / 100);
+  const nsvDisplay = nsvCalc > 0 ? nsvCalc.toFixed(3) : (totals.nsv || '—');
 
   return `
     <div class="module-title">📐 ${label}</div>
@@ -2257,6 +2273,11 @@ function buildUllageArribo(d, mod, ctx) {
           ${totRow('Free Water','fw','BBL')}
           ${totRow('API Gravity @60°F','api','°API')}
           ${totRow('BS&W','bsw','%')}
+          <tr>
+            <td style="font-weight:600;font-size:12px;color:var(--ink)">NSV @60°F</td>
+            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${nsvDisplay}</span></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+          </tr>
           ${totRow('Densidad @15°C','densityAt15','kg/m³')}
           ${totRow('GSV m³ @15°C','m3At15','m³')}
           ${totRow('Toneladas largas','longTons','LT')}
@@ -2268,12 +2289,26 @@ function buildUllageArribo(d, mod, ctx) {
     <div class="card">
       <div class="card-title">Documentos Adjuntos</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-        ${[['vessel','📄 Documentos Nave'],['surveyor','📄 Documentos Surveyor'],['aci','📊 Excel ACI (Calculado)']].map(([k,lbl]) => `
-          <div style="border:1px dashed var(--line);border-radius:8px;padding:12px;text-align:center">
-            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">${lbl}</div>
-            <div style="font-size:11px;color:var(--muted2)">${(d.docs?.[k]||[]).length} archivo(s)</div>
-            <div style="font-size:10px;color:var(--muted2);margin-top:4px">📎 Próximamente</div>
-          </div>`).join('')}
+        ${[['vessel','📄 Documentos Nave'],['surveyor','📄 Documentos Surveyor'],['aci','📊 Excel ACI (Calculado)']].map(([k,lbl]) => {
+          const files = d.docs?.[k] || [];
+          return `
+          <div style="border:1px dashed var(--line);border-radius:8px;padding:12px">
+            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px">${lbl}</div>
+            ${files.map((f,i) => `
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;background:var(--bg2);border-radius:4px;padding:4px 8px">
+                <a href="${f.data}" download="${f.name}" style="flex:1;font-size:11px;color:var(--sea);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.name}">📎 ${f.name}</a>
+                <button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0"
+                  data-action="doc-remove" data-ctx="${ctx}" data-slot="${k}" data-idx="${i}">✕</button>
+              </div>`).join('')}
+            <label style="display:block;margin-top:6px;cursor:pointer">
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--sea);font-weight:600;border:1px solid var(--sea);border-radius:4px;padding:3px 8px">
+                + Adjuntar archivo
+              </span>
+              <input type="file" multiple style="display:none"
+                data-action="doc-upload" data-ctx="${ctx}" data-slot="${k}">
+            </label>
+          </div>`;
+        }).join('')}
       </div>
     </div>
 
@@ -2516,7 +2551,10 @@ function buildReporteEvolutivo(op, ctx) {
 
     <div class="card">
       <div class="card-title">Balance de Cantidades — Origen vs Arribo</div>
-      ${(bl.gsv || tot.gsv) ? `
+      ${(bl.gsv || tot.gsv) ? (() => {
+        const _blNsv  = (parseFloat(bl.gsv)||0)  > 0 ? ((parseFloat(bl.gsv)||0)  * (1 - (parseFloat(bl.bsw)||0)  / 100)).toFixed(3) : '';
+        const _totNsv = (parseFloat(tot.gsv)||0) > 0 ? ((parseFloat(tot.gsv)||0) * (1 - (parseFloat(tot.bsw)||0) / 100)).toFixed(3) : '';
+        return `
       <div style="overflow-x:auto">
         <table class="data-table" style="width:100%">
           <thead><tr>
@@ -2529,6 +2567,7 @@ function buildReporteEvolutivo(op, ctx) {
           </tr></thead>
           <tbody>
             ${diffRow('GSV @60°F',    bl.gsv,        tot.gsv,        'BBL')}
+            ${diffRow('NSV @60°F',    _blNsv,        _totNsv,        'BBL')}
             ${diffRow('TCV (GSV+FW)', bl.tcv,        tot.tcv,        'BBL')}
             ${diffRow('Free Water',   bl.fw,         tot.fw,         'BBL')}
             ${diffRow('API @60°F',    bl.api,        tot.api,        '°API')}
@@ -2538,7 +2577,8 @@ function buildReporteEvolutivo(op, ctx) {
             ${diffRow('Ton. métricas',bl.metricTons,  tot.metricTons, 'MT')}
           </tbody>
         </table>
-      </div>` : `<div class="info-box">Completa Datos de Origen y Ullage Arribo para ver el balance.</div>`}
+      </div>`;
+      })() : `<div class="info-box">Completa Datos de Origen y Ullage Arribo para ver el balance.</div>`}
     </div>
 
     ${(vefO || vefA) ? `
@@ -4278,11 +4318,15 @@ function saveNested(ctxStr, obj, field, value) {
   if (!ref) return;
   if (!ref.data[obj]) ref.data[obj] = {};
   ref.data[obj][field] = value;
-  // Auto-recalculate TCV = GSV + FW when either changes in totals
-  if (obj === 'totals' && (field === 'gsv' || field === 'fw')) {
-    const gsv = parseFloat(ref.data.totals.gsv) || 0;
-    const fw  = parseFloat(ref.data.totals.fw)  || 0;
-    if (gsv > 0) ref.data.totals.tcv = (gsv + fw).toFixed(3);
+  // Auto-recalculate TCV = GSV + FW, NSV = GSV × (1 - BSW/100)
+  if (obj === 'totals' || obj === 'bl') {
+    const gsv = parseFloat(ref.data[obj].gsv) || 0;
+    const fw  = parseFloat(ref.data[obj].fw)  || 0;
+    const bsw = parseFloat(ref.data[obj].bsw) || 0;
+    if (gsv > 0) {
+      if (field === 'gsv' || field === 'fw')  ref.data[obj].tcv = (gsv + fw).toFixed(3);
+      if (field === 'gsv' || field === 'bsw') ref.data[obj].nsv = (gsv * (1 - bsw / 100)).toFixed(3);
+    }
   }
   ref.save();
 }
@@ -4383,6 +4427,12 @@ function handleClick(e) {
   }
   else if (a === 'tl-add-event' || a === 'tl-add-row') tlAddRow(el.dataset.ctx);
   else if (a === 'tl-rm-event' || a === 'tl-del-row') tlDelRow(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'doc-remove') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const slot = el.dataset.slot; const idx = parseInt(el.dataset.idx);
+    if (ref.data.docs?.[slot]) { ref.data.docs[slot].splice(idx, 1); ref.save(); render(); }
+  }
   else if (a === 'vef-add-voyage') {
     const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
     if (!_ref) return;
@@ -4672,6 +4722,25 @@ function handleChange(e) {
       ref.data.answers[qid] = cur.join('||');
       ref.save();
     }
+  }
+  else if (a === 'doc-upload') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const slot = el.dataset.slot;
+    if (!ref.data.docs) ref.data.docs = {};
+    if (!ref.data.docs[slot]) ref.data.docs[slot] = [];
+    const files = Array.from(el.files);
+    let pending = files.length;
+    if (!pending) return;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        ref.data.docs[slot].push({ name: file.name, data: ev.target.result, size: file.size, date: new Date().toISOString() });
+        pending--;
+        if (pending === 0) { ref.save(); render(); }
+      };
+      reader.readAsDataURL(file);
+    });
   }
   else if (a === 'vef-save-voyage') {
     const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
