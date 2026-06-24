@@ -215,6 +215,21 @@ tr.total-row td:first-child { color: var(--amber); }
 .event-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; margin-left: auto; }
 .event-del:hover { color: var(--red); }
 
+/* ===== TIME LOG TABLE (SOF) ===== */
+.tl-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+.tl-table thead tr { background: var(--ink); color: var(--white); }
+.tl-table thead th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+.tl-table tbody tr { border-bottom: 1px solid var(--line2); }
+.tl-table tbody tr:hover { background: rgba(0,0,0,.025); }
+.tl-cell { width: 100%; padding: 5px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink); font-size: 12px; font-family: inherit; }
+.tl-cell:focus { outline: none; border-color: var(--amber); background: #fffef8; }
+.tl-cell:hover { border-color: var(--line); }
+.tl-time { text-align: center; font-family: 'Courier New', monospace; font-weight: 600; letter-spacing: .05em; }
+.tl-comment { color: var(--sea); font-style: italic; }
+.tl-comment:focus { font-style: normal; }
+.btn-icon-sm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+.btn-icon-sm:hover { color: var(--red); background: rgba(220,50,50,.08); }
+
 /* ===== CHECKLIST ===== */
 .checklist-section { margin-bottom: 20px; }
 .checklist-section-title { font-size: 12px; font-weight: 700; color: var(--sea); text-transform: uppercase; letter-spacing: .06em; padding: 8px 0; border-bottom: 1px solid var(--line2); margin-bottom: 10px; }

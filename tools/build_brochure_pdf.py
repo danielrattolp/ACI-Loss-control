@@ -7,6 +7,16 @@ OUT = ROOT / "outputs" / "brochure"
 ASSETS = ROOT / "assets"
 W, H = 1240, 1754
 
+AMBER  = (212, 155, 72)
+NAVY   = (26,  47,  90)
+GREEN  = (54,  94,  56)
+INK    = (16,  20,  23)
+MUTED  = (93, 104, 112)
+LIGHT  = (246, 247, 244)
+WHITE  = (255, 255, 255)
+CARD_BD = (211, 218, 223)
+STEEL  = (31,  88, 103)
+
 
 def font(size, bold=False, serif=False):
     candidates = []
@@ -23,21 +33,20 @@ def font(size, bold=False, serif=False):
 
 
 F = {
-    "eyebrow": font(20, True),
-    "h1": font(100, True, True),
-    "h2": font(54, True, True),
-    "h3": font(24, True),
-    "body": font(21),
-    "small": font(18),
+    "eyebrow":    font(20, True),
+    "h1":         font(100, True, True),
+    "h2":         font(54, True, True),
+    "h3":         font(24, True),
+    "body":       font(21),
+    "small":      font(18),
     "small_bold": font(18, True),
-    "value": font(22, True),
+    "value":      font(22, True),
 }
 
 
 def wrap(draw, text, fnt, max_width):
     words = text.split()
-    lines = []
-    current = ""
+    lines, current = [], ""
     for word in words:
         test = word if not current else f"{current} {word}"
         if draw.textlength(test, font=fnt) <= max_width:
@@ -66,7 +75,7 @@ def fit_cover(img, size):
     nw, nh = int(iw * scale), int(ih * scale)
     resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
     left = (nw - sw) // 2
-    top = (nh - sh) // 2
+    top  = (nh - sh) // 2
     return resized.crop((left, top, left + sw, top + sh))
 
 
@@ -83,6 +92,7 @@ def paste_logo(page, logo_path, box, mode="contain"):
     page.alpha_composite(logo, (x, y))
 
 
+# ── PÁGINA 1: PORTADA ──────────────────────────────────────────────────────
 def cover_page():
     hero = Image.open(ASSETS / "oil-tanker-hero.png").convert("RGB")
     page = fit_cover(hero, (W, H)).convert("RGBA")
@@ -98,118 +108,246 @@ def cover_page():
 
     paste_logo(page, ASSETS / "aci-logo-black.jpeg", (88, 92, 370, 140))
 
-    x = 88
-    y = 1070
-    amber = (212, 155, 72, 255)
-    white = (255, 255, 255, 255)
-    soft = (232, 235, 232, 225)
-    draw.text((x, y), "LOSS CONTROL PETROLERO Y EXPEDITING", font=F["eyebrow"], fill=amber)
+    x    = 88
+    y    = 1050
+    amberA = (*AMBER, 255)
+    whiteA = (*WHITE, 255)
+    softA  = (232, 235, 232, 225)
+
+    draw.text((x, y), "LOSS CONTROL PETROLERO Y EXPEDITING", font=F["eyebrow"], fill=amberA)
     y += 50
-    draw.text((x, y), "ACI LATAM", font=F["h1"], fill=white)
+    draw.text((x, y), "ACI LATAM", font=F["h1"], fill=whiteA)
     y += 120
     y = draw_wrapped(
-        draw,
-        (x, y),
-        "Control tecnico independiente para operaciones de carga, descarga, transferencia y almacenamiento de mercancias petroleras.",
-        font(32),
-        soft,
-        860,
-        1.2,
+        draw, (x, y),
+        "Control tecnico independiente para operaciones de carga, descarga, "
+        "transferencia y almacenamiento de mercancias petroleras.",
+        font(32), softA, 860, 1.2,
     )
     y += 44
 
-    strip_x, strip_y, strip_w, strip_h = x, y, 940, 148
-    draw.rectangle((strip_x, strip_y, strip_x + strip_w, strip_y + strip_h), fill=(11, 15, 18, 204), outline=(255, 255, 255, 58))
+    strip_x, strip_y, strip_w, strip_h = x, y, 1064, 148
+    draw.rectangle(
+        (strip_x, strip_y, strip_x + strip_w, strip_y + strip_h),
+        fill=(11, 15, 18, 204), outline=(255, 255, 255, 58),
+    )
     col_w = strip_w // 3
     items = [
-        ("FOCO", "Cantidad, calidad, tiempos y evidencia"),
-        ("COBERTURA", "Chile, Ecuador, Colombia, Peru, Caribe y Estados Unidos"),
-        ("CONTACTO", "contacto@acilatam.cl"),
+        ("FOCO",      "Cantidad, calidad, tiempos y evidencia"),
+        ("COBERTURA", "Chile, Argentina, Ecuador, Colombia, Peru, Caribe y Estados Unidos"),
+        ("CONTACTO",  "contacto@acilatam.cl"),
     ]
     for i, (label, value) in enumerate(items):
         cx = strip_x + i * col_w
         if i:
             draw.line((cx, strip_y, cx, strip_y + strip_h), fill=(255, 255, 255, 45), width=1)
-        draw.text((cx + 28, strip_y + 27), label, font=F["small_bold"], fill=amber)
-        draw_wrapped(draw, (cx + 28, strip_y + 62), value, F["value"], soft, col_w - 56, 1.15)
+        draw.text((cx + 28, strip_y + 27), label, font=F["small_bold"], fill=amberA)
+        draw_wrapped(draw, (cx + 28, strip_y + 62), value, F["value"], softA, col_w - 56, 1.15)
+
     return page.convert("RGB")
 
 
-def card(draw, x, y, w, h, title, body):
-    draw.rounded_rectangle((x, y, x + w, y + h), radius=10, fill=(255, 255, 255), outline=(211, 218, 223), width=2)
-    draw.text((x + 26, y + 24), title, font=F["h3"], fill=(31, 88, 103))
-    draw_wrapped(draw, (x + 26, y + 64), body, F["small"], (52, 65, 73), w - 52, 1.28)
-
-
+# ── PÁGINA 2: CONTENIDO ────────────────────────────────────────────────────
 def content_page():
-    page = Image.new("RGB", (W, H), (246, 247, 244))
+    page = Image.new("RGB", (W, H), LIGHT)
     draw = ImageDraw.Draw(page)
+
+    # Header
     logo = Image.open(ASSETS / "aci-logo-black.jpeg").convert("RGBA")
     logo.thumbnail((300, 110), Image.Resampling.LANCZOS)
     page.paste(logo, (88, 74), logo)
-    draw.text((910, 105), "BROCHURE CORPORATIVO", font=F["small_bold"], fill=(93, 104, 112))
+    draw.text((870, 105), "BROCHURE CORPORATIVO 2025", font=F["small_bold"], fill=MUTED)
     draw.line((88, 190, 1152, 190), fill=(207, 214, 218), width=2)
 
-    y = 250
-    draw.text((88, y), "Presencia tecnica donde", font=F["h2"], fill=(16, 20, 23))
+    # ── Título principal ──────────────────────────────────────────────────
+    y = 226
+    draw.text((88, y), "Presencia tecnica donde", font=F["h2"], fill=INK)
     y += 60
-    draw.text((88, y), "cada barril importa.", font=F["h2"], fill=(16, 20, 23))
-    y += 86
+    draw.text((88, y), "cada barril importa.", font=F["h2"], fill=INK)
+    y += 76
     y = draw_wrapped(
-        draw,
-        (88, y),
-        "ACI LATAM protege los intereses operacionales y economicos del cliente durante operaciones petroleras criticas. Actuamos como ojos tecnicos en terreno, registrando eventos, verificando mediciones, consolidando evidencias y emitiendo reportes claros para reducir perdidas, controversias y decisiones sin respaldo.",
-        F["body"],
-        (38, 52, 59),
-        980,
-        1.33,
+        draw, (88, y),
+        "ACI LATAM actua como ojos tecnicos independientes en operaciones petroleras criticas. "
+        "Cada intervencion genera evidencia estructurada, calculos trazables y reportes que "
+        "respaldan decisiones ejecutivas, cierres contractuales y reclamaciones.",
+        F["body"], (38, 52, 59), 1064, 1.3,
     )
-    y += 34
+    y += 28
 
-    cards = [
-        ("Loss control y expediting", "Presencia en operaciones de carga, descarga y transferencia, con control de eventos, tiempos y alertas tempranas."),
-        ("Reconciliacion operativa", "Comparacion de cantidades, documentos, mediciones y diferencias entre nave, terminal, planta o cliente."),
-        ("Control cantidad/calidad", "Supervision de aforos, temperatura, muestreo, documentacion de laboratorio y consistencia operacional."),
-        ("Soporte a reclamos", "Consolidacion de lineas de tiempo, fotografias, comunicaciones, calculos y documentos criticos."),
-        ("Informes trazables", "Reportes preliminares, bitacoras de operacion, dossier documental e informe final con hallazgos."),
-        ("Control documental", "Ordenamiento de evidencia operacional para respaldar cierres, diferencias, auditorias y decisiones ejecutivas."),
+    # ── CÓMO OPERAMOS ─────────────────────────────────────────────────────
+    draw.text((88, y), "COMO OPERAMOS — FLUJO DE CADA OPERACION", font=F["eyebrow"], fill=AMBER)
+    y += 32
+    draw.text((88, y), "No hacemos inspecciones. Auditamos procesos de inspeccion.", font=font(22, True, True), fill=NAVY)
+    y += 38
+
+    steps = [
+        ("01", "Key Meeting",      "Reunion tecnica previa. Cuestionario API MPMS 17.1 con Ship Officer, terminal y cliente."),
+        ("02", "Datos de Origen",  "Revision del Bill of Lading: GSV, TCV, API, BS&W. VEF historico del buque en origen."),
+        ("03", "Medicion & VEF",   "Ullage por tanque con trim, escora y temperatura. VEF calculado segun API MPMS 17.9."),
+        ("04", "Monitoreo",        "Log horario de descarga. Verificacion de termometros (±0.5°F). Checklist de auditoria."),
+        ("05", "Analisis Dif.",    "Conciliacion origen vs. destino. Error sistematico vs. aleatorio. Causas API MPMS 13."),
+        ("06", "Reporte Final",    "Dossier trazable, certificados firmados y PDF completo exportable del sistema."),
     ]
-    card_w, card_h = 336, 178
-    gap = 28
-    start_x = 88
-    for idx, data in enumerate(cards):
-        cx = start_x + (idx % 3) * (card_w + gap)
-        cy = y + (idx // 3) * (card_h + gap)
-        card(draw, cx, cy, card_w, card_h, *data)
 
-    y = y + 2 * card_h + gap + 50
-    left = (88, y, 646, y + 260)
-    right = (674, y, 1152, y + 260)
-    draw.rounded_rectangle(left, radius=10, fill=(84, 110, 87))
-    draw.rounded_rectangle(right, radius=10, fill=(17, 24, 29))
-    draw.text((left[0] + 30, left[1] + 28), "Cobertura", font=font(30, True), fill=(255, 255, 255))
-    draw_wrapped(draw, (left[0] + 30, left[1] + 74), "Capacidad de coordinacion para operaciones nacionales, regionales e internacionales.", F["small"], (230, 237, 230), 490, 1.25)
-    bullets = ["Chile, Ecuador, Colombia y Peru.", "Caribe y Estados Unidos.", "Puertos, terminales, plantas, buques y puntos de transferencia."]
-    by = left[1] + 142
+    n_steps = len(steps)
+    gap     = 14
+    sw      = (1064 - gap * (n_steps - 1)) // n_steps   # ≈ 162px
+    sh      = 158
+    sx, sy  = 88, y
+
+    for i, (num, title, desc) in enumerate(steps):
+        bx = sx + i * (sw + gap)
+
+        # Arrow between boxes
+        if i > 0:
+            ax, ay = bx - gap, sy + sh // 2
+            draw.polygon([(ax, ay - 6), (ax + gap - 2, ay), (ax, ay + 6)], fill=AMBER)
+
+        # Card
+        draw.rounded_rectangle((bx, sy, bx + sw, sy + sh), radius=8, fill=WHITE, outline=CARD_BD, width=2)
+
+        # Number badge
+        draw.ellipse((bx + 14, sy + 13, bx + 44, sy + 43), fill=NAVY)
+        draw.text((bx + 20, sy + 16), num, font=font(17, True), fill=WHITE)
+
+        # Title
+        draw.text((bx + 14, sy + 54), title, font=font(16, True), fill=NAVY)
+
+        # Desc
+        draw_wrapped(draw, (bx + 14, sy + 77), desc, font(13), MUTED, sw - 28, 1.22)
+
+    y = sy + sh + 34
+
+    # ── DOS COLUMNAS: REPORTES (izq) + IA (der) ───────────────────────────
+    col1_x, col1_w = 88,  540
+    col2_x, col2_w = 652, 500
+
+    # Etiqueta sección
+    draw.text((col1_x, y), "TIPOS DE REPORTES QUE EMITIMOS", font=F["eyebrow"], fill=AMBER)
+    draw.text((col2_x, y), "CONSULTOR IA INTEGRADO", font=F["eyebrow"], fill=AMBER)
+    y += 32
+
+    reports_top = y
+
+    reports = [
+        ("Reporte Preliminar",      "Emitido durante la operacion con datos parciales y alertas tempranas."),
+        ("Bitacora Operacional/SOF", "Registro cronologico de eventos, tiempos, pausas y acuerdos en cubierta."),
+        ("Discharge Record",         "Log horario de volumenes bombeados, presiones y observaciones de descarga."),
+        ("Certificate of Quantity",  "COQ: GOV, GSV, TCV, Free Water, API, BS&W y metodo de calculo aplicado."),
+        ("Certificate of Quality",   "CQL con resultados de laboratorio o referencia al certificado de origen."),
+        ("Reporte VEF Comparativo",  "Historial de viajes calificantes, ratio V/S, banda ±0.30% y VEF resultante."),
+        ("Informe Final — Dossier",  "Hallazgos, analisis de diferencia, causas y evidencia fotografica completa."),
+        ("Letter of Protest",        "Emitida cuando la diferencia supera tolerancia o se detectan irregularidades."),
+    ]
+
+    ry = y
+    for rpt_title, rpt_desc in reports:
+        # Amber bullet
+        draw.ellipse((col1_x, ry + 7, col1_x + 11, ry + 18), fill=AMBER)
+        draw.text((col1_x + 20, ry), rpt_title, font=font(16, True), fill=NAVY)
+        ry += 24
+        ry = draw_wrapped(draw, (col1_x + 20, ry), rpt_desc, font(14), (60, 72, 80), col1_w - 20, 1.22)
+        ry += 9
+
+    # IA box — altura fijada para coincidir con la columna de reportes
+    ia_h   = max(ry - reports_top, 280)
+    ia_top = reports_top
+
+    draw.rounded_rectangle(
+        (col2_x, ia_top, col2_x + col2_w, ia_top + ia_h),
+        radius=10, fill=NAVY,
+    )
+
+    iy = ia_top + 28
+    draw.text((col2_x + 28, iy), "Asistencia inteligente", font=font(26, True), fill=WHITE)
+    iy += 36
+    draw.text((col2_x + 28, iy), "integrada al sistema", font=font(24, False), fill=(*AMBER, 255)[:3])
+    iy += 44
+
+    ia_items = [
+        ("Actas formales de Key Meeting",
+         "Genera documentacion estructurada de la reunion pre-inspeccion automaticamente."),
+        ("Analisis de diferencias de ullage",
+         "Identifica causas probables con referencias exactas a API MPMS 12, 13 y 17."),
+        ("Clasificacion de errores",
+         "Distingue error sistematico (sesgo) de error aleatorio con fundamento estadistico."),
+        ("Monitoreo del historial VEF",
+         "Detecta desviaciones del buque respecto a su factor historico documentado."),
+        ("Redaccion del informe final",
+         "Asiste con lenguaje tecnico estructurado y coherente con los datos ingresados."),
+    ]
+
+    for ia_t, ia_d in ia_items:
+        if iy + 70 > ia_top + ia_h - 20:
+            break
+        # Small amber line accent
+        draw.rectangle((col2_x + 28, iy, col2_x + 36, iy + 2), fill=AMBER)
+        iy += 10
+        draw.text((col2_x + 28, iy), ia_t, font=font(15, True), fill=WHITE)
+        iy += 22
+        iy = draw_wrapped(draw, (col2_x + 28, iy), ia_d, font(13), (185, 200, 210), col2_w - 56, 1.2)
+        iy += 14
+
+    # Nota al pie de la caja IA
+    footer_ia_y = ia_top + ia_h - 44
+    draw.line((col2_x + 28, footer_ia_y, col2_x + col2_w - 28, footer_ia_y), fill=(255, 255, 255, 40), width=1)
+    draw.text((col2_x + 28, footer_ia_y + 10), "Sistema Operacional — app.acilatam.cl", font=font(13), fill=(160, 180, 195))
+
+    y = max(ry, ia_top + ia_h) + 36
+
+    # ── COBERTURA + CONTACTO ──────────────────────────────────────────────
+    box_h    = 236
+    left_box = (88,  y, 644, y + box_h)
+    rght_box = (672, y, 1152, y + box_h)
+
+    draw.rounded_rectangle(left_box, radius=10, fill=GREEN)
+    draw.rounded_rectangle(rght_box, radius=10, fill=(17, 24, 29))
+
+    # Cobertura
+    draw.text((left_box[0] + 30, left_box[1] + 24), "Cobertura regional", font=font(28, True), fill=WHITE)
+    draw_wrapped(
+        draw, (left_box[0] + 30, left_box[1] + 66),
+        "Coordinacion para operaciones nacionales, regionales e internacionales.",
+        F["small"], (210, 228, 210), 488, 1.25,
+    )
+    bullets = [
+        "Chile y Argentina.",
+        "Ecuador, Colombia y Peru.",
+        "Caribe y Estados Unidos.",
+        "Puertos, terminales, plantas, buques y STS.",
+    ]
+    by = left_box[1] + 124
     for bullet in bullets:
-        draw.ellipse((left[0] + 32, by + 7, left[0] + 42, by + 17), fill=(212, 155, 72))
-        draw_wrapped(draw, (left[0] + 56, by), bullet, F["small"], (238, 241, 238), 465, 1.2)
-        by += 35
+        draw.ellipse((left_box[0] + 32, by + 5, left_box[0] + 42, by + 15), fill=AMBER)
+        draw_wrapped(draw, (left_box[0] + 56, by), bullet, F["small"], (238, 241, 238), 465, 1.2)
+        by += 27
 
-    draw.text((right[0] + 30, right[1] + 28), "Solicite cobertura", font=font(30, True), fill=(255, 255, 255))
-    draw_wrapped(draw, (right[0] + 30, right[1] + 78), "Envienos los datos de la operacion, producto, terminal, fecha estimada y servicio requerido.", F["small"], (224, 229, 232), 405, 1.25)
-    draw.text((right[0] + 30, right[1] + 172), "contacto@acilatam.cl", font=font(28, True), fill=(255, 255, 255))
+    # Contacto
+    draw.text((rght_box[0] + 30, rght_box[1] + 24), "Solicite cobertura", font=font(28, True), fill=WHITE)
+    draw_wrapped(
+        draw, (rght_box[0] + 30, rght_box[1] + 70),
+        "Envienos los datos de la operacion, producto, terminal, fecha estimada y servicio requerido.",
+        F["small"], (224, 229, 232), 408, 1.25,
+    )
+    draw.text((rght_box[0] + 30, rght_box[1] + 162), "contacto@acilatam.cl", font=font(26, True), fill=WHITE)
+    draw_wrapped(
+        draw, (rght_box[0] + 30, rght_box[1] + 200),
+        "www.acilatam.cl", font(18), (160, 175, 185), 400, 1.2,
+    )
 
-    draw.line((88, 1664, 1152, 1664), fill=(207, 214, 218), width=2)
-    draw.text((88, 1692), "ACI LATAM | Loss Control Experts", font=F["small"], fill=(101, 113, 123))
-    draw.text((978, 1692), "www.acilatam.cl", font=F["small"], fill=(101, 113, 123))
+    # Footer
+    draw.line((88, 1686, 1152, 1686), fill=(207, 214, 218), width=2)
+    draw.text((88,  1710), "ACI LATAM | Loss Control Experts", font=F["small"], fill=MUTED)
+    draw.text((960, 1710), "www.acilatam.cl", font=F["small"], fill=MUTED)
+
     return page
 
 
+# ── MAIN ──────────────────────────────────────────────────────────────────
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     pages = [cover_page(), content_page()]
-    pngs = []
+    pngs  = []
     for i, page in enumerate(pages, 1):
         path = OUT / f"ACI-LATAM-Brochure-Pagina-{i}.png"
         page.save(path, optimize=True)
@@ -226,8 +364,8 @@ def main():
 
     print(pdf)
     print(preview_path)
-    for path in pngs:
-        print(path)
+    for p in pngs:
+        print(p)
 
 
 if __name__ == "__main__":

@@ -1270,28 +1270,77 @@ function buildModuleContent(op, mod, context) {
 function buildModuleContentInner(data, mod, ctx) {
   const meta = MODULE_META[mod] || {};
   const ctxStr = encodeCtx(ctx);
-
   const mtype = moduleType(mod);
+  const NO_IA_PANEL = new Set(['reporte-evolutivo','summary']);
+
+  let html = '';
   // Nuevos módulos
-  if (mod === 'datos-origen')                                             return buildDatosOrigen(data, ctxStr);
-  if (mod === 'ullage-arribo' || mtype === 'ullage-ini' || mtype === 'ullage-fin') return buildUllageArribo(data, mod, ctxStr);
-  if (mod === 'vef-comparativo')                                          return buildVEFComparativo(data, ctxStr);
-  if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
-  if (mod === 'termometros')                                              return buildTermometros(data, ctxStr);
+  if (mod === 'datos-origen')                                             html = buildDatosOrigen(data, ctxStr);
+  else if (mod === 'ullage-arribo' || mtype === 'ullage-ini' || mtype === 'ullage-fin') html = buildUllageArribo(data, mod, ctxStr);
+  else if (mod === 'vef-comparativo')                                     html = buildVEFComparativo(data, ctxStr);
+  else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
+  else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
-  if (mod === 'origen')                                                   return buildOrigen(data, ctxStr);
-  if (mod === 'key-meeting')                                              return buildKeyMeeting(data, ctxStr);
-  if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage' || mtype === 'ullage-inicial' || mtype === 'ullage-final') return buildUllage(data, mod, ctxStr);
-  if (mod === 'vef')                                                      return buildVEF(data, ctxStr);
-  if (mod === 'time-log')                                                 return buildTimeLog(data, ctxStr);
-  if (mod === 'discharge-record')                                         return buildDischargeRecord(data, ctxStr);
-  if (mod === 'slops')                                                    return buildSlops(data, ctxStr);
-  if (mod.startsWith('checklist') || mtype === 'checklist')              return buildChecklist(data, mod, ctxStr);
-  if (mod === 'summary') {
+  else if (mod === 'origen')                                              html = buildOrigen(data, ctxStr);
+  else if (mod === 'key-meeting')                                         html = buildKeyMeeting(data, ctxStr);
+  else if (mod === 'ullage-inicial' || mod === 'ullage-final' || mtype === 'ullage' || mtype === 'ullage-inicial' || mtype === 'ullage-final') html = buildUllage(data, mod, ctxStr);
+  else if (mod === 'vef')                                                 html = buildVEF(data, ctxStr);
+  else if (mod === 'time-log')                                            html = buildTimeLog(data, ctxStr);
+  else if (mod === 'discharge-record')                                    html = buildDischargeRecord(data, ctxStr);
+  else if (mod === 'slops')                                               html = buildSlops(data, ctxStr);
+  else if (mod.startsWith('checklist') || mtype === 'checklist')         html = buildChecklist(data, mod, ctxStr);
+  else if (mod === 'summary') {
     const op = getOp(ctx.opId);
     return op ? buildSummary(op, ctxStr) : '<div class="text-muted">Operación no encontrada.</div>';
+  } else {
+    html = `<div class="module-title">${meta.label}</div><div class="text-muted">Módulo en desarrollo.</div>`;
   }
-  return `<div class="module-title">${meta.label}</div><div class="text-muted">Módulo en desarrollo.</div>`;
+
+  if (!NO_IA_PANEL.has(mod)) html += buildModuleIAPanel(data, mod, ctx, ctxStr);
+  return html;
+}
+
+// ===== PANEL IA POR MÓDULO =====
+function buildModuleIAPanel(data, mod, ctx, ctxStr) {
+  const meta = MODULE_META[mod] || {};
+  const label = meta.label || mod;
+  const analysis = data.iaAnalysis || '';
+  const iaDate   = data.iaDate   || '';
+  const analyzing = data._iaLoading;
+  // iaIncludeInReport: true by default (undefined = true), false = excluded
+  const included = data.iaIncludeInReport !== false;
+
+  const includeToggle = analysis ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:${included?'#f0f7f0':'#fff8f0'};border-radius:6px;border:1px solid ${included?'#6aaa6a':'#e8a030'}">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;margin:0">
+        <input type="checkbox" ${included?'checked':''} data-action="mod-ia-toggle-report" data-ctx="${ctxStr}" data-mod="${mod}"
+          style="width:15px;height:15px;accent-color:#1a2f5a;cursor:pointer">
+        <span style="font-size:12px;font-weight:600;color:${included?'#2a6a2a':'#b06000'}">
+          ${included ? '📊 Incluido en Reporte Evolutivo' : '⬜ No incluido en Reporte Evolutivo'}
+        </span>
+      </label>
+      <span style="font-size:10px;color:var(--muted)">Opcional</span>
+    </div>` : '';
+
+  return `
+  <div class="card mod-ia-panel" style="margin-top:20px;border-top:2px solid var(--amber);background:linear-gradient(135deg,#fffef8 0%,#f8faff 100%)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${analysis?'10px':'0'}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">🤖</span>
+        <div>
+          <div style="font-weight:700;font-size:13px;color:var(--ink)">Consultor IA — ${label}</div>
+          ${iaDate ? `<div style="font-size:10px;color:var(--muted)">Último análisis: ${new Date(iaDate).toLocaleString('es-CL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" data-action="mod-ia-analyze" data-ctx="${ctxStr}" data-mod="${mod}"
+        ${analyzing?'disabled':''} style="gap:6px">
+        ${analyzing ? '⏳ Analizando…' : analysis ? '🔄 Re-Analizar' : '🤖 Analizar Módulo'}
+      </button>
+    </div>
+    ${analysis
+      ? `<div class="ia-response" style="margin-top:8px;white-space:pre-wrap;font-size:12px;line-height:1.65;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px 14px">${analysis}</div>${includeToggle}`
+      : `<div style="font-size:12px;color:var(--muted);padding-top:6px">Haga clic en "Analizar Módulo" para obtener comentarios técnicos del inspector IA basados en los datos ingresados.</div>`}
+  </div>`;
 }
 
 function encodeCtx(ctx) { return encodeURIComponent(JSON.stringify(ctx)); }
@@ -2433,14 +2482,16 @@ function buildReporteEvolutivo(op, ctx) {
     </tr>`;
   };
 
-  // Collect all IA analyses from modules in order
+  // Collect all IA analyses flagged for inclusion in the report
   const analyses = (op.moduleOrder||[]).map(k => {
     const m = mods[k];
     if (!m) return null;
-    // Key Meeting acta
+    const mmeta = MODULE_META[k] || {};
+    // Key Meeting acta always included (has its own include logic)
     if (k === 'key-meeting' && m.acta) return { key: k, label: '🤝 Key Meeting — Acta Formal', date: m.date, content: m.acta };
-    // Ullage arribo IA
-    if (m.iaAnalysis) return { key: k, label: `📐 ${m._label||'Ullage Arribo'} — Análisis Comparativo`, date: m.iaDate, content: m.iaAnalysis };
+    // Module IA — only if flagged for report (default: included)
+    if (m.iaAnalysis && m.iaIncludeInReport !== false)
+      return { key: k, label: `${mmeta.icon||''}${mmeta.label||k} — Análisis IA`, date: m.iaDate, content: m.iaAnalysis };
     return null;
   }).filter(Boolean);
 
@@ -2539,17 +2590,74 @@ function buildReporteEvolutivo(op, ctx) {
     </div>`;
 }
 
-// ===== PDF FULL REPORT =====
-function printFullReport(opId) {
+// ===== PDF MODULE SELECTOR =====
+function showPDFSelector(opId) {
   const op = getOp(opId);
   if (!op) return;
   const mods = op.modules || {};
+  const order = op.moduleOrder || Object.keys(mods);
+
+  // Labels for all known modules
+  const modLabels = {
+    'datos-origen': '1. Datos de Origen — Bill of Lading',
+    'key-meeting': '2. Key Meeting',
+    'ullage-arribo': '3. Ullage al Arribo',
+    'vef-comparativo': '4. VEF al Arribo',
+    'discharge-record': '5. Discharge Record',
+    'time-log': '6. Time Log / SOF',
+    'termometros': '7. Verificación de Termómetros',
+    'checklist-inspeccion': '8. Checklist de Inspección',
+    'reporte-evolutivo': '9. Reporte Evolutivo — Conclusión',
+  };
+
+  // Modules the user can toggle — reporte-evolutivo is always included and fixed
+  const toggleable = order.filter(k => k !== 'reporte-evolutivo' && (modLabels[k] || MODULE_META[k]));
+
+  const rows = toggleable.map(k => {
+    const label = modLabels[k] || (MODULE_META[k]?.icon||'') + ' ' + (MODULE_META[k]?.label||k);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;cursor:pointer">
+      <input type="checkbox" value="${k}" checked style="width:16px;height:16px;accent-color:#1a2f5a">
+      <span style="font-size:13px">${label}</span>
+    </label>`;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pdf-selector-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:18px;font-weight:800;color:#1a2f5a;margin-bottom:4px">📄 Configurar PDF</div>
+      <div style="font-size:12px;color:#888;margin-bottom:16px">Selecciona los módulos a incluir. El Reporte Evolutivo siempre se agrega al final.</div>
+      <div style="margin-bottom:12px">${rows}</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f0f4ff;border-radius:8px;margin-bottom:20px">
+        <span style="font-size:16px">📊</span>
+        <span style="font-size:13px;font-weight:600;color:#1a2f5a">Reporte Evolutivo — siempre incluido al final</span>
+        <span style="margin-left:auto;font-size:18px;color:#1a2f5a">✓</span>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" data-action="pdf-cancel" style="padding:8px 20px">Cancelar</button>
+        <button class="btn btn-primary" data-action="pdf-confirm-modules" data-opid="${opId}" style="padding:8px 24px">
+          📄 Generar PDF
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ===== PDF FULL REPORT =====
+function printFullReport(opId, selectedMods) {
+  const op = getOp(opId);
+  if (!op) return;
+  const mods = op.modules || {};
+  const incl = selectedMods ? new Set(selectedMods) : null; // null = include all
+  const has = (k) => !incl || incl.has(k);
   const now = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'long',year:'numeric'});
   const fmtN = (v,d=3) => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
   const fmtD = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-CL') : '—';
   const sec = (title, content) => `<div class="section"><h2>${title}</h2>${content}</div>`;
   const tbl = (headers, rows) => `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
   const kv = (label, val) => `<tr><td class="label">${label}</td><td>${val||'—'}</td></tr>`;
+  const iaBlock = (text) => text ? `<h3>Análisis — Consultor IA</h3><div class="ia-block">${text.replace(/\n/g,'<br>')}</div>` : '';
 
   // ── COVER ──────────────────────────────────────────────────────────────
   const cover = `
@@ -2733,7 +2841,7 @@ function printFullReport(opId) {
 
   // ── DISCHARGE RECORD ──────────────────────────────────────────────────
   const dr = mods['discharge-record'] || {};
-  const drSec = dr.enabled && (dr.records||[]).length ? sec('5. Discharge Record — Registro Horario', `
+  const drSec = has('discharge-record') && dr.enabled && (dr.records||[]).length ? sec('5. Discharge Record — Registro Horario', `
     <table class="kv">
       ${kv('Fecha de inicio', fmtD(dr.startDate))}
       ${kv('Hora de inicio', dr.startTime||'—')}
@@ -2747,6 +2855,38 @@ function printFullReport(opId) {
       </tr>`).join('')
     )}
     ${dr.notes?`<p class="note">${dr.notes}</p>`:''}
+    ${iaBlock(dr.iaAnalysis)}
+  `) : '';
+
+  // ── TIME LOG / SOF ────────────────────────────────────────────────────
+  const tl = mods['time-log'] || {};
+  const tlEvents = (tl.events || []).filter(e => e.initial !== undefined ? (e.date||e.initial||e.event) : (e.datetime||e.desc));
+  const tlSec = has('time-log') && tlEvents.length ? sec('6. Time Log / Statement of Facts', `
+    ${tbl(['Fecha','Hora Ini','Hora Fin','Evento','Comentarios ACI Loss Control'],
+      tlEvents.map(e => {
+        if (e.initial !== undefined) {
+          return `<tr>
+            <td>${e.date ? new Date(e.date+'T12:00:00').toLocaleDateString('es-CL') : '—'}</td>
+            <td style="font-family:monospace;text-align:center;font-weight:600">${e.initial||'—'}</td>
+            <td style="font-family:monospace;text-align:center;font-weight:600">${e.final||'—'}</td>
+            <td>${e.event||''}</td>
+            <td style="color:#1a2f5a;font-style:italic">${e.comment||''}</td>
+          </tr>`;
+        } else {
+          // legacy format
+          const dt = e.datetime ? new Date(e.datetime) : null;
+          return `<tr>
+            <td>${dt ? dt.toLocaleDateString('es-CL') : '—'}</td>
+            <td style="font-family:monospace;text-align:center;font-weight:600">${dt ? String(dt.getHours()).padStart(2,'0')+String(dt.getMinutes()).padStart(2,'0') : '—'}</td>
+            <td style="font-family:monospace;text-align:center">—</td>
+            <td>${e.desc||''}</td>
+            <td style="color:#1a2f5a;font-style:italic">${e.rate ? 'Caudal: '+e.rate+' m³/h' : ''}</td>
+          </tr>`;
+        }
+      }).join('')
+    )}
+    ${tl.notes ? `<p class="note">${tl.notes}</p>` : ''}
+    ${iaBlock(tl.iaAnalysis)}
   `) : '';
 
   // ── TERMÓMETROS ────────────────────────────────────────────────────────
@@ -2786,7 +2926,7 @@ function printFullReport(opId) {
   }));
   const pct=totMax>0?Math.round(totPts/totMax*100):null;
   const verdict=pct===null?'Sin Evaluar':pct>=80?'SATISFACTORIO':pct>=60?'REGULAR':'DEFICIENTE';
-  const chkSec = sec('7. Checklist de Inspección', `
+  const chkSec = has('checklist-inspeccion') || has(chkKey) ? sec('7. Checklist de Inspección', `
     <table class="kv">
       ${kv('Inspector Auditado', chk.inspector||'—')}
       ${kv('Auditor Loss Control', chk.auditor||'—')}
@@ -2805,14 +2945,18 @@ function printFullReport(opId) {
           <td style="font-size:10px">${it.comment||''}</td>
         </tr>`).join('')}</tbody>
       </table>`).join('')}
-  `);
+    ${iaBlock(chk.iaAnalysis)}
+  `) : '';
 
   // ── REPORTE EVOLUTIVO / CONCLUSIÓN ─────────────────────────────────────
   const re = mods['reporte-evolutivo'] || {};
   const allAnalyses = (op.moduleOrder||[]).map(k=>{
     const m=mods[k]; if(!m) return null;
-    if(k==='key-meeting'&&m.acta) return {label:'Key Meeting — Acta Formal IA',content:m.acta,date:m.date};
-    if(m.iaAnalysis) return {label:'Ullage Arribo — Análisis Comparativo IA',content:m.iaAnalysis,date:m.iaDate};
+    const modMeta = MODULE_META[k] || {};
+    if(k==='key-meeting'&&m.acta) return {label:'Key Meeting — Acta Formal',content:m.acta,date:m.date};
+    // Only include module IA analyses flagged for the report (default true if not set)
+    if(m.iaAnalysis && m.iaIncludeInReport !== false)
+      return {label:(modMeta.icon||'')+(modMeta.label||k)+' — Análisis IA',content:m.iaAnalysis,date:m.iaDate};
     return null;
   }).filter(Boolean);
 
@@ -2901,19 +3045,15 @@ function printFullReport(opId) {
     <style>${css}</style>
   </head><body>
     ${cover}
-    ${origenSec}
-    <div class="page-break"></div>
-    ${kmSec}
-    <div class="page-break"></div>
-    ${arriboSec}
-    ${vefSec}
-    <div class="page-break"></div>
+    ${has('datos-origen') ? origenSec+'<div class="page-break"></div>' : ''}
+    ${has('key-meeting') ? kmSec+'<div class="page-break"></div>' : ''}
+    ${has('ullage-arribo') ? arriboSec : ''}
+    ${has('vef-comparativo') ? vefSec+'<div class="page-break"></div>' : ''}
     ${drSec}
-    ${termSec}
-    <div class="page-break"></div>
+    ${tlSec}
+    ${has('termometros') ? termSec+'<div class="page-break"></div>' : ''}
     ${chkSec}
-    <div class="page-break"></div>
-    ${reSec}
+    ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
   const win = window.open('', '_blank');
@@ -3687,65 +3827,81 @@ function buildVEF(d, ctx) {
 }
 
 // ===== MODULE: TIME LOG =====
+function emptyTLEvent() {
+  return { date:'', initial:'', final:'', event:'', comment:'' };
+}
+
 function buildTimeLog(d, ctx) {
-  const events = d.events || [];
-  const typeColors = { start:'#3d6b45', stop:'var(--red)', resume:'#2a6b5a', complete:'var(--sea)', note:'var(--steel)' };
-  const typeLabels = { start:'Inicio Bombeo', stop:'Parada', resume:'Reanuda', complete:'Completado', note:'Nota' };
+  // Migrate legacy events (datetime/type/desc/rate) to new format on first render
+  const rawEvents = d.events || [];
+  const events = rawEvents.map(e => {
+    if (e.initial !== undefined) return e; // already new format
+    // legacy: {datetime, type, desc, rate}
+    const dt = e.datetime ? new Date(e.datetime) : null;
+    const dateStr = dt ? dt.toISOString().slice(0,10) : '';
+    const hhmm = dt ? String(dt.getHours()).padStart(2,'0') + String(dt.getMinutes()).padStart(2,'0') : '';
+    const typeMap = { start:'Inicio Bombeo', stop:'Parada de bombeo', resume:'Reanuda bombeo', complete:'Completado', note:'Nota' };
+    return { date: dateStr, initial: hhmm, final: '', event: typeMap[e.type] || e.desc || '', comment: e.rate ? `Caudal: ${e.rate} m³/h` : '' };
+  });
+
+  const rowHTML = events.map((e, i) => `
+    <tr>
+      <td style="width:110px">
+        <input class="tl-cell" type="date" value="${e.date||''}"
+          data-action="tl-save-row" data-ctx="${ctx}" data-idx="${i}" data-field="date">
+      </td>
+      <td style="width:80px">
+        <input class="tl-cell tl-time" type="text" maxlength="4" value="${e.initial||''}" placeholder="HHMM"
+          data-action="tl-save-row" data-ctx="${ctx}" data-idx="${i}" data-field="initial">
+      </td>
+      <td style="width:80px">
+        <input class="tl-cell tl-time" type="text" maxlength="4" value="${e.final||''}" placeholder="HHMM"
+          data-action="tl-save-row" data-ctx="${ctx}" data-idx="${i}" data-field="final">
+      </td>
+      <td>
+        <input class="tl-cell" type="text" value="${(e.event||'').replace(/"/g,'&quot;')}" placeholder="Descripción del evento..."
+          data-action="tl-save-row" data-ctx="${ctx}" data-idx="${i}" data-field="event">
+      </td>
+      <td style="background:rgba(46,90,130,0.08)">
+        <input class="tl-cell tl-comment" type="text" value="${(e.comment||'').replace(/"/g,'&quot;')}" placeholder="Comentario Loss Control..."
+          data-action="tl-save-row" data-ctx="${ctx}" data-idx="${i}" data-field="comment">
+      </td>
+      <td style="width:32px;text-align:center">
+        <button class="btn-icon-sm" data-action="tl-del-row" data-ctx="${ctx}" data-idx="${i}" title="Eliminar fila">✕</button>
+      </td>
+    </tr>`).join('');
 
   return `
-    <div class="module-title">⏱️ Time Log</div>
-    <div class="module-subtitle">Registro cronológico de eventos de la operación</div>
-    <div style="display:grid;grid-template-columns:1fr 360px;gap:20px">
-      <div>
-        <div class="card">
-          <div class="card-title">Agregar Evento</div>
-          <div class="form-row">
-            <div class="field">
-              <label class="field-label">Fecha y Hora</label>
-              <input class="field-input" type="datetime-local" id="tl-datetime">
-            </div>
-            <div class="field">
-              <label class="field-label">Tipo de evento</label>
-              <select class="field-select" id="tl-type">
-                ${Object.entries(typeLabels).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="field">
-              <label class="field-label">Descripción</label>
-              <input class="field-input" id="tl-desc" placeholder="Descripción del evento...">
-            </div>
-            <div class="field">
-              <label class="field-label">Caudal (m³/h)</label>
-              <input class="field-input" type="number" id="tl-rate" placeholder="0.0">
-            </div>
-          </div>
-          <button class="btn btn-primary" data-action="tl-add-event" data-ctx="${ctx}">Registrar Evento</button>
-        </div>
-        <div class="card">
-          <div class="card-title">Notas</div>
-          <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Observaciones generales..." data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
-        </div>
+    <div class="module-title">⏱️ Time Log / Statement of Facts</div>
+    <div class="module-subtitle">Cronograma de eventos — SOF con comentarios ACI Loss Control</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px">
+        <div class="card-title" style="margin:0">Registro de Eventos</div>
+        <button class="btn btn-primary btn-sm" data-action="tl-add-row" data-ctx="${ctx}">＋ Agregar Fila</button>
       </div>
-      <div class="card" style="padding-right:12px">
-        <div class="card-title">Línea de tiempo</div>
-        ${events.length === 0 ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin eventos registrados</div>' : ''}
-        <div class="event-timeline">
-          ${events.map((e,i) => `
-            <div class="event-item type-${e.type}">
-              <div class="event-card">
-                <div class="event-header">
-                  <span class="event-time">${e.datetime ? new Date(e.datetime).toLocaleString('es',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</span>
-                  <span class="event-type-badge" style="background:${typeColors[e.type]}22;color:${typeColors[e.type]}">${typeLabels[e.type]||e.type}</span>
-                  ${e.rate ? `<span class="event-pumping">${e.rate} m³/h</span>` : ''}
-                  <button class="event-del" data-action="tl-rm-event" data-ctx="${ctx}" data-idx="${i}">✕</button>
-                </div>
-                ${e.desc ? `<div class="event-desc">${e.desc}</div>` : ''}
-              </div>
-            </div>`).join('')}
-        </div>
+      <div style="overflow-x:auto">
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora Ini</th>
+              <th>Hora Fin</th>
+              <th>Evento</th>
+              <th style="background:rgba(46,90,130,0.15)">Comentarios ACI Loss Control</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tl-body-${ctx}">
+            ${rowHTML || `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;font-size:13px">
+              Sin eventos. Haga clic en "＋ Agregar Fila" para comenzar.</td></tr>`}
+          </tbody>
+        </table>
       </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Observaciones Generales</div>
+      <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Notas adicionales del inspector ACI Loss Control..."
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
     </div>`;
 }
 
@@ -4183,8 +4339,8 @@ function handleClick(e) {
   else if (a === 'km-rm-att') kmRmAtt(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'km-add-topic') kmAddTopic(el.dataset.ctx);
   else if (a === 'km-rm-topic') kmRmTopic(el.dataset.ctx, parseInt(el.dataset.idx));
-  else if (a === 'tl-add-event') tlAddEvent(el.dataset.ctx);
-  else if (a === 'tl-rm-event') tlRmEvent(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'tl-add-event' || a === 'tl-add-row') tlAddRow(el.dataset.ctx);
+  else if (a === 'tl-rm-event' || a === 'tl-del-row') tlDelRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'vef-add-voyage') {
     const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
     if (!_ref) return;
@@ -4326,8 +4482,47 @@ function handleClick(e) {
         else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error.'); }
       }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
   }
+  else if (a === 'mod-ia-analyze') {
+    const c = decodeCtx(el.dataset.ctx);
+    const op = getOp(c.opId);
+    if (!op) return;
+    const modKey = el.dataset.mod || c.mod;
+    const modData = op.modules[modKey] || {};
+    const meta = MODULE_META[modKey] || {};
+    const btnLabel = el.textContent.trim();
+    el.disabled = true; el.textContent = '⏳ Analizando…';
+
+    // Build context-aware prompt for this module
+    const opCtx = `Operación: ${op.code||'—'} | Buque: ${op.vessel?.name||'—'} (IMO ${op.vessel?.imo||'—'}) | Producto: ${op.product?.crudeName||op.product?.type||'—'} | Puerto: ${op.port||'—'} | Cliente: ${op.client||'—'}`;
+    const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
+    const prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
+
+    fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ messages: [{ role:'user', content: prompt }] }) })
+      .then(r=>r.json()).then(res=>{
+        if (res.reply) {
+          if (!op.modules[modKey]) op.modules[modKey] = {};
+          op.modules[modKey].iaAnalysis = res.reply;
+          op.modules[modKey].iaDate = new Date().toISOString();
+          saveOp(op); render();
+        } else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error del servidor.'); }
+      }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
+  }
   else if (a === 'print-full-report') {
-    printFullReport(el.dataset.opid);
+    showPDFSelector(el.dataset.opid);
+  }
+  else if (a === 'pdf-confirm-modules') {
+    const opId3 = el.dataset.opid;
+    const overlay = document.getElementById('pdf-selector-overlay');
+    let checked = overlay ? [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value) : null;
+    if (overlay) overlay.remove();
+    // reporte-evolutivo always last, always included
+    if (checked && !checked.includes('reporte-evolutivo')) checked.push('reporte-evolutivo');
+    printFullReport(opId3, checked);
+  }
+  else if (a === 'pdf-cancel') {
+    const overlay = document.getElementById('pdf-selector-overlay');
+    if (overlay) overlay.remove();
   }
   else if (a === 're-send-email') {
     const opId2 = el.dataset.opid;
@@ -4347,8 +4542,9 @@ function handleClick(e) {
     const vefA2 = _av2Stats?.vef || null;
     const analyses2 = (op2.moduleOrder||[]).map(k=>{
       const m=mods2[k]; if(!m) return null;
+      const mm2 = MODULE_META[k]||{};
       if(k==='key-meeting'&&m.acta) return {label:'KEY MEETING — Acta Formal',content:m.acta};
-      if(m.iaAnalysis) return {label:'ULLAGE ARRIBO — Análisis Comparativo',content:m.iaAnalysis};
+      if(m.iaAnalysis && m.iaIncludeInReport !== false) return {label:(mm2.label||k)+' — Análisis IA',content:m.iaAnalysis};
       return null;
     }).filter(Boolean);
     const ln = s => `${s}\n`;
@@ -4457,6 +4653,21 @@ function handleChange(e) {
     const sub = el.dataset.sub;
     const target = sub ? (ref.data[sub] || (ref.data[sub] = {voyages:[],notes:''})) : ref.data;
     target.notes = el.value;
+    ref.save();
+  }
+  else if (a === 'mod-ia-toggle-report') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    ref.data.iaIncludeInReport = el.checked;
+    ref.save(); render();
+  }
+  else if (a === 'tl-save-row') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    if (!ref.data.events) ref.data.events = [];
+    const idx = parseInt(el.dataset.idx);
+    if (!ref.data.events[idx]) ref.data.events[idx] = emptyTLEvent();
+    ref.data.events[idx][el.dataset.field] = el.value;
     ref.save();
   }
   else if (a === 'chk-comment') chkComment(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.value);
@@ -4815,26 +5026,23 @@ function kmRmTopic(ctx, idx) {
 }
 
 // ===== TIME LOG =====
-function tlAddEvent(ctx) {
-  const dt = document.getElementById('tl-datetime')?.value;
-  const type = document.getElementById('tl-type')?.value;
-  const desc = document.getElementById('tl-desc')?.value.trim();
-  const rate = document.getElementById('tl-rate')?.value;
+function tlAddRow(ctx) {
   const c = decodeCtx(ctx);
   const ref = getModuleRef(c);
   if (!ref) return;
   if (!ref.data.events) ref.data.events = [];
-  ref.data.events.push({ datetime: dt, type, desc, rate });
-  ref.data.events.sort((a,b) => (a.datetime||'') < (b.datetime||'') ? -1 : 1);
+  ref.data.events.push(emptyTLEvent());
   ref.save(); render();
 }
-function tlRmEvent(ctx, idx) {
+function tlDelRow(ctx, idx) {
   const c = decodeCtx(ctx);
   const ref = getModuleRef(c);
   if (!ref) return;
   ref.data.events.splice(idx, 1);
   ref.save(); render();
 }
+function tlAddEvent(ctx) { tlAddRow(ctx); } // legacy alias
+function tlRmEvent(ctx, idx) { tlDelRow(ctx, idx); } // legacy alias
 
 // ===== VEF =====
 function vefAddVoyage(ctx) {
