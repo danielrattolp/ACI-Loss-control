@@ -181,12 +181,12 @@ def content_page():
     y += 38
 
     steps = [
-        ("01", "Key Meeting",      "Reunion tecnica previa. Cuestionario API MPMS 17.1 con Ship Officer, terminal y cliente."),
-        ("02", "Datos de Origen",  "Revision del Bill of Lading: GSV, TCV, API, BS&W. VEF historico del buque en origen."),
-        ("03", "Medicion & VEF",   "Ullage por tanque con trim, escora y temperatura. VEF calculado segun API MPMS 17.9."),
-        ("04", "Monitoreo",        "Log horario de descarga. Verificacion de termometros (±0.5°F). Checklist de auditoria."),
-        ("05", "Analisis Dif.",    "Conciliacion origen vs. destino. Error sistematico vs. aleatorio. Causas API MPMS 13."),
-        ("06", "Reporte Final",    "Dossier trazable, certificados firmados y PDF completo exportable del sistema."),
+        ("01", "Datos de Origen",    "Conciliacion de datos origen para trazabilidad y analisis de desvio."),
+        ("02", "Key Meeting",        "Verificacion de acuerdos y control para cumplimiento via cuestionario pre cargado basado en API 17.1."),
+        ("03", "Medicion",           "Verificacion de acreditaciones y calibraciones de equipos y algoritmos de calculo basados en API 7, 11 y 12."),
+        ("04", "Monitoreo",          "Durante la descarga, verificacion de rate hora a hora con comentarios a incumplimientos basados en el Key Meeting."),
+        ("05", "Reporte Evolutivo",  "Conciliacion de toda la informacion desde origen hasta destino con analisis del Consultor IA y sus conclusiones."),
+        ("06", "Reporte Final",      "Dossier trazable, certificados firmados y PDF completo exportable del sistema."),
     ]
 
     n_steps = len(steps)
@@ -234,10 +234,9 @@ def content_page():
         ("Bitacora Operacional/SOF", "Registro cronologico de eventos, tiempos, pausas y acuerdos en cubierta."),
         ("Discharge Record",         "Log horario de volumenes bombeados, presiones y observaciones de descarga."),
         ("Certificate of Quantity",  "COQ: GOV, GSV, TCV, Free Water, API, BS&W y metodo de calculo aplicado."),
-        ("Certificate of Quality",   "CQL con resultados de laboratorio o referencia al certificado de origen."),
-        ("Reporte VEF Comparativo",  "Historial de viajes calificantes, ratio V/S, banda ±0.30% y VEF resultante."),
+        ("Certificate of Quality",   "Analisis tecnico de los resultados de origen vs. destino basado en la informacion suministrada."),
+        ("Reporte VEF Comparativo",  "Revision de la correcta imputacion de datos y validacion de viajes segun operacion calificable para confeccion del reporte."),
         ("Informe Final — Dossier",  "Hallazgos, analisis de diferencia, causas y evidencia fotografica completa."),
-        ("Letter of Protest",        "Emitida cuando la diferencia supera tolerancia o se detectan irregularidades."),
     ]
 
     ry = y
@@ -259,22 +258,28 @@ def content_page():
     )
 
     iy = ia_top + 28
-    draw.text((col2_x + 28, iy), "Asistencia inteligente", font=font(26, True), fill=WHITE)
-    iy += 36
-    draw.text((col2_x + 28, iy), "integrada al sistema", font=font(24, False), fill=(*AMBER, 255)[:3])
-    iy += 44
+    draw.text((col2_x + 28, iy), "IA como segundo par", font=font(24, True), fill=WHITE)
+    iy += 32
+    draw.text((col2_x + 28, iy), "de ojos tecnicos", font=font(24, True), fill=WHITE)
+    iy += 30
+    iy = draw_wrapped(
+        draw, (col2_x + 28, iy),
+        "Complementa la experiencia del equipo escudrinando cada modulo, comparando origen vs. destino y entregando conclusiones objetivas basadas en normas y condiciones fisicoquimicas del producto.",
+        font(13), (185, 200, 210), col2_w - 56, 1.25,
+    )
+    iy += 16
 
     ia_items = [
-        ("Actas formales de Key Meeting",
-         "Genera documentacion estructurada de la reunion pre-inspeccion automaticamente."),
-        ("Analisis de diferencias de ullage",
-         "Identifica causas probables con referencias exactas a API MPMS 12, 13 y 17."),
-        ("Clasificacion de errores",
-         "Distingue error sistematico (sesgo) de error aleatorio con fundamento estadistico."),
-        ("Monitoreo del historial VEF",
-         "Detecta desviaciones del buque respecto a su factor historico documentado."),
-        ("Redaccion del informe final",
-         "Asiste con lenguaje tecnico estructurado y coherente con los datos ingresados."),
+        ("Escrutinio modulo a modulo",
+         "Revisa BL, ullage, VEF, termometros y checklist detectando inconsistencias entre datos ingresados."),
+        ("Comparacion origen vs. destino",
+         "Concilia cantidades y calidad entre puerto de carga y arribo con analisis de desvio cuantificado."),
+        ("Causas fisicoquimicas del desvio",
+         "Evalua temperatura, API, BS&W y condiciones de trim como variables explicativas de diferencias."),
+        ("Clasificacion de error segun API MPMS 13",
+         "Distingue error sistematico (sesgo del buque) de error aleatorio con fundamento estadistico."),
+        ("Conclusiones objetivas para el informe",
+         "Genera texto tecnico estructurado listo para incorporar al reporte final del inspector."),
     ]
 
     for ia_t, ia_d in ia_items:
@@ -307,14 +312,14 @@ def content_page():
     draw.text((left_box[0] + 30, left_box[1] + 24), "Cobertura regional", font=font(28, True), fill=WHITE)
     draw_wrapped(
         draw, (left_box[0] + 30, left_box[1] + 66),
-        "Coordinacion para operaciones nacionales, regionales e internacionales.",
+        "Presencia en Sudamerica, Caribe y Estados Unidos.",
         F["small"], (210, 228, 210), 488, 1.25,
     )
     bullets = [
         "Chile y Argentina.",
         "Ecuador, Colombia y Peru.",
-        "Caribe y Estados Unidos.",
-        "Puertos, terminales, plantas, buques y STS.",
+        "Caribe.",
+        "Estados Unidos.",
     ]
     by = left_box[1] + 124
     for bullet in bullets:

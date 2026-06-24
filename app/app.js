@@ -2752,16 +2752,21 @@ function printFullReport(opId, selectedMods) {
     </table>
     ${Object.keys(kmAnswers).length ? `
     <h3>Cuestionario API MPMS 17.1 — Respuestas</h3>
-    ${(typeof KM_BLOCKS !== 'undefined' ? KM_BLOCKS : []).map(block=>`
+    ${(typeof KM_BLOCKS !== 'undefined' ? KM_BLOCKS : []).map(block=>{
+      const kmDis = km.kmDisabled || {};
+      const activeQs = block.questions.filter(q => !kmDis[q.id]);
+      if (!activeQs.length) return '';
+      return `
       <h4>Bloque ${block.id}: ${block.title}</h4>
       <table>
         <thead><tr><th style="width:30px">#</th><th>Pregunta</th><th>Respuesta</th></tr></thead>
-        <tbody>${block.questions.map(q=>`<tr>
+        <tbody>${activeQs.map(q=>`<tr>
           <td>${q.id.replace('q','')}</td>
           <td>${q.text}</td>
           <td>${kmAnswers[q.id]||'—'}</td>
         </tr>`).join('')}</tbody>
-      </table>`).join('')}` : '<p class="note">Cuestionario no completado.</p>'}
+      </table>`;
+    }).join('')}` : '<p class="note">Cuestionario no completado.</p>'}
     ${km.acta ? `<h3>Acta Formal — Consultor IA</h3><div class="ia-block">${km.acta.replace(/\n/g,'<br>')}</div>` : ''}
     ${km.notes ? `<p class="note">${km.notes}</p>` : ''}
   `);
@@ -3218,47 +3223,62 @@ function buildKeyMeeting(d, ctx) {
 
     ${KM_BLOCKS.map(block => {
       const ans = d.answers || {};
+      const dis = d.kmDisabled || {};
       const questions = block.questions.map(q => {
         const val = ans[q.id] || '';
+        const isNA = !!dis[q.id];
         let input = '';
         if (q.type === 'text' || q.type === 'number') {
           input = `<input class="field-input" type="${q.type==='number'?'number':'text'}" step="any" value="${val}"
-            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—" style="margin:0">`;
+            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—" style="margin:0"
+            ${isNA?'disabled':''}">`;
         } else if (q.type === 'textarea') {
           input = `<textarea class="field-input" rows="2" style="resize:vertical"
-            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—">${val}</textarea>`;
+            data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" placeholder="—"
+            ${isNA?'disabled':''}>${val}</textarea>`;
         } else if (q.type === 'yesno') {
           input = `<div style="display:flex;gap:8px">
             ${['Sí','No','N/A'].map(opt => `
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;${isNA?'opacity:.4;pointer-events:none':''}">
                 <input type="radio" name="km-${q.id}-${ctx}" value="${opt}" ${val===opt?'checked':''}
-                  data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}"> ${opt}
+                  data-action="save-km-answer" data-ctx="${ctx}" data-qid="${q.id}" ${isNA?'disabled':''}> ${opt}
               </label>`).join('')}
           </div>`;
         } else if (q.type === 'check') {
           const selected = val ? val.split('||') : [];
           input = `<div style="display:flex;flex-wrap:wrap;gap:8px">
             ${(q.options||[]).map(opt => `
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;${isNA?'opacity:.4;pointer-events:none':''}">
                 <input type="checkbox" value="${opt}" ${selected.includes(opt)?'checked':''}
-                  data-action="save-km-check" data-ctx="${ctx}" data-qid="${q.id}"> ${opt}
+                  data-action="save-km-check" data-ctx="${ctx}" data-qid="${q.id}" ${isNA?'disabled':''}> ${opt}
               </label>`).join('')}
           </div>`;
         }
         return `
-          <div style="padding:10px 0;border-bottom:1px solid var(--line2)">
-            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px">
-              <span style="color:var(--accent);margin-right:6px">${q.id.replace('q','')}</span>${q.text}
+          <div style="padding:10px 0;border-bottom:1px solid var(--line2);${isNA?'opacity:.45;background:var(--line2);margin:0 -16px;padding:10px 16px;':''}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
+              <div style="font-size:12px;font-weight:600;color:${isNA?'var(--muted)':'var(--ink)'};flex:1">
+                <span style="color:${isNA?'var(--muted)':'var(--accent)'};margin-right:6px">${q.id.replace('q','')}</span>
+                ${isNA?`<s>${q.text}</s>`:q.text}
+              </div>
+              <button class="btn-na-toggle ${isNA?'active':''}"
+                data-action="km-toggle-na" data-ctx="${ctx}" data-qid="${q.id}"
+                title="${isNA?'Habilitar pregunta':'Marcar como No Aplica'}"
+                style="flex-shrink:0;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${isNA?'#c0392b':'var(--line)'};background:${isNA?'#fdecea':'var(--white)'};color:${isNA?'#c0392b':'var(--muted)'};cursor:pointer;white-space:nowrap">
+                ${isNA?'✕ No Aplica':'N/A'}
+              </button>
             </div>
-            ${input}
+            ${isNA ? '<div style="font-size:11px;color:var(--muted);font-style:italic">Pregunta deshabilitada — no se considerará en la reunión ni en el reporte</div>' : input}
           </div>`;
       }).join('');
+      const naCount = block.questions.filter(q => dis[q.id]).length;
       return `
         <div class="card">
           <div class="card-title" style="display:flex;align-items:center;gap:8px">
             <span style="background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px">Bloque ${block.id}</span>
             ${block.title}
             ${block.stsOnly ? '<span style="font-size:10px;color:var(--muted);font-style:italic">(solo STS)</span>' : ''}
+            ${naCount ? `<span style="margin-left:auto;font-size:10px;color:var(--muted)">${naCount} no aplica${naCount>1?'n':''}</span>` : ''}
           </div>
           ${questions}
         </div>`;
@@ -4339,6 +4359,15 @@ function handleClick(e) {
   else if (a === 'km-rm-att') kmRmAtt(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'km-add-topic') kmAddTopic(el.dataset.ctx);
   else if (a === 'km-rm-topic') kmRmTopic(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'km-toggle-na') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    if (!ref.data.kmDisabled) ref.data.kmDisabled = {};
+    const qid = el.dataset.qid;
+    ref.data.kmDisabled[qid] = !ref.data.kmDisabled[qid];
+    if (!ref.data.kmDisabled[qid]) delete ref.data.kmDisabled[qid];
+    ref.save(); render();
+  }
   else if (a === 'tl-add-event' || a === 'tl-add-row') tlAddRow(el.dataset.ctx);
   else if (a === 'tl-rm-event' || a === 'tl-del-row') tlDelRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'vef-add-voyage') {
@@ -4422,11 +4451,14 @@ function handleClick(e) {
     if (!op) return;
     const d = op.modules[c.mod] || {};
     const ans = d.answers || {};
-    // Build filled questionnaire text
+    const dis = d.kmDisabled || {};
+    // Build filled questionnaire text — skip disabled (N/A) questions
     let filled = `Actúa como inspector independiente de cargo (QPIC) certificado con dominio completo de API MPMS Capítulo 17.1 (7ª Edición 2022) y Capítulo 17.11 / EI HM 52.\n\nA continuación las respuestas al cuestionario de Key Meeting / Pre-Transfer Conference:\n\nOperación: ${op.code} — ${op.vessel?.name||''}\nFecha: ${d.date||'—'} Hora: ${d.time||'—'} Lugar: ${d.location||'—'}\n\n`;
     KM_BLOCKS.forEach(block => {
+      const activeQs = block.questions.filter(q => !dis[q.id]);
+      if (!activeQs.length) return;
       filled += `BLOQUE ${block.id} — ${block.title}\n`;
-      block.questions.forEach(q => {
+      activeQs.forEach(q => {
         const v = ans[q.id] || '(Sin respuesta)';
         filled += `${q.id.replace('q','')}. ${q.text}: ${v}\n`;
       });
