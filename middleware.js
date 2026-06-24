@@ -1,27 +1,22 @@
 export default function middleware(request) {
   const url = new URL(request.url);
-
-  // Solo proteger /operaciones y sub-rutas
   if (!url.pathname.startsWith('/operaciones')) return;
 
-  const auth = request.headers.get('Authorization');
-  if (auth) {
-    const [scheme, encoded] = auth.split(' ');
-    if (scheme === 'Basic' && encoded) {
-      const [user, pass] = atob(encoded).split(':');
-      const validUser = process.env.AUTH_USER || 'aci';
-      const validPass = process.env.AUTH_PASS;
-      if (validPass && user === validUser && pass === validPass) return;
-    }
-  }
+  // Login page itself siempre accesible
+  if (url.pathname === '/operaciones/login') return;
 
-  return new Response('🔒 Acceso restringido — ACI Loss Control\nContacte a su administrador para obtener credenciales.', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="ACI Loss Control — Solo personal autorizado"',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-  });
+  // Verificar cookie de sesión
+  const cookie = request.headers.get('cookie') || '';
+  const token = cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith('aci_session='))
+    ?.split('=')[1];
+
+  const validToken = process.env.AUTH_TOKEN;
+
+  if (validToken && token === validToken) return; // acceso permitido
+
+  // Redirigir a login
+  return Response.redirect(new URL('/operaciones/login', request.url), 302);
 }
 
 export const config = {

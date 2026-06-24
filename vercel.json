@@ -3,6 +3,7 @@
     { "source": "/app.js",              "destination": "/app/app.js"  },
     { "source": "/app.css",             "destination": "/app/app.css" },
     { "source": "/brochure",            "destination": "/assets/ACI-LATAM-Brochure-Corporativo.pdf" },
+    { "source": "/operaciones/login",   "destination": "/login.html" },
     { "source": "/operaciones",         "destination": "/app/index.html" },
     { "source": "/operaciones/(.*)",    "destination": "/app/index.html" }
   ],

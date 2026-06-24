@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACI Loss Control — Acceso</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0a0f1e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 25px 50px rgba(0,0,0,.5);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .logo-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+    .logo h1 {
+      color: #f8fafc;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+    .logo p {
+      color: #6b7280;
+      font-size: 12px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid #1f2937;
+      margin: 0 0 28px;
+    }
+    label {
+      display: block;
+      color: #9ca3af;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      color: #f8fafc;
+      font-size: 14px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color .2s;
+      margin-bottom: 18px;
+    }
+    input:focus { border-color: #3b82f6; }
+    button {
+      width: 100%;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px;
+      cursor: pointer;
+      transition: background .2s;
+      margin-top: 4px;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #374151; cursor: not-allowed; }
+    .error {
+      color: #f87171;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 14px;
+      min-height: 18px;
+    }
+    .footer {
+      text-align: center;
+      color: #374151;
+      font-size: 11px;
+      margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">⚓</div>
+      <h1>ACI Loss Control</h1>
+      <p>Sistema Operacional — Acceso Restringido</p>
+    </div>
+    <hr class="divider">
+    <form id="loginForm">
+      <label for="user">Usuario</label>
+      <input type="text" id="user" name="user" autocomplete="username" placeholder="Usuario" required>
+      <label for="pass">Contraseña</label>
+      <input type="password" id="pass" name="pass" autocomplete="current-password" placeholder="••••••••" required>
+      <button type="submit" id="btn">Ingresar</button>
+      <div class="error" id="err"></div>
+    </form>
+    <div class="footer">ACI LATAM · Solo personal autorizado</div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn');
+      const err = document.getElementById('err');
+      btn.disabled = true;
+      btn.textContent = 'Verificando...';
+      err.textContent = '';
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user: document.getElementById('user').value,
+            pass: document.getElementById('pass').value
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          document.cookie = `aci_session=${data.token}; path=/; max-age=${60*60*8}; SameSite=Strict`;
+          window.location.href = '/operaciones';
+        } else {
+          err.textContent = data.error || 'Credenciales incorrectas';
+          btn.disabled = false;
+          btn.textContent = 'Ingresar';
+        }
+      } catch(e) {
+        err.textContent = 'Error de conexión. Intente nuevamente.';
+        btn.disabled = false;
+        btn.textContent = 'Ingresar';
+      }
+    });
+  </script>
+</body>
+</html>
