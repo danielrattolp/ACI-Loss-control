@@ -2528,8 +2528,8 @@ function buildReporteEvolutivo(op, ctx) {
     <div class="card" style="background:var(--line2)">
       <div class="card-title">Exportar Reporte</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <button class="btn btn-primary" style="flex:1;min-width:160px" onclick="window.print()">
-          📄 Descargar PDF
+        <button class="btn btn-primary" style="flex:1;min-width:160px" data-action="print-full-report" data-opid="${opId}">
+          📄 Descargar PDF Completo
         </button>
         <button class="btn btn-secondary" style="flex:1;min-width:160px" data-action="re-send-email" data-ctx="${ctx}" data-opid="${opId}">
           ✉️ Enviar por Correo
@@ -2537,6 +2537,391 @@ function buildReporteEvolutivo(op, ctx) {
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:8px">El PDF incluye balance de cantidades, todos los análisis IA y la conclusión final. El correo abre tu cliente de email con el reporte completo.</div>
     </div>`;
+}
+
+// ===== PDF FULL REPORT =====
+function printFullReport(opId) {
+  const op = getOp(opId);
+  if (!op) return;
+  const mods = op.modules || {};
+  const now = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'long',year:'numeric'});
+  const fmtN = (v,d=3) => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+  const fmtD = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-CL') : '—';
+  const sec = (title, content) => `<div class="section"><h2>${title}</h2>${content}</div>`;
+  const tbl = (headers, rows) => `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  const kv = (label, val) => `<tr><td class="label">${label}</td><td>${val||'—'}</td></tr>`;
+
+  // ── COVER ──────────────────────────────────────────────────────────────
+  const cover = `
+    <div class="cover">
+      <div class="cover-logo">ACI <span>Loss Control</span></div>
+      <div class="cover-title">REPORTE OPERACIONAL</div>
+      <div class="cover-code">${op.code||''}</div>
+      <table class="cover-tbl">
+        <tr><td>Buque</td><td><strong>${op.vessel?.name||'—'}</strong></td></tr>
+        <tr><td>IMO</td><td>${op.vessel?.imo||'—'}</td></tr>
+        <tr><td>Viaje</td><td>${op.vessel?.voyage||'—'}</td></tr>
+        <tr><td>Producto</td><td>${op.product?.crudeName||op.product?.type||'—'}</td></tr>
+        <tr><td>Puerto</td><td>${op.port||'—'}</td></tr>
+        <tr><td>Cliente</td><td>${op.client||'—'}</td></tr>
+        <tr><td>Tipo de Operación</td><td>${OP_TYPES[op.type]?.label||op.type||'—'}</td></tr>
+        <tr><td>Fecha del Reporte</td><td>${now}</td></tr>
+      </table>
+      <div class="cover-footer">Documento confidencial — Uso exclusivo del cliente · ACI Loss Control SpA</div>
+    </div>
+    <div class="page-break"></div>`;
+
+  // ── DATOS DE ORIGEN ────────────────────────────────────────────────────
+  const origen = mods['datos-origen'] || {};
+  const bl = origen.bl || {};
+  const vefOStats = origen.vefOrigen?.voyages?.length ? computeVEFStats(origen.vefOrigen.voyages) : null;
+  const ullO = origen.ullageOrigen || {};
+
+  const origenSec = sec('1. Datos de Origen — Bill of Lading', `
+    <table class="kv">
+      ${kv('N° Bill of Lading', origen.blNumber)}
+      ${kv('Fecha BL', fmtD(origen.blDate))}
+      ${kv('Puerto de Carga', origen.loadPort)}
+      ${kv('Terminal', origen.loadTerminal)}
+      ${kv('Berth / Muelle', origen.loadBerth)}
+    </table>
+    <h3>Cantidades BL</h3>
+    <table>
+      <thead><tr><th>Parámetro</th><th>Valor</th><th>Unidad</th></tr></thead>
+      <tbody>
+        <tr><td>GSV @60°F</td><td>${fmtN(bl.gsv)}</td><td>BBL</td></tr>
+        <tr><td>TCV (GSV+FW)</td><td>${fmtN(bl.tcv)}</td><td>BBL</td></tr>
+        <tr><td>Free Water</td><td>${fmtN(bl.fw)}</td><td>BBL</td></tr>
+        <tr><td>API Gravity @60°F</td><td>${fmtN(bl.api,1)}</td><td>°API</td></tr>
+        <tr><td>BS&W</td><td>${fmtN(bl.bsw,3)}</td><td>%</td></tr>
+        <tr><td>Densidad @15°C</td><td>${fmtN(bl.densityAt15,1)}</td><td>kg/m³</td></tr>
+        <tr><td>GSV m³ @15°C</td><td>${fmtN(bl.m3At15)}</td><td>m³</td></tr>
+        <tr><td>Toneladas Largas</td><td>${fmtN(bl.longTons)}</td><td>LT</td></tr>
+        <tr><td>Toneladas Métricas</td><td>${fmtN(bl.metricTons)}</td><td>MT</td></tr>
+      </tbody>
+    </table>
+    ${vefOStats ? `<h3>VEF de Origen — Resultado</h3>
+    <table class="kv">
+      ${kv('VEF Calculado', '<strong>'+vefOStats.vef.toFixed(4)+'</strong>')}
+      ${kv('Viajes Calificantes', vefOStats.qualCount + (vefOStats.qualCount<5?' (< 5 mínimos requeridos)':''))}
+      ${kv('Ratio Medio V/S', vefOStats.meanRatio?.toFixed(5)||'—')}
+      ${kv('Banda ±0.30%', vefOStats.lo?.toFixed(5)+' – '+vefOStats.hi?.toFixed(5))}
+    </table>
+    <h3>Historial de Viajes VEF Origen</h3>
+    ${tbl(['#','Viaje','Producto','Puerto/Terminal','Fecha','TCV Nave','TCV Shore','Ratio','Rechaz.'],
+      (origen.vefOrigen?.voyages||[]).map((v,i)=>{
+        const r = vefOStats.rows[i];
+        return `<tr${r.isRejected?' class="rejected"':r.qualifying?' class="qualifying"':''}>
+          <td>${i+1}</td><td>${v.voyageNum}</td><td>${v.product}</td><td>${v.terminal}</td>
+          <td>${fmtD(v.date)}</td><td>${fmtN(v.vesselTCV,0)}</td><td>${fmtN(v.shoreTCV,0)}</td>
+          <td>${r.ratio?r.ratio.toFixed(5):'—'}</td>
+          <td>${r.isRejected?'SÍ*':'No'}</td>
+        </tr>`;
+      }).join('')
+    )}
+    <p style="font-size:9px;color:#666">* Rechazado automáticamente (BUQUE_CON_VEF / Gross Error / Dique / Modif. Tabla)</p>` : ''}
+    ${(ullO.tanks||[]).some(t=>t.measured) ? `<h3>Ullage de Origen — por Tanque</h3>
+    ${tbl(['Tanque','Alt.Ref.(m)','Alt.Med.(m)','API @60°F','Temp(°C)','VCF','GSV(BBL)','TCV(BBL)'],
+      ullO.tanks.filter(t=>t.measured).map(t=>`<tr>
+        <td>${t.name}</td><td>${t.refHeight||'—'}</td><td>${t.measured}</td>
+        <td>${t.api||'—'}</td><td>${t.temp||'—'}</td><td>${t.vcf||'—'}</td>
+        <td>${fmtN(t.gsv)}</td><td>${fmtN(t.tcv)}</td>
+      </tr>`).join('')
+    )}
+    <p class="note">${ullO.notes||''}</p>` : ''}
+    ${origen.notes ? `<p class="note">${origen.notes}</p>` : ''}
+  `);
+
+  // ── KEY MEETING ─────────────────────────────────────────────────────────
+  const km = mods['key-meeting'] || {};
+  const kmAnswers = km.answers || {};
+  const kmSec = sec('2. Key Meeting', `
+    <table class="kv">
+      ${kv('Fecha', fmtD(km.date))}
+      ${kv('Hora', km.time||'—')}
+      ${kv('Lugar', km.location||'—')}
+      ${kv('Asistentes', (km.attendees||[]).join(' · ')||'—')}
+    </table>
+    ${Object.keys(kmAnswers).length ? `
+    <h3>Cuestionario API MPMS 17.1 — Respuestas</h3>
+    ${(typeof KM_BLOCKS !== 'undefined' ? KM_BLOCKS : []).map(block=>`
+      <h4>Bloque ${block.id}: ${block.title}</h4>
+      <table>
+        <thead><tr><th style="width:30px">#</th><th>Pregunta</th><th>Respuesta</th></tr></thead>
+        <tbody>${block.questions.map(q=>`<tr>
+          <td>${q.id.replace('q','')}</td>
+          <td>${q.text}</td>
+          <td>${kmAnswers[q.id]||'—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>`).join('')}` : '<p class="note">Cuestionario no completado.</p>'}
+    ${km.acta ? `<h3>Acta Formal — Consultor IA</h3><div class="ia-block">${km.acta.replace(/\n/g,'<br>')}</div>` : ''}
+    ${km.notes ? `<p class="note">${km.notes}</p>` : ''}
+  `);
+
+  // ── ULLAGE ARRIBO ────────────────────────────────────────────────────────
+  const arribo = mods['ullage-arribo'] || {};
+  const tot = arribo.totals || {};
+  const gsv_bl = parseFloat(bl.gsv)||0;
+  const gsv_arr = parseFloat(tot.gsv)||0;
+  const dGSV = gsv_bl && gsv_arr ? gsv_arr - gsv_bl : null;
+  const pGSV = gsv_bl && dGSV !== null ? (dGSV/gsv_bl*100).toFixed(3) : null;
+
+  const arriboSec = sec('3. Ullage al Arribo', `
+    <table class="kv">
+      ${kv('Fecha', fmtD(arribo.date))}
+      ${kv('Hora', arribo.time||'—')}
+      ${kv('Trim', arribo.trim ? arribo.trim+' m' : '—')}
+      ${kv('Lista', arribo.list !== undefined ? arribo.list+'°' : '—')}
+    </table>
+    ${(arribo.tanks||[]).some(t=>t.measured) ? `
+    <h3>Medición por Tanque</h3>
+    ${tbl(['Tanque','Alt.Ref.(m)','Alt.Med.(m)','API @60°F','Temp(°C)','VCF'],
+      (arribo.tanks||[]).filter(t=>t.measured).map(t=>`<tr>
+        <td>${t.name}</td><td>${t.refHeight||'—'}</td><td>${t.measured}</td>
+        <td>${t.api||'—'}</td><td>${t.temp||'—'}</td><td>${t.vcf||'—'}</td>
+      </tr>`).join('')
+    )}` : ''}
+    <h3>Totales Calculados</h3>
+    <table>
+      <thead><tr><th>Parámetro</th><th>Origen (BL)</th><th>Arribo</th><th>Δ</th><th>%</th><th>Unidad</th></tr></thead>
+      <tbody>
+        ${[['GSV @60°F','gsv','BBL',3],['TCV','tcv','BBL',3],['Free Water','fw','BBL',3],
+           ['API @60°F','api','°API',1],['BS&W','bsw','%',3],
+           ['GSV m³ @15°C','m3At15','m³',3],['Ton. Métricas','metricTons','MT',3]
+        ].map(([lbl,fld,unit,dec])=>{
+          const bv=parseFloat(bl[fld])||null, av=parseFloat(tot[fld])||null;
+          const dv=bv&&av?av-bv:null, pv=bv&&dv?(dv/bv*100).toFixed(3):null;
+          return `<tr${dv&&Math.abs(dv/bv)>0.005?' class="warning"':''}>
+            <td>${lbl}</td><td>${fmtN(bl[fld],dec)}</td><td>${fmtN(tot[fld],dec)}</td>
+            <td>${dv!==null?(dv>0?'+':'')+fmtN(dv,dec):'—'}</td>
+            <td>${pv!==null?(parseFloat(pv)>0?'+':'')+pv+'%':'—'}</td>
+            <td>${unit}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${arribo.notes ? `<p class="note">${arribo.notes}</p>` : ''}
+    ${arribo.iaAnalysis ? `<h3>Análisis Comparativo — Consultor IA</h3><div class="ia-block">${arribo.iaAnalysis.replace(/\n/g,'<br>')}</div>` : ''}
+  `);
+
+  // ── VEF AL ARRIBO ──────────────────────────────────────────────────────
+  const vefComp = mods['vef-comparativo'] || {};
+  const vefAStats = vefComp.voyages?.length ? computeVEFStats(vefComp.voyages) : null;
+  const vefSec = vefAStats ? sec('4. VEF al Arribo', `
+    <table class="kv">
+      ${kv('VEF al Arribo', '<strong>'+vefAStats.vef.toFixed(4)+'</strong>')}
+      ${kv('VEF de Origen', vefOStats ? vefOStats.vef.toFixed(4) : '—')}
+      ${vefOStats && vefAStats ? kv('Δ VEF', (vefAStats.vef-vefOStats.vef>0?'+':'')+(vefAStats.vef-vefOStats.vef).toFixed(5)) : ''}
+      ${kv('Viajes Calificantes', vefAStats.qualCount)}
+      ${kv('Ratio Medio V/S', vefAStats.meanRatio?.toFixed(5)||'—')}
+      ${kv('Banda ±0.30%', vefAStats.lo?.toFixed(5)+' – '+vefAStats.hi?.toFixed(5))}
+    </table>
+    <h3>Historial de Viajes VEF al Arribo</h3>
+    ${tbl(['#','Viaje','Producto','Puerto/Terminal','Fecha','TCV Nave','TCV Shore','Ratio','Qual.','Rechaz.'],
+      (vefComp.voyages||[]).map((v,i)=>{
+        const r=vefAStats.rows[i];
+        return `<tr${r.isRejected?' class="rejected"':r.qualifying?' class="qualifying"':''}>
+          <td>${i+1}</td><td>${v.voyageNum}</td><td>${v.product}</td><td>${v.terminal}</td>
+          <td>${fmtD(v.date)}</td><td>${fmtN(v.vesselTCV,0)}</td><td>${fmtN(v.shoreTCV,0)}</td>
+          <td>${r.ratio?r.ratio.toFixed(5):'—'}</td>
+          <td>${r.qualifying?'SÍ':'No'}</td><td>${r.isRejected?'SÍ*':'No'}</td>
+        </tr>`;
+      }).join('')
+    )}
+    ${vefComp.notes?`<p class="note">${vefComp.notes}</p>`:''}
+  `) : '';
+
+  // ── DISCHARGE RECORD ──────────────────────────────────────────────────
+  const dr = mods['discharge-record'] || {};
+  const drSec = dr.enabled && (dr.records||[]).length ? sec('5. Discharge Record — Registro Horario', `
+    <table class="kv">
+      ${kv('Fecha de inicio', fmtD(dr.startDate))}
+      ${kv('Hora de inicio', dr.startTime||'—')}
+    </table>
+    ${tbl(['Hora','Vol. Bombeado (BBL)','Presión (psi)','Observaciones'],
+      dr.records.map(r=>`<tr>
+        <td>${r.time}</td>
+        <td>${r.volPumped?parseFloat(r.volPumped).toLocaleString('en-US'):'—'}</td>
+        <td>${r.pressure||'—'}</td>
+        <td>${r.observations||''}</td>
+      </tr>`).join('')
+    )}
+    ${dr.notes?`<p class="note">${dr.notes}</p>`:''}
+  `) : '';
+
+  // ── TERMÓMETROS ────────────────────────────────────────────────────────
+  const term = mods['termometros'] || {};
+  const tV=parseFloat(term.vessel?.tempF)||null, tS=parseFloat(term.surveyor?.tempF)||null, tA=parseFloat(term.aci?.tempF)||null;
+  const termSec = term.enabled !== false ? sec('6. Verificación de Termómetros — API MPMS 7.1 §8.2.1', `
+    <table>
+      <thead><tr><th>Termómetro</th><th>ID / Serie</th><th>Fecha Calibración</th><th>Lectura (°F)</th><th>Lectura (°C)</th></tr></thead>
+      <tbody>
+        <tr><td>Buque</td><td>${term.vessel?.id||'—'}</td><td>${fmtD(term.vessel?.calibDate)}</td>
+          <td>${tV?.toFixed(1)||'—'}</td><td>${tV?((tV-32)*5/9).toFixed(1):'—'}</td></tr>
+        <tr><td>Surveyor</td><td>${term.surveyor?.id||'—'}</td><td>${fmtD(term.surveyor?.calibDate)}</td>
+          <td>${tS?.toFixed(1)||'—'}</td><td>${tS?((tS-32)*5/9).toFixed(1):'—'}</td></tr>
+        <tr><td>ACI Loss Control</td><td>${term.aci?.id||'—'}</td><td>${fmtD(term.aci?.calibDate)}</td>
+          <td>${tA?.toFixed(1)||'—'}</td><td>${tA?((tA-32)*5/9).toFixed(1):'—'}</td></tr>
+      </tbody>
+    </table>
+    ${tV&&tS?`<table class="kv">
+      ${kv('Diferencia Buque vs Surveyor', Math.abs(tV-tS).toFixed(2)+'°F / '+((Math.abs(tV-tS))*5/9).toFixed(2)+'°C')}
+      ${kv('Tolerancia API MPMS 7.1', '±0.5°F / ±0.25°C')}
+      ${kv('Resultado', Math.abs(tV-tS)<=0.5?'✓ DENTRO DE TOLERANCIA':'✗ FUERA DE TOLERANCIA')}
+    </table>`:''}
+    ${term.generalRemarks?`<p class="note">${term.generalRemarks}</p>`:''}
+  `) : '';
+
+  // ── CHECKLIST ─────────────────────────────────────────────────────────
+  const chkKey = (op.moduleOrder||[]).find(k=>k.startsWith('checklist'));
+  const chk = chkKey ? (mods[chkKey]||{}) : {};
+  const chkTemplate = CHECKLIST_VESSEL;
+  const chkSections = (chk.items && chk.items.length) ? chk.items : makeChecklistData(chkTemplate);
+  let totPts=0,totMax=0,cCt=0,pCt=0,nCt=0,naCt=0;
+  chkSections.forEach(s=>s.items.forEach(it=>{
+    if(it.val==='c'){totPts+=2;totMax+=2;cCt++;}
+    else if(it.val==='p'){totPts+=1;totMax+=2;pCt++;}
+    else if(it.val==='n'){totMax+=2;nCt++;}
+    else if(it.val==='na'){naCt++;}
+  }));
+  const pct=totMax>0?Math.round(totPts/totMax*100):null;
+  const verdict=pct===null?'Sin Evaluar':pct>=80?'SATISFACTORIO':pct>=60?'REGULAR':'DEFICIENTE';
+  const chkSec = sec('7. Checklist de Inspección', `
+    <table class="kv">
+      ${kv('Inspector Auditado', chk.inspector||'—')}
+      ${kv('Auditor Loss Control', chk.auditor||'—')}
+      ${kv('Fecha', fmtD(chk.date))}
+      ${kv('Resultado Global', (pct!==null?pct+'% — ':'')+'<strong>'+verdict+'</strong>')}
+      ${kv('Puntuación', totPts+'/'+totMax+' pts  (C='+cCt+'  P='+pCt+'  N='+nCt+'  NA='+naCt+')')}
+    </table>
+    ${chkSections.map(sec2=>`
+      <h4>${sec2.title||sec2.name}</h4>
+      ${sec2.intro?`<p class="note">${sec2.intro}</p>`:''}
+      <table>
+        <thead><tr><th style="width:60%">Item</th><th>Ref.</th><th>Estado</th><th>Observación</th></tr></thead>
+        <tbody>${sec2.items.map(it=>`<tr${it.val==='n'?' class="warning"':it.val==='c'?' class="ok"':''}>
+          <td>${it.text}</td><td style="font-size:9px">${it.norm||''}</td>
+          <td style="text-align:center;font-weight:700">${it.val==='c'?'C':it.val==='p'?'P':it.val==='n'?'N':it.val==='na'?'NA':'—'}</td>
+          <td style="font-size:10px">${it.comment||''}</td>
+        </tr>`).join('')}</tbody>
+      </table>`).join('')}
+  `);
+
+  // ── REPORTE EVOLUTIVO / CONCLUSIÓN ─────────────────────────────────────
+  const re = mods['reporte-evolutivo'] || {};
+  const allAnalyses = (op.moduleOrder||[]).map(k=>{
+    const m=mods[k]; if(!m) return null;
+    if(k==='key-meeting'&&m.acta) return {label:'Key Meeting — Acta Formal IA',content:m.acta,date:m.date};
+    if(m.iaAnalysis) return {label:'Ullage Arribo — Análisis Comparativo IA',content:m.iaAnalysis,date:m.iaDate};
+    return null;
+  }).filter(Boolean);
+
+  const reSec = sec('8. Reporte Evolutivo — Balance y Conclusión', `
+    <h3>Balance de Cantidades — Origen vs Arribo</h3>
+    <table>
+      <thead><tr><th>Parámetro</th><th>Origen (BL)</th><th>Arribo</th><th>Δ</th><th>%</th><th>Unidad</th></tr></thead>
+      <tbody>
+        ${[['GSV @60°F','gsv','BBL',3],['TCV','tcv','BBL',3],['Free Water','fw','BBL',3],
+           ['API @60°F','api','°API',1],['BS&W','bsw','%',3],
+           ['GSV m³ @15°C','m3At15','m³',3],['Ton. Métricas','metricTons','MT',3]
+        ].map(([lbl,fld,unit,dec])=>{
+          const bv=parseFloat(bl[fld])||null,av=parseFloat(tot[fld])||null;
+          const dv=bv&&av?av-bv:null,pv=bv&&dv?(dv/bv*100).toFixed(3):null;
+          return `<tr${dv&&Math.abs(dv/bv)>0.005?' class="warning"':''}>
+            <td>${lbl}</td><td>${fmtN(bl[fld],dec)}</td><td>${fmtN(tot[fld],dec)}</td>
+            <td>${dv!==null?(dv>0?'+':'')+fmtN(dv,dec):'—'}</td>
+            <td>${pv!==null?(parseFloat(pv)>0?'+':'')+pv+'%':'—'}</td>
+            <td>${unit}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${vefOStats||vefAStats?`<table class="kv">
+      ${kv('VEF Origen', vefOStats?vefOStats.vef.toFixed(4):'—')}
+      ${kv('VEF Arribo', vefAStats?vefAStats.vef.toFixed(4):'—')}
+      ${vefOStats&&vefAStats?kv('Δ VEF',(vefAStats.vef-vefOStats.vef>0?'+':'')+(vefAStats.vef-vefOStats.vef).toFixed(5)):''}
+    </table>`:''}
+    ${allAnalyses.length?`<div class="page-break"></div><h3>Análisis del Consultor IA</h3>${allAnalyses.map(a=>`
+      <h4>${a.label}${a.date?' — '+fmtD(a.date):''}</h4>
+      <div class="ia-block">${a.content.replace(/\n/g,'<br>')}</div>`).join('')}`:''}
+    ${re.notes?`<div class="page-break"></div><h3>Conclusión Final del Inspector</h3><div class="conclusion">${re.notes.replace(/\n/g,'<br>')}</div>`:''}
+    <div class="signatures">
+      <div class="sig-box"><div class="sig-line"></div><div>Inspector ACI Loss Control</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div>Representante del Buque</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div>Representante del Cliente</div></div>
+    </div>
+  `);
+
+  // ── CSS + ASSEMBLE ──────────────────────────────────────────────────────
+  const css = `
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:11px;color:#111;background:#fff;line-height:1.4}
+    .cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;border:3px solid #1a2f5a;margin:20px}
+    .cover-logo{font-size:36px;font-weight:900;color:#1a2f5a;letter-spacing:2px;margin-bottom:8px}
+    .cover-logo span{color:#c8a415}
+    .cover-title{font-size:18px;font-weight:700;color:#444;margin:20px 0 4px;text-transform:uppercase;letter-spacing:3px}
+    .cover-code{font-size:32px;font-weight:900;color:#1a2f5a;margin:8px 0 32px}
+    .cover-tbl{margin:0 auto;border-collapse:collapse;min-width:400px}
+    .cover-tbl td{padding:6px 16px;border-bottom:1px solid #ddd;text-align:left}
+    .cover-tbl td:first-child{font-weight:700;color:#555;width:160px}
+    .cover-footer{margin-top:40px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:12px}
+    .page-break{page-break-after:always;height:0}
+    .section{padding:16px 24px;border-bottom:2px solid #e8e8e8;margin-bottom:8px}
+    h2{font-size:14px;font-weight:700;color:#1a2f5a;border-bottom:2px solid #1a2f5a;padding-bottom:4px;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+    h3{font-size:12px;font-weight:700;color:#333;margin:14px 0 6px;border-left:3px solid #c8a415;padding-left:8px}
+    h4{font-size:11px;font-weight:700;color:#555;margin:10px 0 4px}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10px}
+    th{background:#1a2f5a;color:#fff;padding:5px 8px;text-align:left;font-weight:600;font-size:9px}
+    td{padding:4px 8px;border-bottom:1px solid #eee;vertical-align:top}
+    tr:nth-child(even) td{background:#f9f9f9}
+    tr.rejected td{color:#999;text-decoration:line-through}
+    tr.qualifying td{background:#f0fff0}
+    tr.warning td{background:#fff8e8}
+    tr.ok td{background:#f0fff0}
+    table.kv td{border:none;padding:3px 8px}
+    table.kv td.label{font-weight:700;color:#555;width:200px}
+    .ia-block{background:#f8f9ff;border-left:3px solid #1a2f5a;padding:10px 14px;font-size:10px;line-height:1.6;white-space:pre-wrap;margin-bottom:10px}
+    .conclusion{background:#fffbf0;border:1px solid #c8a415;padding:12px 16px;font-size:11px;line-height:1.7;border-radius:4px}
+    .note{font-size:9px;color:#666;font-style:italic;margin:4px 0 8px;padding:4px 8px;background:#f5f5f5;border-radius:2px}
+    .signatures{display:flex;gap:40px;margin-top:40px;padding-top:20px;border-top:1px solid #ddd}
+    .sig-box{flex:1;text-align:center;font-size:10px;color:#555}
+    .sig-line{border-top:1px solid #333;margin:0 20px 6px}
+    @media print{
+      body{font-size:10px}
+      .page-break{page-break-after:always}
+      .section{page-break-inside:avoid}
+      table{page-break-inside:auto}
+      tr{page-break-inside:avoid}
+    }
+  `;
+
+  const html = `<!DOCTYPE html><html lang="es"><head>
+    <meta charset="UTF-8">
+    <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
+    <style>${css}</style>
+  </head><body>
+    ${cover}
+    ${origenSec}
+    <div class="page-break"></div>
+    ${kmSec}
+    <div class="page-break"></div>
+    ${arriboSec}
+    ${vefSec}
+    <div class="page-break"></div>
+    ${drSec}
+    ${termSec}
+    <div class="page-break"></div>
+    ${chkSec}
+    <div class="page-break"></div>
+    ${reSec}
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { alert('Permite ventanas emergentes para este sitio para generar el PDF.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 800);
 }
 
 // ===== KEY MEETING QUESTION BLOCKS (API MPMS 17.1 / 17.11) =====
@@ -3940,6 +4325,9 @@ function handleClick(e) {
         if (res.reply) { op.modules[c.mod].iaAnalysis = res.reply; op.modules[c.mod].iaDate = new Date().toISOString(); saveOp(op); render(); }
         else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error.'); }
       }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
+  }
+  else if (a === 'print-full-report') {
+    printFullReport(el.dataset.opid);
   }
   else if (a === 're-send-email') {
     const opId2 = el.dataset.opid;
