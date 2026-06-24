@@ -3474,13 +3474,13 @@ function buildUllage(d, mod, ctx) {
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fwM||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fwM"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>
                 <td style="background:#e8f4f8"><span id="gov-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gov>0?gov.toFixed(3):'—'}</span></td>
-                <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(2):'—'}</span></td>
+                <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(3):'—'}</span></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="temp"></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="api"></td>
                 <td><input class="tbl-input" type="number" step="0.01" value="${t.bsw||''}" placeholder="0.00" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="bsw"></td>
                 <td style="background:#e8f4ea"><span id="vcf-${i}" class="calc-cell" style="display:block;min-width:78px;text-align:right;padding:3px 6px;font-size:11px;font-family:monospace;color:var(--green)">${vcf?vcf.toFixed(6):'—'}</span></td>
                 <td style="background:#e8f4ea"><span id="gsv-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gsv>0?gsv.toFixed(3):'—'}</span></td>
-                <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(2):'—'}</span></td>
+                <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(3):'—'}</span></td>
               </tr>`;}).join('')}
             <tr class="total-row">
               <td>TOTAL</td>
