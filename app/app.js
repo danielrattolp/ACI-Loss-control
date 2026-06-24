@@ -4262,6 +4262,8 @@ function saveField(ctxStr, field, value) {
   if (!ref) return;
   ref.data[field] = value;
   ref.save();
+  // VEF legacy: re-render so calculated VEF result updates immediately
+  if (field === 'shoreGSV' || field === 'vesselGSV') render();
 }
 
 function saveTank(ctxStr, tankIdx, field, value) {
@@ -4765,14 +4767,7 @@ function handleChange(e) {
     if (!target.voyages[idx]) target.voyages[idx] = emptyVEFVoyage();
     target.voyages[idx][el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
     ref.save();
-    // Re-render just the results section without full render for performance
-    // (full render would reset focus — defer to next tick if field not date/select)
-    if (el.type === 'date' || el.tagName === 'SELECT') render();
-    else {
-      // update just the stats display
-      const opData = getOp(c.opId);
-      if (opData) saveOp(opData);
-    }
+    render();
   }
   else if (a === 'vef-save-notes') {
     const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
