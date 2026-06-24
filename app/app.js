@@ -4592,7 +4592,7 @@ function handleClick(e) {
     const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
     const prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
 
-    fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ messages: [{ role:'user', content: prompt }] }) })
       .then(r=>r.json()).then(res=>{
         if (res.reply) {
