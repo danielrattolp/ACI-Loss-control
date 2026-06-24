@@ -85,6 +85,18 @@ textarea {
   border-left: 1px solid rgba(255, 255, 255, 0.24);
 }
 
+.brochure-link {
+  padding: 7px 14px;
+  background: var(--accent);
+  color: var(--white) !important;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+}
+.brochure-link:hover { opacity: 0.85; }
+
 .hero {
   position: relative;
   min-height: 88vh;

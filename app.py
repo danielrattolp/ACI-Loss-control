@@ -886,6 +886,11 @@ def serve_assets(filename):
     return send_from_directory("assets", filename)
 
 
+@app.route("/brochure")
+def serve_brochure():
+    return send_from_directory("assets", "ACI-LATAM-Brochure-Corporativo.pdf", as_attachment=True, download_name="ACI-LATAM-Brochure-Corporativo.pdf")
+
+
 @app.route("/site.css")
 def serve_site_css():
     return send_from_directory(".", "site.css")
