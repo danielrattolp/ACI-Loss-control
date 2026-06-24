@@ -293,7 +293,9 @@ function loadOps() {
   try { return JSON.parse(localStorage.getItem('aci_ops') || '[]'); } catch { return []; }
 }
 function saveOps(ops) {
-  localStorage.setItem('aci_ops', JSON.stringify(ops));
+  try { localStorage.setItem('aci_ops', JSON.stringify(ops)); } catch(e) {
+    if (e.name === 'QuotaExceededError' || e.code === 22) alert('Almacenamiento local lleno. Las fotos se guardan en el servidor pero pueden perderse al recargar. Elimina imágenes antiguas o exporta la operación.');
+  }
   fetch('/api/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ops) }).catch(() => {});
 }
 function loadCounters() {
@@ -4823,18 +4825,32 @@ function handleChange(e) {
     const ref = getModuleRef(ctx2);
     if (!ref) return;
     if (!ref.data.media) ref.data.media = [];
-    const MAX = 5 * 1024 * 1024;
+    const MAX = 20 * 1024 * 1024;
     let loaded = 0;
+    const total = files.filter(f => f.size <= MAX).length;
+    if (!total) { alert('Las imágenes seleccionadas superan 20 MB cada una.'); el.value=''; return; }
     files.forEach(file => {
-      if (file.size > MAX) { alert(`"${file.name}" supera 5 MB. Comprime la imagen y vuelve a intentar.`); return; }
+      if (file.size > MAX) { alert(`"${file.name}" supera 20 MB, se omite.`); return; }
       const reader2 = new FileReader();
       reader2.onload = (ev2) => {
-        const raw = ev2.target.result; // data:image/jpeg;base64,...
-        const [header, b64] = raw.split(',');
-        const mtype = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-        ref.data.media.push({ name: file.name, data: raw, base64: b64, mediaType: mtype, ts: Date.now() });
-        loaded++;
-        if (loaded === files.length) { ref.save(); render(); }
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1600;
+          let w = img.width, h = img.height;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            const ratio = Math.min(MAX_DIM/w, MAX_DIM/h);
+            w = Math.round(w*ratio); h = Math.round(h*ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          const b64 = compressed.split(',')[1];
+          ref.data.media.push({ name: file.name, data: compressed, base64: b64, mediaType: 'image/jpeg', ts: Date.now() });
+          loaded++;
+          if (loaded === total) { ref.save(); render(); }
+        };
+        img.src = ev2.target.result;
       };
       reader2.readAsDataURL(file);
     });
