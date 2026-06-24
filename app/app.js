@@ -2050,10 +2050,11 @@ function buildDatosOrigen(d, ctx) {
   const ull = d.ullageOrigen || {};
   const ullTanks = ull.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'', gsv:'', tcv:'' }));
 
-  const row = (label, field, step='0.001', unit='') => `
+  const fmtVal = (v, dec=3) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
+  const row = (label, field, step='0.001', unit='', dec=3) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
-      <td><input class="tbl-input" type="number" step="${step}" value="${bl[field]||''}"
+      <td><input class="tbl-input" type="number" step="${step}" value="${fmtVal(bl[field], dec)}"
           data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"></td>
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
@@ -2129,15 +2130,15 @@ function buildDatosOrigen(d, ctx) {
           ${row('GSV @60°F','gsv','0.001','BBL')}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">TCV (GSV+FW)</td>
-            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blTcvDisplay}</span></td>
+            <td><span class="tbl-input" data-auto="tcv" data-ctx="${ctx}" data-obj="bl" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blTcvDisplay}</span></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
           </tr>
           ${row('Free Water','fw','0.001','BBL')}
-          ${row('API Gravity @60°F','api','0.1','°API')}
-          ${row('BS&W','bsw','0.01','%')}
+          ${row('API Gravity @60°F','api','0.1','°API',1)}
+          ${row('BS&W','bsw','0.01','%',3)}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">NSV @60°F</td>
-            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blNsvDisplay}</span></td>
+            <td><span class="tbl-input" data-auto="nsv" data-ctx="${ctx}" data-obj="bl" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blNsvDisplay}</span></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
           </tr>
           ${row('Densidad @15°C','densityAt15','0.0001','kg/m³')}
@@ -2204,10 +2205,11 @@ function buildUllageArribo(d, mod, ctx) {
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
     </tr>`;
 
-  const totRow = (label, field, unit) => `
+  const fmtTotVal = (v, dec=3) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
+  const totRow = (label, field, unit, dec=3) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink)">${label}</td>
-      <td><input class="tbl-input" type="number" step="0.001" value="${totals[field]||''}"
+      <td><input class="tbl-input" type="number" step="0.001" value="${fmtTotVal(totals[field], dec)}"
           data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="${field}" placeholder="—"></td>
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
@@ -2267,15 +2269,15 @@ function buildUllageArribo(d, mod, ctx) {
           ${totRow('GSV @60°F','gsv','BBL')}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink)">TCV (GSV+FW)</td>
-            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${tcvDisplay}</span></td>
+            <td><span class="tbl-input" data-auto="tcv" data-ctx="${ctx}" data-obj="totals" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${tcvDisplay}</span></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
           </tr>
           ${totRow('Free Water','fw','BBL')}
-          ${totRow('API Gravity @60°F','api','°API')}
-          ${totRow('BS&W','bsw','%')}
+          ${totRow('API Gravity @60°F','api','°API',1)}
+          ${totRow('BS&W','bsw','%',3)}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink)">NSV @60°F</td>
-            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${nsvDisplay}</span></td>
+            <td><span class="tbl-input" data-auto="nsv" data-ctx="${ctx}" data-obj="totals" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${nsvDisplay}</span></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
           </tr>
           ${totRow('Densidad @15°C','densityAt15','kg/m³')}
@@ -4318,14 +4320,21 @@ function saveNested(ctxStr, obj, field, value) {
   if (!ref) return;
   if (!ref.data[obj]) ref.data[obj] = {};
   ref.data[obj][field] = value;
-  // Auto-recalculate TCV = GSV + FW, NSV = GSV × (1 - BSW/100)
+  // Auto-recalculate TCV = GSV + FW, NSV = GSV × (1 - BSW/100), update DOM spans live
   if (obj === 'totals' || obj === 'bl') {
     const gsv = parseFloat(ref.data[obj].gsv) || 0;
     const fw  = parseFloat(ref.data[obj].fw)  || 0;
     const bsw = parseFloat(ref.data[obj].bsw) || 0;
     if (gsv > 0) {
-      if (field === 'gsv' || field === 'fw')  ref.data[obj].tcv = (gsv + fw).toFixed(3);
-      if (field === 'gsv' || field === 'bsw') ref.data[obj].nsv = (gsv * (1 - bsw / 100)).toFixed(3);
+      let newTcv = null, newNsv = null;
+      if (field === 'gsv' || field === 'fw')  { newTcv = (gsv + fw).toFixed(3); ref.data[obj].tcv = newTcv; }
+      if (field === 'gsv' || field === 'bsw') { newNsv = (gsv * (1 - bsw / 100)).toFixed(3); ref.data[obj].nsv = newNsv; }
+      // Update DOM spans immediately without full re-render
+      document.querySelectorAll(`[data-auto][data-obj="${obj}"]`).forEach(span => {
+        const autoType = span.dataset.auto;
+        if (autoType === 'tcv' && newTcv !== null) span.textContent = newTcv;
+        if (autoType === 'nsv' && newNsv !== null) span.textContent = newNsv;
+      });
     }
   }
   ref.save();
