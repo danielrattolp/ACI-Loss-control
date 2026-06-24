@@ -2050,8 +2050,8 @@ function buildDatosOrigen(d, ctx) {
   const ull = d.ullageOrigen || {};
   const ullTanks = ull.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'', gsv:'', tcv:'' }));
 
-  const fmtVal = (v, dec=3) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
-  const row = (label, field, step='0.001', unit='', dec=3) => `
+  const fmtVal = (v, dec=2) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
+  const row = (label, field, step='0.001', unit='', dec=2) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
       <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtVal(bl[field], dec)}"
@@ -2061,9 +2061,9 @@ function buildDatosOrigen(d, ctx) {
     </tr>`;
 
   const blTcvCalc = (parseFloat(bl.gsv)||0) + (parseFloat(bl.fw)||0);
-  const blTcvDisplay = blTcvCalc > 0 ? blTcvCalc.toFixed(3) : (bl.tcv || '—');
+  const blTcvDisplay = blTcvCalc > 0 ? blTcvCalc.toFixed(2) : (bl.tcv || '—');
   const blNsvCalc = (parseFloat(bl.gsv)||0) * (1 - (parseFloat(bl.bsw)||0) / 100);
-  const blNsvDisplay = blNsvCalc > 0 ? blNsvCalc.toFixed(3) : (bl.nsv || '—');
+  const blNsvDisplay = blNsvCalc > 0 ? blNsvCalc.toFixed(2) : (bl.nsv || '—');
 
   const ullRow = (t, i) => `
     <tr>
@@ -2206,8 +2206,8 @@ function buildUllageArribo(d, mod, ctx) {
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
     </tr>`;
 
-  const fmtTotVal = (v, dec=3) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
-  const totRow = (label, field, unit, dec=3) => `
+  const fmtTotVal = (v, dec=2) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
+  const totRow = (label, field, unit, dec=2) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink)">${label}</td>
       <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtTotVal(totals[field], dec)}"
@@ -2217,9 +2217,9 @@ function buildUllageArribo(d, mod, ctx) {
     </tr>`;
 
   const tcvCalc = (parseFloat(totals.gsv)||0) + (parseFloat(totals.fw)||0);
-  const tcvDisplay = tcvCalc > 0 ? tcvCalc.toFixed(3) : (totals.tcv || '—');
+  const tcvDisplay = tcvCalc > 0 ? tcvCalc.toFixed(2) : (totals.tcv || '—');
   const nsvCalc = (parseFloat(totals.gsv)||0) * (1 - (parseFloat(totals.bsw)||0) / 100);
-  const nsvDisplay = nsvCalc > 0 ? nsvCalc.toFixed(3) : (totals.nsv || '—');
+  const nsvDisplay = nsvCalc > 0 ? nsvCalc.toFixed(2) : (totals.nsv || '—');
 
   return `
     <div class="module-title">📐 ${label}</div>
@@ -2512,7 +2512,7 @@ function buildReporteEvolutivo(op, ctx) {
   const tot = firstArribo?.totals || {};
 
   // Volume comparison rows
-  const fmtN = v => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3}) : '—';
+  const fmtN = v => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
   const diffRow = (label, blVal, arrVal, unit) => {
     const b = parseFloat(blVal)||null, a = parseFloat(arrVal)||null;
     const d = (b&&a) ? a-b : null;
@@ -2556,8 +2556,8 @@ function buildReporteEvolutivo(op, ctx) {
     <div class="card">
       <div class="card-title">Balance de Cantidades — Origen vs Arribo</div>
       ${(bl.gsv || tot.gsv) ? (() => {
-        const _blNsv  = (parseFloat(bl.gsv)||0)  > 0 ? ((parseFloat(bl.gsv)||0)  * (1 - (parseFloat(bl.bsw)||0)  / 100)).toFixed(3) : '';
-        const _totNsv = (parseFloat(tot.gsv)||0) > 0 ? ((parseFloat(tot.gsv)||0) * (1 - (parseFloat(tot.bsw)||0) / 100)).toFixed(3) : '';
+        const _blNsv  = (parseFloat(bl.gsv)||0)  > 0 ? ((parseFloat(bl.gsv)||0)  * (1 - (parseFloat(bl.bsw)||0)  / 100)).toFixed(2) : '';
+        const _totNsv = (parseFloat(tot.gsv)||0) > 0 ? ((parseFloat(tot.gsv)||0) * (1 - (parseFloat(tot.bsw)||0) / 100)).toFixed(2) : '';
         return `
       <div style="overflow-x:auto">
         <table class="data-table" style="width:100%">
@@ -2703,7 +2703,7 @@ function printFullReport(opId, selectedMods) {
   const incl = selectedMods ? new Set(selectedMods) : null; // null = include all
   const has = (k) => !incl || incl.has(k);
   const now = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'long',year:'numeric'});
-  const fmtN = (v,d=3) => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+  const fmtN = (v,d=2) => v ? parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
   const fmtD = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-CL') : '—';
   const sec = (title, content) => `<div class="section"><h2>${title}</h2>${content}</div>`;
   const tbl = (headers, rows) => `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -3474,13 +3474,13 @@ function buildUllage(d, mod, ctx) {
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fwM||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fwM"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>
                 <td style="background:#e8f4f8"><span id="gov-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gov>0?gov.toFixed(3):'—'}</span></td>
-                <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(3):'—'}</span></td>
+                <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(2):'—'}</span></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="temp"></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="api"></td>
                 <td><input class="tbl-input" type="number" step="0.01" value="${t.bsw||''}" placeholder="0.00" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="bsw"></td>
                 <td style="background:#e8f4ea"><span id="vcf-${i}" class="calc-cell" style="display:block;min-width:78px;text-align:right;padding:3px 6px;font-size:11px;font-family:monospace;color:var(--green)">${vcf?vcf.toFixed(6):'—'}</span></td>
                 <td style="background:#e8f4ea"><span id="gsv-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gsv>0?gsv.toFixed(3):'—'}</span></td>
-                <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(3):'—'}</span></td>
+                <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(2):'—'}</span></td>
               </tr>`;}).join('')}
             <tr class="total-row">
               <td>TOTAL</td>
@@ -4329,8 +4329,8 @@ function saveNested(ctxStr, obj, field, value) {
     const bsw = parseFloat(ref.data[obj].bsw) || 0;
     if (gsv > 0) {
       let newTcv = null, newNsv = null;
-      if (field === 'gsv' || field === 'fw')  { newTcv = (gsv + fw).toFixed(3); ref.data[obj].tcv = newTcv; }
-      if (field === 'gsv' || field === 'bsw') { newNsv = (gsv * (1 - bsw / 100)).toFixed(3); ref.data[obj].nsv = newNsv; }
+      if (field === 'gsv' || field === 'fw')  { newTcv = (gsv + fw).toFixed(2); ref.data[obj].tcv = newTcv; }
+      if (field === 'gsv' || field === 'bsw') { newNsv = (gsv * (1 - bsw / 100)).toFixed(2); ref.data[obj].nsv = newNsv; }
       // Update DOM spans immediately without full re-render
       document.querySelectorAll(`[data-auto][data-obj="${obj}"]`).forEach(span => {
         const autoType = span.dataset.auto;
