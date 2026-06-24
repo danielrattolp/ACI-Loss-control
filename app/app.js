@@ -2054,8 +2054,9 @@ function buildDatosOrigen(d, ctx) {
   const row = (label, field, step='0.001', unit='', dec=3) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
-      <td><input class="tbl-input" type="number" step="${step}" value="${fmtVal(bl[field], dec)}"
-          data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"></td>
+      <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtVal(bl[field], dec)}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"
+          onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
 
@@ -2209,8 +2210,9 @@ function buildUllageArribo(d, mod, ctx) {
   const totRow = (label, field, unit, dec=3) => `
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink)">${label}</td>
-      <td><input class="tbl-input" type="number" step="0.001" value="${fmtTotVal(totals[field], dec)}"
-          data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="${field}" placeholder="—"></td>
+      <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtTotVal(totals[field], dec)}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="${field}" placeholder="—"
+          onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
 
