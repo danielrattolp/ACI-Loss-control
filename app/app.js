@@ -2198,6 +2198,9 @@ function buildUllageArribo(d, mod, ctx) {
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
 
+  const tcvCalc = (parseFloat(totals.gsv)||0) + (parseFloat(totals.fw)||0);
+  const tcvDisplay = tcvCalc > 0 ? tcvCalc.toFixed(3) : (totals.tcv || '—');
+
   return `
     <div class="module-title">📐 ${label}</div>
     <div class="module-subtitle">Medición de arribo · API MPMS 17</div>
@@ -2246,7 +2249,11 @@ function buildUllageArribo(d, mod, ctx) {
         <thead><tr><th style="width:180px">Cantidad</th><th>Valor</th><th style="width:80px">Unidad</th></tr></thead>
         <tbody>
           ${totRow('GSV @60°F','gsv','BBL')}
-          ${totRow('TCV (GSV+FW)','tcv','BBL')}
+          <tr>
+            <td style="font-weight:600;font-size:12px;color:var(--ink)">TCV (GSV+FW)</td>
+            <td><span class="tbl-input" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${tcvDisplay}</span></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+          </tr>
           ${totRow('Free Water','fw','BBL')}
           ${totRow('API Gravity @60°F','api','°API')}
           ${totRow('BS&W','bsw','%')}
@@ -4271,6 +4278,12 @@ function saveNested(ctxStr, obj, field, value) {
   if (!ref) return;
   if (!ref.data[obj]) ref.data[obj] = {};
   ref.data[obj][field] = value;
+  // Auto-recalculate TCV = GSV + FW when either changes in totals
+  if (obj === 'totals' && (field === 'gsv' || field === 'fw')) {
+    const gsv = parseFloat(ref.data.totals.gsv) || 0;
+    const fw  = parseFloat(ref.data.totals.fw)  || 0;
+    if (gsv > 0) ref.data.totals.tcv = (gsv + fw).toFixed(3);
+  }
   ref.save();
 }
 
