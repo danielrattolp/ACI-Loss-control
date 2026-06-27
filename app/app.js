@@ -666,7 +666,7 @@ function buildLayout() {
     <div class="layout">
       ${buildSidebar(ops, op)}
       <div class="main">
-        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
+        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
       </div>
     </div>
     ${state.modal ? buildModal() : ''}
@@ -682,6 +682,9 @@ function buildSidebar(ops, currentOp) {
         </div>
         <div class="sidebar-item ${state.view==='home'&&!currentOp?'active':''}" data-action="go-home">
           <span class="icon">🏠</span> Operaciones
+        </div>
+        <div class="sidebar-item ${state.view==='clientes'?'active':''}" data-action="open-clientes">
+          <span class="icon">👥</span> Acceso Clientes
         </div>
       </div>
       <div class="sidebar-section" style="margin-top:8px">Recientes</div>
@@ -885,6 +888,80 @@ function scrollChatToBottom() {
     const el = document.getElementById('chat-messages');
     if (el) el.scrollTop = el.scrollHeight;
   }, 50);
+}
+
+// ===== CLIENTES VIEW =====
+function buildClientesView() {
+  return `
+  <div style="max-width:720px;margin:0 auto;padding:32px 16px">
+    <div class="card-title" style="font-size:18px;margin-bottom:4px">👥 Acceso Clientes</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Crea cuentas y genera links de acceso para que tus clientes vean su dashboard en <strong>acilatam.cl/cliente</strong>.</div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Agregar nuevo cliente</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+        <div>
+          <label class="field-label">Nombre (empresa)</label>
+          <input class="field-input" id="new-client-name" placeholder="YPF S.A." type="text">
+        </div>
+        <div>
+          <label class="field-label">Email corporativo</label>
+          <input class="field-input" id="new-client-email" placeholder="contacto@ypf.com" type="email">
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-primary btn-sm" data-action="client-create">＋ Crear acceso</button>
+      </div>
+      <div id="client-create-result" style="margin-top:12px;font-size:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Clientes activos</div>
+      <div id="clients-list"><div style="color:var(--muted);font-size:12px">Cargando…</div></div>
+    </div>
+  </div>`;
+}
+
+async function loadClientsList() {
+  const el = document.getElementById('clients-list');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/clients');
+    if (!res.ok) { el.innerHTML = '<div style="color:var(--danger);font-size:12px">Error al cargar</div>'; return; }
+    const clients = await res.json();
+    const entries = Object.entries(clients);
+    if (!entries.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px">Sin clientes creados aún.</div>';
+      return;
+    }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Empresa</th>
+        <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Email</th>
+        <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Estado</th>
+        <th style="padding:8px 10px;border-bottom:1px solid var(--line)"></th>
+      </tr></thead>
+      <tbody>
+        ${entries.map(([email, c]) => `
+        <tr id="client-row-${btoa(email).replace(/=/g,'')}">
+          <td style="padding:10px">${c.name}</td>
+          <td style="padding:10px;color:var(--muted)">${email}</td>
+          <td style="padding:10px">
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;${c.active ? 'background:#16a34a20;color:#4ade80;border:1px solid #16a34a40' : 'background:#dc262620;color:#f87171;border:1px solid #dc262640'}">
+              ${c.active ? 'Activo' : 'Inactivo'}
+            </span>
+          </td>
+          <td style="padding:10px;display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn btn-secondary btn-sm" style="font-size:11px" data-action="client-link" data-email="${email}">🔗 Generar link</button>
+            <button class="btn btn-secondary btn-sm" style="font-size:11px" data-action="client-toggle" data-email="${email}">${c.active ? 'Suspender' : 'Activar'}</button>
+            <button class="btn btn-sm" style="font-size:11px;background:var(--danger);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" data-action="client-delete" data-email="${email}">Eliminar</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--danger);font-size:12px">Error de conexión</div>';
+  }
 }
 
 // ===== HOME =====
@@ -4428,6 +4505,56 @@ function handleClick(e) {
 
   if (a === 'go-home') { state.view='home'; state.currentOpId=null; render(); }
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
+  else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
+  else if (a === 'client-create') {
+    const name  = (document.getElementById('new-client-name')?.value || '').trim();
+    const email = (document.getElementById('new-client-email')?.value || '').trim();
+    const res_el = document.getElementById('client-create-result');
+    if (!name || !email) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa nombre y email.</span>'; return; }
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'create', name, email}) })
+      .then(r => r.json()).then(data => {
+        if (data.ok) {
+          const link = `${location.origin}/cliente?token=${data.token}`;
+          if (res_el) res_el.innerHTML = `<div style="background:var(--line2);border-radius:8px;padding:10px 12px">
+            <div style="color:var(--accent2);font-weight:600;margin-bottom:6px">✓ Cliente creado. Link de acceso:</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" value="${link}" readonly style="flex:1;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink)">
+              <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${link}');this.textContent='¡Copiado!'">Copiar</button>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">Envía este link al cliente. Solo puede usarse desde su dispositivo.</div>
+          </div>`;
+          loadClientsList();
+        } else {
+          if (res_el) res_el.innerHTML = `<span style="color:var(--danger)">${data.error || 'Error al crear'}</span>`;
+        }
+      }).catch(() => { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Error de conexión</span>'; });
+  }
+  else if (a === 'client-link') {
+    const email = el.dataset.email;
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'regenerate', email}) })
+      .then(r => r.json()).then(data => {
+        if (data.ok) {
+          const link = `${location.origin}/cliente?token=${data.token}`;
+          navigator.clipboard.writeText(link).catch(()=>{});
+          alert(`Nuevo link generado y copiado al portapapeles:\n\n${link}`);
+        } else alert(data.error || 'Error');
+      });
+  }
+  else if (a === 'client-toggle') {
+    const email = el.dataset.email;
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'toggle', email}) })
+      .then(r => r.json()).then(data => { if (data.ok) loadClientsList(); });
+  }
+  else if (a === 'client-delete') {
+    const email = el.dataset.email;
+    if (!confirm(`¿Eliminar acceso de ${email}? Esta acción no se puede deshacer.`)) return;
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'delete', email}) })
+      .then(r => r.json()).then(data => { if (data.ok) loadClientsList(); });
+  }
   else if (a === 'chat-send') { chatSend(); }
   else if (a === 'chat-clear') { state.chatHistory=[]; state.chatLoading=false; render(); }
   else if (a === 'chat-suggest') { const q=el.dataset.q; if(q){ if(!state.chatHistory)state.chatHistory=[]; const inp=document.getElementById('chat-input'); if(inp){inp.value=q;} else {state.chatHistory.push({role:'user',content:q});state.chatLoading=true;render();scrollChatToBottom();chatSend.call({_preset:q});} } }

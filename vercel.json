@@ -5,7 +5,9 @@
     { "source": "/brochure",            "destination": "/assets/ACI-LATAM-Brochure-Corporativo.pdf" },
     { "source": "/operaciones/login",   "destination": "/login.html" },
     { "source": "/operaciones",         "destination": "/app/index.html" },
-    { "source": "/operaciones/(.*)",    "destination": "/app/index.html" }
+    { "source": "/operaciones/(.*)",    "destination": "/app/index.html" },
+    { "source": "/cliente",             "destination": "/cliente.html" },
+    { "source": "/cliente/(.*)",        "destination": "/cliente.html" }
   ],
   "headers": [
     {

@@ -1,23 +1,30 @@
-"""Vercel serverless function — counters persistence stub."""
+"""Counters persistence — Vercel KV."""
+import json
 from http.server import BaseHTTPRequestHandler
-
+from _kv import kv_get, kv_set
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self._ok(b"{}")
+        counters = kv_get('aci_counters', {})
+        self._json(200, counters)
 
     def do_POST(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length:
-            self.rfile.read(content_length)
-        self._ok(b'{"ok":true}')
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length) if length else b'{}'
+        try:
+            counters = json.loads(body)
+        except Exception:
+            counters = {}
+        kv_set('aci_counters', counters)
+        self._json(200, {'ok': True})
 
-    def _ok(self, body):
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
+    def _json(self, code, data):
+        payload = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(payload)
 
     def log_message(self, *args):
         pass
