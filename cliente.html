@@ -299,7 +299,8 @@ async function loadData() {
     const ops = await res.json();
     // Filter to this client's operations only
     allOps = (ops || []).filter(op =>
-      (op.client || '').toLowerCase() === clientName.toLowerCase()
+      (op.client || '').toLowerCase().includes(clientName.toLowerCase()) ||
+      clientName.toLowerCase().includes((op.client || '').toLowerCase())
     ).sort((a, b) => {
       const dA = a.modules?.['datos-origen']?.inspectionDate || a.createdAt || '';
       const dB = b.modules?.['datos-origen']?.inspectionDate || b.createdAt || '';
