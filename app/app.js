@@ -926,11 +926,15 @@ function buildClientesView() {
   </div>`;
 }
 
+function _aciSessionToken() {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('aci_session='))?.split('=')[1]||'';
+}
+
 async function loadClientsList() {
   const el = document.getElementById('clients-list');
   if (!el) return;
   try {
-    const res = await fetch('/api/clients');
+    const res = await fetch('/api/clients', { headers: { 'X-ACI-Session': _aciSessionToken() } });
     if (!res.ok) { el.innerHTML = '<div style="color:var(--danger);font-size:12px">Error al cargar</div>'; return; }
     const clients = await res.json();
     const entries = Object.entries(clients);
@@ -4516,7 +4520,7 @@ function handleClick(e) {
     const password = (document.getElementById('new-client-pass')?.value || '').trim();
     const res_el   = document.getElementById('client-create-result');
     if (!name || !email || !password) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa nombre, email y contraseña.</span>'; return; }
-    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({action:'create', name, email, password}) })
       .then(r => r.json()).then(data => {
         if (data.ok) {
@@ -4537,7 +4541,7 @@ function handleClick(e) {
     const email = el.dataset.email;
     const password = prompt(`Nueva contraseña para ${email}:`);
     if (!password) return;
-    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({action:'reset_password', email, password}) })
       .then(r => r.json()).then(data => {
         if (data.ok) { alert('Contraseña actualizada.'); }
@@ -4546,14 +4550,14 @@ function handleClick(e) {
   }
   else if (a === 'client-toggle') {
     const email = el.dataset.email;
-    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({action:'toggle', email}) })
       .then(r => r.json()).then(data => { if (data.ok) loadClientsList(); });
   }
   else if (a === 'client-delete') {
     const email = el.dataset.email;
     if (!confirm(`¿Eliminar acceso de ${email}? Esta acción no se puede deshacer.`)) return;
-    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({action:'delete', email}) })
       .then(r => r.json()).then(data => { if (data.ok) loadClientsList(); });
   }

@@ -26,6 +26,29 @@ def _hash(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 class handler(BaseHTTPRequestHandler):
+    def do_PUT(self):
+        """Change password for authenticated client session."""
+        length = int(self.headers.get('Content-Length', 0))
+        body = json.loads(self.rfile.read(length) or b'{}')
+        new_password = (body.get('new_password') or '').strip()
+        cookie = self.headers.get('cookie', '')
+        sess = next((c.split('=',1)[1] for c in cookie.split(';')
+                     if c.strip().startswith('aci_client_session=')), '')
+        if not sess or not new_password:
+            self._json(400, {'error': 'Datos incompletos'}); return
+        sessions = kv_get('aci_client_sessions', {})
+        info = sessions.get(sess)
+        if not info:
+            self._json(401, {'error': 'Sesión inválida'}); return
+        clients = kv_get('aci_clients', {})
+        email = info['email']
+        if email not in clients:
+            self._json(404, {'error': 'Cliente no encontrado'}); return
+        clients[email]['password_hash'] = _hash(new_password)
+        clients[email]['force_change'] = False
+        kv_set('aci_clients', clients)
+        self._json(200, {'ok': True})
+
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length) or b'{}')
@@ -48,7 +71,8 @@ class handler(BaseHTTPRequestHandler):
         sessions[session_token] = {'email': email, 'name': client['name']}
         kv_set('aci_client_sessions', sessions)
         self._json(200, {'ok': True, 'session': session_token,
-                         'name': client['name'], 'email': email})
+                         'name': client['name'], 'email': email,
+                         'force_change': bool(client.get('force_change', False))})
 
     def do_GET(self):
         cookie = self.headers.get('cookie', '')

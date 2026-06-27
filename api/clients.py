@@ -48,7 +48,7 @@ class handler(BaseHTTPRequestHandler):
             password = (body.get('password') or '').strip()
             if not email or not name or not password:
                 self._json(400, {'error': 'email, nombre y contraseña requeridos'}); return
-            clients[email] = {'name': name, 'password_hash': _hash(password), 'active': True}
+            clients[email] = {'name': name, 'password_hash': _hash(password), 'active': True, 'force_change': True}
             kv_set('aci_clients', clients)
             self._json(200, {'ok': True, 'email': email, 'name': name})
 
@@ -82,6 +82,8 @@ class handler(BaseHTTPRequestHandler):
         cookie = self.headers.get('cookie', '')
         token  = next((c.split('=', 1)[1] for c in cookie.split(';')
                        if c.strip().startswith('aci_session=')), '')
+        if not token:
+            token = self.headers.get('x-aci-session', '')
         return AUTH_TOKEN and token == AUTH_TOKEN
 
     def _json(self, code, data):

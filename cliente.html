@@ -105,6 +105,27 @@
       </button>
       <div class="login-error" id="login-err"></div>
     </form>
+    <!-- Change password form (shown on first login) -->
+    <form id="change-pass-form" style="display:none" onsubmit="doChangePassword(event)">
+      <div style="margin-bottom:16px;background:#1e3a5f30;border:1px solid #2563eb40;border-radius:8px;padding:12px 14px;font-size:12px;color:#93c5fd;line-height:1.5">
+        Es tu primer acceso. Por seguridad, elige una contraseña personal antes de continuar.
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Nueva contraseña</label>
+        <input type="password" id="new-pass" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required minlength="6"
+          style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;color:#f8fafc;font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s">
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Confirmar contraseña</label>
+        <input type="password" id="new-pass-confirm" autocomplete="new-password" placeholder="Repite la contraseña" required minlength="6"
+          style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;color:#f8fafc;font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s">
+      </div>
+      <button type="submit" id="change-pass-btn"
+        style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:12px;cursor:pointer;transition:background .2s">
+        Guardar contraseña y continuar
+      </button>
+      <div class="login-error" id="change-pass-err"></div>
+    </form>
     <div class="login-footer">ACI LATAM · Solo personal autorizado de clientes</div>
   </div>
 </div>
@@ -206,7 +227,14 @@ async function doLogin(e) {
     const data = await res.json();
     if (data.ok) {
       document.cookie = `aci_client_session=${data.session}; path=/; SameSite=Strict`;
-      showApp(data.name, data.email);
+      if (data.force_change) {
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('change-pass-form').style.display = 'block';
+        // store name/email for after password change
+        window._pendingAuth = { name: data.name, email: data.email };
+      } else {
+        showApp(data.name, data.email);
+      }
     } else {
       err.textContent = data.error || 'Credenciales incorrectas';
       btn.disabled = false; btn.textContent = 'Ingresar';
@@ -217,6 +245,35 @@ async function doLogin(e) {
   }
 }
 
+
+async function doChangePassword(e) {
+  e.preventDefault();
+  const btn = document.getElementById('change-pass-btn');
+  const err = document.getElementById('change-pass-err');
+  const np  = document.getElementById('new-pass').value;
+  const nc  = document.getElementById('new-pass-confirm').value;
+  err.textContent = '';
+  if (np !== nc) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    const res = await fetch('/api/client_auth', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ new_password: np })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const { name, email } = window._pendingAuth || {};
+      showApp(name, email);
+    } else {
+      err.textContent = data.error || 'Error al cambiar contraseña.';
+      btn.disabled = false; btn.textContent = 'Guardar contraseña y continuar';
+    }
+  } catch(ex) {
+    err.textContent = 'Error de conexión.';
+    btn.disabled = false; btn.textContent = 'Guardar contraseña y continuar';
+  }
+}
 
 async function showApp(name, email) {
   clientName = name;
