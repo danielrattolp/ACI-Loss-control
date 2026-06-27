@@ -30,9 +30,17 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._authorized():
             self._json(401, {'error': 'Unauthorized', 'auth_configured': bool(AUTH_TOKEN)}); return
-        clients = kv_get('aci_clients', {})
-        safe = {email: {'name': c['name'], 'email': email, 'active': c.get('active', True)}
-                for email, c in clients.items()}
+        raw = kv_get('aci_clients', {})
+        # raw may be a double-encoded string if corrupted — parse again
+        if isinstance(raw, str):
+            try: raw = json.loads(raw)
+            except: raw = {}
+        if not isinstance(raw, dict):
+            raw = {}
+        safe = {}
+        for email, c in raw.items():
+            if isinstance(c, dict):
+                safe[email] = {'name': c.get('name', email), 'email': email, 'active': c.get('active', True)}
         self._json(200, safe)
 
     def do_POST(self):
@@ -75,6 +83,11 @@ class handler(BaseHTTPRequestHandler):
             clients.pop(email, None)
             kv_set('aci_clients', clients)
             self._json(200, {'ok': True})
+
+        elif action == 'reset_all':
+            # Emergency: wipe aci_clients and start fresh
+            kv_set('aci_clients', {})
+            self._json(200, {'ok': True, 'message': 'aci_clients reset'})
 
         else:
             self._json(400, {'error': 'Acción desconocida'})
