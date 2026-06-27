@@ -1,41 +1,50 @@
 """Client account management — admin only."""
-import json, sys
-import os
-import secrets
-sys.path.insert(0, os.path.dirname(__file__))
+import json, os, secrets, urllib.request
 from http.server import BaseHTTPRequestHandler
-from _kv import kv_get, kv_set
 
 AUTH_TOKEN = os.environ.get('AUTH_TOKEN', '')
+_KV_URL    = os.environ.get('KV_REST_API_URL', '')
+_KV_TOKEN  = os.environ.get('KV_REST_API_TOKEN', '')
+
+def _kv(cmd):
+    if not _KV_URL: return None
+    req = urllib.request.Request(_KV_URL, data=json.dumps(cmd).encode(),
+        headers={'Authorization': f'Bearer {_KV_TOKEN}', 'Content-Type': 'application/json'}, method='POST')
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.loads(r.read())
+
+def kv_get(key, default=None):
+    try:
+        d = _kv(['GET', key]); v = d and d.get('result')
+        return json.loads(v) if v else default
+    except: return default
+
+def kv_set(key, value):
+    try: return bool(_kv(['SET', key, json.dumps(value)]))
+    except: return False
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Requires ACI employee session
         if not self._authorized():
-            self._json(401, {'error': 'Unauthorized'})
-            return
+            self._json(401, {'error': 'Unauthorized'}); return
         clients = kv_get('aci_clients', {})
-        # Strip tokens from list view for safety
         safe = {email: {'name': c['name'], 'email': email, 'active': c.get('active', True)}
                 for email, c in clients.items()}
         self._json(200, safe)
 
     def do_POST(self):
         if not self._authorized():
-            self._json(401, {'error': 'Unauthorized'})
-            return
+            self._json(401, {'error': 'Unauthorized'}); return
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length) or b'{}')
         action = body.get('action')
-
         clients = kv_get('aci_clients', {})
 
         if action == 'create':
             email = (body.get('email') or '').strip().lower()
             name  = (body.get('name')  or '').strip()
             if not email or not name:
-                self._json(400, {'error': 'email y name requeridos'})
-                return
+                self._json(400, {'error': 'email y name requeridos'}); return
             token = secrets.token_urlsafe(32)
             clients[email] = {'name': name, 'token': token, 'active': True}
             kv_set('aci_clients', clients)
@@ -44,8 +53,7 @@ class handler(BaseHTTPRequestHandler):
         elif action == 'regenerate':
             email = (body.get('email') or '').strip().lower()
             if email not in clients:
-                self._json(404, {'error': 'Cliente no encontrado'})
-                return
+                self._json(404, {'error': 'Cliente no encontrado'}); return
             token = secrets.token_urlsafe(32)
             clients[email]['token'] = token
             kv_set('aci_clients', clients)
@@ -54,8 +62,7 @@ class handler(BaseHTTPRequestHandler):
         elif action == 'toggle':
             email = (body.get('email') or '').strip().lower()
             if email not in clients:
-                self._json(404, {'error': 'Cliente no encontrado'})
-                return
+                self._json(404, {'error': 'Cliente no encontrado'}); return
             clients[email]['active'] = not clients[email].get('active', True)
             kv_set('aci_clients', clients)
             self._json(200, {'ok': True, 'active': clients[email]['active']})
@@ -83,5 +90,4 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def log_message(self, *args):
-        pass
+    def log_message(self, *args): pass
