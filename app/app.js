@@ -3064,6 +3064,36 @@ function printFullReport(opId, selectedMods) {
       <h4>${a.label}${a.date?' — '+fmtD(a.date):''}</h4>
       <div class="ia-block">${a.content.replace(/\n/g,'<br>')}</div>`).join('')}`:''}
     ${re.notes?`<div class="page-break"></div><h3>Conclusión Final del Inspector</h3><div class="conclusion">${re.notes.replace(/\n/g,'<br>')}</div>`:''}
+    ${(() => {
+      // Fotos por tanque — solo tanques con al menos una foto
+      const arriboMod = mods['ullage-arribo'] || {};
+      const tankMedia = arriboMod.tankMedia || {};
+      const tankNames = TANK_NAMES;
+      const tanksWithPhotos = Object.entries(tankMedia).filter(([idx, slots]) =>
+        (slots.producto||[]).length > 0 || (slots.agua||[]).length > 0
+      );
+      if (!tanksWithPhotos.length) return '';
+      return `<div class="page-break"></div>
+        <h3>Evidencia Fotográfica por Tanque</h3>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:12px">
+          ${tanksWithPhotos.map(([idx, slots]) => {
+            const tName = tankNames[parseInt(idx)] || ('T'+(parseInt(idx)+1));
+            const photoBlock = (photos, label, color) => photos && photos.length ? `
+              <div style="margin-bottom:8px">
+                <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${label}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  ${photos.map(p => `<img src="${p.data}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #ddd">`).join('')}
+                </div>
+              </div>` : '';
+            return `
+            <div style="border:1px solid #ddd;border-radius:8px;padding:12px;break-inside:avoid">
+              <div style="font-size:13px;font-weight:700;color:#1a2f5a;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px">Tanque ${tName}</div>
+              ${photoBlock(slots.producto,'🛢 Medición Producto','#2563eb')}
+              ${photoBlock(slots.agua,'💧 Medición Agua','#0891b2')}
+            </div>`;
+          }).join('')}
+        </div>`;
+    })()}
     <div class="signatures">
       <div class="sig-box"><div class="sig-line"></div><div>Inspector ACI Loss Control</div></div>
       <div class="sig-box"><div class="sig-line"></div><div>Representante del Buque</div></div>
