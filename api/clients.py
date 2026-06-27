@@ -1,6 +1,7 @@
 """Client account management — admin only."""
 import json, os, secrets, hashlib, urllib.request
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 def _hash(p): return hashlib.sha256(p.encode()).hexdigest()
 
@@ -28,7 +29,7 @@ def kv_set(key, value):
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._authorized():
-            self._json(401, {'error': 'Unauthorized'}); return
+            self._json(401, {'error': 'Unauthorized', 'auth_configured': bool(AUTH_TOKEN)}); return
         clients = kv_get('aci_clients', {})
         safe = {email: {'name': c['name'], 'email': email, 'active': c.get('active', True)}
                 for email, c in clients.items()}
@@ -79,11 +80,17 @@ class handler(BaseHTTPRequestHandler):
             self._json(400, {'error': 'Acción desconocida'})
 
     def _authorized(self):
-        cookie = self.headers.get('cookie', '')
+        # 1. Cookie (auto-sent by browser on same-origin requests)
+        cookie = self.headers.get('cookie', '') or self.headers.get('Cookie', '')
         token  = next((c.split('=', 1)[1] for c in cookie.split(';')
                        if c.strip().startswith('aci_session=')), '')
+        # 2. Custom header
         if not token:
-            token = self.headers.get('x-aci-session', '')
+            token = self.headers.get('x-aci-session', '') or self.headers.get('X-ACI-Session', '')
+        # 3. Query string ?_t=TOKEN
+        if not token:
+            qs = parse_qs(urlparse(self.path).query)
+            token = qs.get('_t', [''])[0]
         return AUTH_TOKEN and token == AUTH_TOKEN
 
     def _json(self, code, data):

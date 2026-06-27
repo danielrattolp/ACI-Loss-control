@@ -934,8 +934,13 @@ async function loadClientsList() {
   const el = document.getElementById('clients-list');
   if (!el) return;
   try {
-    const res = await fetch('/api/clients', { headers: { 'X-ACI-Session': _aciSessionToken() } });
-    if (!res.ok) { el.innerHTML = '<div style="color:var(--danger);font-size:12px">Error al cargar</div>'; return; }
+    const tok = _aciSessionToken();
+    const res = await fetch(`/api/clients?_t=${encodeURIComponent(tok)}`, { headers: { 'X-ACI-Session': tok } });
+    if (!res.ok) {
+      let msg = 'Error al cargar';
+      try { const d = await res.json(); if (d.auth_configured === false) msg = 'Error de configuración del servidor (AUTH_TOKEN)'; } catch(e) {}
+      el.innerHTML = `<div style="color:var(--danger);font-size:12px">${msg} (${res.status})</div>`; return;
+    }
     const clients = await res.json();
     const entries = Object.entries(clients);
     if (!entries.length) {
