@@ -1,5 +1,6 @@
 """Ops persistence — Vercel KV."""
-import json
+import json, sys, os
+sys.path.insert(0, os.path.dirname(__file__))
 from http.server import BaseHTTPRequestHandler
 from _kv import kv_get, kv_set
 

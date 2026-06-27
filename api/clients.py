@@ -1,7 +1,8 @@
 """Client account management — admin only."""
-import json
+import json, sys
 import os
 import secrets
+sys.path.insert(0, os.path.dirname(__file__))
 from http.server import BaseHTTPRequestHandler
 from _kv import kv_get, kv_set
 
