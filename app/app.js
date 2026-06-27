@@ -2325,24 +2325,41 @@ function buildUllageArribo(d, mod, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">📷 Evidencia Fotográfica / Video</div>
-      <div class="info-box" style="margin-bottom:12px">Sube fotos de la medición (cinta, gabazo, nivel, termómetros, documentos). El Consultor IA las analiza junto con los datos numéricos. Videos: captura pantallazos y súbelos como imágenes.</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px" id="media-preview-${ctx}">
-        ${(d.media||[]).map((m,i) => `
-          <div style="position:relative;display:inline-block">
-            <img src="${m.data}" alt="${m.name||'img'}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:2px solid var(--line);cursor:pointer"
-              onclick="this.parentElement.querySelector('.media-caption').style.display='block'" title="${m.name||''}">
-            <div class="media-caption" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);color:#fff;font-size:9px;padding:2px 4px;border-radius:0 0 6px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.caption||m.name||''}</div>
-            <button style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;padding:0;line-height:18px;text-align:center"
-              data-action="media-remove" data-ctx="${ctx}" data-idx="${i}">×</button>
-          </div>`).join('')}
-        ${!(d.media||[]).length ? `<div style="color:var(--muted2);font-size:12px;padding:12px 0">Sin imágenes cargadas</div>` : ''}
+      <div class="card-title">📷 Evidencia Fotográfica por Tanque</div>
+      <div class="info-box" style="margin-bottom:16px">Dos fotos por tanque: <strong>Producto</strong> (cinta en interfase producto) y <strong>Agua</strong> (cinta en interfase agua libre). El Consultor IA las analiza junto con los datos numéricos.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+        ${tanks.map((t, i) => {
+          const tm = (d.tankMedia||{})[i] || {};
+          const slotBlock = (slotKey, slotLabel, color) => {
+            const photos = tm[slotKey] || [];
+            return `
+            <div style="flex:1;min-width:0">
+              <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${slotLabel}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;margin-bottom:6px">
+                ${photos.map((p, pi) => `
+                  <div style="position:relative;display:inline-block">
+                    <img src="${p.data}" alt="${p.name||''}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid ${color}40">
+                    <button style="position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;padding:0;line-height:16px;text-align:center"
+                      data-action="tank-media-remove" data-ctx="${ctx}" data-tank-idx="${i}" data-slot="${slotKey}" data-idx="${pi}">×</button>
+                  </div>`).join('')}
+                ${!photos.length ? `<span style="font-size:11px;color:var(--muted2);line-height:60px">Sin foto</span>` : ''}
+              </div>
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:4px 10px">
+                + Foto
+                <input type="file" accept="image/*" style="display:none" data-action="tank-media-upload" data-ctx="${ctx}" data-tank-idx="${i}" data-slot="${slotKey}">
+              </label>
+            </div>`;
+          };
+          return `
+          <div style="border:1px solid var(--line);border-radius:10px;padding:12px">
+            <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">Tanque ${t.name}</div>
+            <div style="display:flex;gap:12px">
+              ${slotBlock('producto','🛢 Producto','#3b82f6')}
+              ${slotBlock('agua','💧 Agua','#06b6d4')}
+            </div>
+          </div>`;
+        }).join('')}
       </div>
-      <label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-block">
-        ＋ Agregar Fotos
-        <input type="file" accept="image/*" multiple style="display:none" data-action="media-upload" data-ctx="${ctx}">
-      </label>
-      <span style="font-size:11px;color:var(--muted);margin-left:10px">JPG, PNG, HEIC — máx. 5 MB por imagen</span>
     </div>
 
     <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
@@ -4690,6 +4707,16 @@ function handleClick(e) {
       ref.data.media.splice(idx, 1); ref.save(); render();
     }
   }
+  else if (a === 'tank-media-remove') {
+    const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
+    if (!ref) return;
+    const tankIdx = parseInt(el.dataset.tankIdx);
+    const slot = el.dataset.slot;
+    const idx = parseInt(el.dataset.idx);
+    if (ref.data.tankMedia?.[tankIdx]?.[slot]) {
+      ref.data.tankMedia[tankIdx][slot].splice(idx, 1); ref.save(); render();
+    }
+  }
   else if (a === 'add-vef-voyage') {
     const c = decodeCtx(el.dataset.ctx);
     const op = getOp(c.opId);
@@ -4849,6 +4876,37 @@ function handleChange(e) {
       };
       reader2.readAsDataURL(file);
     });
+    el.value = '';
+  }
+  else if (a === 'tank-media-upload') {
+    const file = el.files[0];
+    if (!file) return;
+    const ctx2 = decodeCtx(el.dataset.ctx);
+    const ref = getModuleRef(ctx2);
+    if (!ref) return;
+    const tankIdx = parseInt(el.dataset.tankIdx);
+    const slot = el.dataset.slot;
+    if (!ref.data.tankMedia) ref.data.tankMedia = {};
+    if (!ref.data.tankMedia[tankIdx]) ref.data.tankMedia[tankIdx] = { producto:[], agua:[] };
+    const MAX = 20 * 1024 * 1024;
+    if (file.size > MAX) { alert(`"${file.name}" supera 20 MB.`); el.value=''; return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1600;
+        let w = img.width, h = img.height;
+        if (w > MAX_DIM || h > MAX_DIM) { const r = Math.min(MAX_DIM/w, MAX_DIM/h); w = Math.round(w*r); h = Math.round(h*r); }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        ref.data.tankMedia[tankIdx][slot].push({ name: file.name, data: compressed, base64: compressed.split(',')[1], mediaType:'image/jpeg', ts: Date.now() });
+        ref.save(); render();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
     el.value = '';
   }
 }
