@@ -899,7 +899,7 @@ function buildClientesView() {
 
     <div class="card" style="margin-bottom:20px">
       <div class="card-title">Agregar nuevo cliente</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
         <div>
           <label class="field-label">Nombre (empresa)</label>
           <input class="field-input" id="new-client-name" placeholder="YPF S.A." type="text">
@@ -907,6 +907,10 @@ function buildClientesView() {
         <div>
           <label class="field-label">Email corporativo</label>
           <input class="field-input" id="new-client-email" placeholder="contacto@ypf.com" type="email">
+        </div>
+        <div>
+          <label class="field-label">Contraseña de acceso</label>
+          <input class="field-input" id="new-client-pass" placeholder="••••••••" type="text" autocomplete="off">
         </div>
       </div>
       <div style="margin-top:12px">
@@ -952,7 +956,7 @@ async function loadClientsList() {
             </span>
           </td>
           <td style="padding:10px;display:flex;gap:6px;justify-content:flex-end">
-            <button class="btn btn-secondary btn-sm" style="font-size:11px" data-action="client-link" data-email="${email}">🔗 Generar link</button>
+            <button class="btn btn-secondary btn-sm" style="font-size:11px" data-action="client-reset-pass" data-email="${email}">🔑 Cambiar clave</button>
             <button class="btn btn-secondary btn-sm" style="font-size:11px" data-action="client-toggle" data-email="${email}">${c.active ? 'Suspender' : 'Activar'}</button>
             <button class="btn btn-sm" style="font-size:11px;background:var(--danger);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" data-action="client-delete" data-email="${email}">Eliminar</button>
           </td>
@@ -4507,39 +4511,37 @@ function handleClick(e) {
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
   else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
   else if (a === 'client-create') {
-    const name  = (document.getElementById('new-client-name')?.value || '').trim();
-    const email = (document.getElementById('new-client-email')?.value || '').trim();
-    const res_el = document.getElementById('client-create-result');
-    if (!name || !email) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa nombre y email.</span>'; return; }
+    const name     = (document.getElementById('new-client-name')?.value || '').trim();
+    const email    = (document.getElementById('new-client-email')?.value || '').trim();
+    const password = (document.getElementById('new-client-pass')?.value || '').trim();
+    const res_el   = document.getElementById('client-create-result');
+    if (!name || !email || !password) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa nombre, email y contraseña.</span>'; return; }
     fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'create', name, email}) })
+      body: JSON.stringify({action:'create', name, email, password}) })
       .then(r => r.json()).then(data => {
         if (data.ok) {
-          const link = `${location.origin}/cliente?token=${data.token}`;
           if (res_el) res_el.innerHTML = `<div style="background:var(--line2);border-radius:8px;padding:10px 12px">
-            <div style="color:var(--accent2);font-weight:600;margin-bottom:6px">✓ Cliente creado. Link de acceso:</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input type="text" value="${link}" readonly style="flex:1;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink)">
-              <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${link}');this.textContent='¡Copiado!'">Copiar</button>
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:6px">Envía este link al cliente. Solo puede usarse desde su dispositivo.</div>
+            <div style="color:var(--accent2);font-weight:600;margin-bottom:4px">✓ Cliente creado</div>
+            <div style="font-size:12px;color:var(--ink)">El cliente puede ingresar en <strong>acilatam.cl/cliente</strong> con su email y la contraseña que definiste.</div>
           </div>`;
+          document.getElementById('new-client-name').value = '';
+          document.getElementById('new-client-email').value = '';
+          document.getElementById('new-client-pass').value = '';
           loadClientsList();
         } else {
           if (res_el) res_el.innerHTML = `<span style="color:var(--danger)">${data.error || 'Error al crear'}</span>`;
         }
       }).catch(() => { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Error de conexión</span>'; });
   }
-  else if (a === 'client-link') {
+  else if (a === 'client-reset-pass') {
     const email = el.dataset.email;
+    const password = prompt(`Nueva contraseña para ${email}:`);
+    if (!password) return;
     fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'regenerate', email}) })
+      body: JSON.stringify({action:'reset_password', email, password}) })
       .then(r => r.json()).then(data => {
-        if (data.ok) {
-          const link = `${location.origin}/cliente?token=${data.token}`;
-          navigator.clipboard.writeText(link).catch(()=>{});
-          alert(`Nuevo link generado y copiado al portapapeles:\n\n${link}`);
-        } else alert(data.error || 'Error');
+        if (data.ok) { alert('Contraseña actualizada.'); }
+        else alert(data.error || 'Error');
       });
   }
   else if (a === 'client-toggle') {

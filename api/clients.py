@@ -1,6 +1,8 @@
 """Client account management — admin only."""
-import json, os, secrets, urllib.request
+import json, os, secrets, hashlib, urllib.request
 from http.server import BaseHTTPRequestHandler
+
+def _hash(p): return hashlib.sha256(p.encode()).hexdigest()
 
 AUTH_TOKEN = os.environ.get('AUTH_TOKEN', '')
 _KV_URL    = os.environ.get('KV_REST_API_URL', '')
@@ -41,23 +43,23 @@ class handler(BaseHTTPRequestHandler):
         clients = kv_get('aci_clients', {})
 
         if action == 'create':
-            email = (body.get('email') or '').strip().lower()
-            name  = (body.get('name')  or '').strip()
-            if not email or not name:
-                self._json(400, {'error': 'email y name requeridos'}); return
-            token = secrets.token_urlsafe(32)
-            clients[email] = {'name': name, 'token': token, 'active': True}
+            email    = (body.get('email')    or '').strip().lower()
+            name     = (body.get('name')     or '').strip()
+            password = (body.get('password') or '').strip()
+            if not email or not name or not password:
+                self._json(400, {'error': 'email, nombre y contraseña requeridos'}); return
+            clients[email] = {'name': name, 'password_hash': _hash(password), 'active': True}
             kv_set('aci_clients', clients)
-            self._json(200, {'ok': True, 'token': token, 'email': email, 'name': name})
+            self._json(200, {'ok': True, 'email': email, 'name': name})
 
-        elif action == 'regenerate':
-            email = (body.get('email') or '').strip().lower()
-            if email not in clients:
-                self._json(404, {'error': 'Cliente no encontrado'}); return
-            token = secrets.token_urlsafe(32)
-            clients[email]['token'] = token
+        elif action == 'reset_password':
+            email    = (body.get('email')    or '').strip().lower()
+            password = (body.get('password') or '').strip()
+            if email not in clients or not password:
+                self._json(404, {'error': 'Cliente no encontrado o contraseña vacía'}); return
+            clients[email]['password_hash'] = _hash(password)
             kv_set('aci_clients', clients)
-            self._json(200, {'ok': True, 'token': token})
+            self._json(200, {'ok': True})
 
         elif action == 'toggle':
             email = (body.get('email') or '').strip().lower()

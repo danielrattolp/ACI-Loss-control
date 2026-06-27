@@ -78,7 +78,7 @@
 </head>
 <body>
 
-<!-- Login screen (shown while not authenticated) -->
+<!-- Login screen -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -87,9 +87,25 @@
       <p>Portal de Clientes</p>
     </div>
     <hr class="login-divider">
-    <div class="login-info" id="login-msg">Verificando acceso…</div>
-    <div class="login-error" id="login-err"></div>
-    <div class="login-footer">ACI LATAM · Acceso solo por invitación</div>
+    <div id="login-checking" style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:16px">Verificando sesión…</div>
+    <form id="login-form" style="display:none" onsubmit="doLogin(event)">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Email</label>
+        <input type="email" id="login-email" autocomplete="username" placeholder="correo@empresa.com" required
+          style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;color:#f8fafc;font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s">
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Contraseña</label>
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••" required
+          style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;color:#f8fafc;font-size:14px;padding:11px 14px;outline:none;transition:border-color .2s">
+      </div>
+      <button type="submit" id="login-btn"
+        style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:12px;cursor:pointer;transition:background .2s">
+        Ingresar
+      </button>
+      <div class="login-error" id="login-err"></div>
+    </form>
+    <div class="login-footer">ACI LATAM · Solo personal autorizado de clientes</div>
   </div>
 </div>
 
@@ -159,51 +175,48 @@ let charts = {};
 
 // ── Auth ───────────────────────────────────────────────────────────────
 async function init() {
-  const params = new URLSearchParams(location.search);
-  const magicToken = params.get('token');
-
-  if (magicToken) {
-    // Magic link: exchange token for session
-    try {
-      const res = await fetch('/api/client_auth', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: magicToken})
-      });
-      const data = await res.json();
-      if (data.ok) {
-        document.cookie = `aci_client_session=${data.session}; path=/; SameSite=Strict`;
-        // Clean URL
-        history.replaceState({}, '', '/cliente');
-        showApp(data.name, data.email);
-      } else {
-        setLoginMsg('⚠️ ' + (data.error || 'Link inválido'), true);
-      }
-    } catch(e) {
-      setLoginMsg('Error de conexión. Intente nuevamente.', true);
-    }
-    return;
-  }
-
-  // Check existing session
+  // Check existing session cookie
   try {
     const res = await fetch('/api/client_auth');
     const data = await res.json();
     if (data.ok) {
       showApp(data.name, data.email);
-    } else {
-      setLoginMsg('Este portal es solo por invitación.<br>Solicita tu link de acceso a ACI Loss Control.', false);
+      return;
     }
-  } catch(e) {
-    setLoginMsg('Error de conexión. Intente nuevamente.', true);
+  } catch(e) {}
+  // Show login form
+  document.getElementById('login-checking').style.display = 'none';
+  document.getElementById('login-form').style.display = 'block';
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+  btn.disabled = true; btn.textContent = 'Verificando…'; err.textContent = '';
+  try {
+    const res = await fetch('/api/client_auth', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        email:    document.getElementById('login-email').value.trim().toLowerCase(),
+        password: document.getElementById('login-pass').value
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.cookie = `aci_client_session=${data.session}; path=/; SameSite=Strict`;
+      showApp(data.name, data.email);
+    } else {
+      err.textContent = data.error || 'Credenciales incorrectas';
+      btn.disabled = false; btn.textContent = 'Ingresar';
+    }
+  } catch(ex) {
+    err.textContent = 'Error de conexión. Intente nuevamente.';
+    btn.disabled = false; btn.textContent = 'Ingresar';
   }
 }
 
-function setLoginMsg(msg, isError) {
-  const el = isError ? document.getElementById('login-err') : document.getElementById('login-msg');
-  if (!isError) document.getElementById('login-msg').innerHTML = msg;
-  else { document.getElementById('login-msg').textContent = ''; document.getElementById('login-err').innerHTML = msg; }
-}
 
 async function showApp(name, email) {
   clientName = name;

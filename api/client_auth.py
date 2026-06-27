@@ -1,5 +1,5 @@
-"""Client magic-link auth."""
-import json, os, secrets, urllib.request
+"""Client email/password auth."""
+import json, os, secrets, hashlib, urllib.request
 from http.server import BaseHTTPRequestHandler
 
 _KV_URL   = os.environ.get('KV_REST_API_URL', '')
@@ -22,21 +22,27 @@ def kv_set(key, value):
     try: return bool(_kv(['SET', key, json.dumps(value)]))
     except: return False
 
+def _hash(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length) or b'{}')
-        token = (body.get('token') or '').strip()
-        if not token:
-            self._json(400, {'error': 'Token requerido'}); return
+        email    = (body.get('email')    or '').strip().lower()
+        password = (body.get('password') or '').strip()
+
+        if not email or not password:
+            self._json(400, {'error': 'Email y contraseña requeridos'}); return
 
         clients = kv_get('aci_clients', {})
-        match = next(((email, c) for email, c in clients.items()
-                      if c.get('token') == token and c.get('active', True)), None)
-        if not match:
-            self._json(401, {'error': 'Link inválido o expirado'}); return
+        client  = clients.get(email)
 
-        email, client = match
+        if not client or not client.get('active', True):
+            self._json(401, {'error': 'Credenciales incorrectas'}); return
+        if client.get('password_hash') != _hash(password):
+            self._json(401, {'error': 'Credenciales incorrectas'}); return
+
         session_token = secrets.token_urlsafe(32)
         sessions = kv_get('aci_client_sessions', {})
         sessions[session_token] = {'email': email, 'name': client['name']}
