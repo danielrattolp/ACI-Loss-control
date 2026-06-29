@@ -1196,23 +1196,126 @@ function buildModalNewOp1() {
 }
 
 function buildClientBlock(c, i) {
+  const orgs = state.modalData?.clientOrgs || [];
+  const isNew = c.name === '__new__';
+  const selectHtml = orgs.length > 0 ? `
+    <select class="field-select client-name" data-idx="${i}" onchange="onClientOrgChange(this,${i})">
+      <option value="">— Seleccionar empresa —</option>
+      ${orgs.map(o => `<option value="${o}" ${c.name===o?'selected':''}>${o}</option>`).join('')}
+      <option value="__new__" ${isNew?'selected':''}>＋ Nuevo cliente...</option>
+    </select>` : `
+    <input class="field-input client-name" data-idx="${i}" placeholder="Nombre de la empresa cliente" value="${c.name||''}">`;
+
   return `
-    <div class="client-block" data-client-idx="${i}">
+    <div class="client-block" data-client-idx="${i}" id="client-block-${i}">
       <div class="client-block-header">
         <span class="client-block-title">Cliente ${i + 1}</span>
         ${i > 0 ? `<button class="btn btn-ghost btn-sm" data-action="remove-client" data-idx="${i}">✕ Eliminar</button>` : ''}
       </div>
       <div class="form-row">
         <div class="field">
-          <label class="field-label">Nombre del cliente <span class="req">*</span></label>
-          <input class="field-input client-name" data-idx="${i}" placeholder="Nombre de la empresa cliente" value="${c.name||''}">
+          <label class="field-label">Empresa cliente <span class="req">*</span></label>
+          ${selectHtml}
         </div>
         <div class="field">
           <label class="field-label">Referencia del cliente</label>
           <input class="field-input client-ref" data-idx="${i}" placeholder="N° referencia / contrato" value="${c.ref||''}">
         </div>
       </div>
+      ${isNew ? buildNewClientInline(i) : ''}
     </div>`;
+}
+
+function buildNewClientInline(idx) {
+  return `
+    <div class="new-client-inline" id="new-client-inline-${idx}" style="background:var(--line2);border:1px dashed var(--accent2);border-radius:8px;padding:14px 16px;margin-top:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Crear nueva cuenta de cliente</div>
+      <div class="form-row form-row-3">
+        <div class="field">
+          <label class="field-label">Empresa (org) <span class="req">*</span></label>
+          <input class="field-input" id="nc-org-${idx}" placeholder="Ej: ENAP, Petronas...">
+        </div>
+        <div class="field">
+          <label class="field-label">Nombre contacto <span class="req">*</span></label>
+          <input class="field-input" id="nc-name-${idx}" placeholder="Ej: Juan Pérez">
+        </div>
+        <div class="field">
+          <label class="field-label">Email <span class="req">*</span></label>
+          <input class="field-input" id="nc-email-${idx}" type="email" placeholder="juan@empresa.com">
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:6px">
+        <div class="field">
+          <label class="field-label">Contraseña temporal <span class="req">*</span></label>
+          <input class="field-input" id="nc-pass-${idx}" type="password" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="field" style="display:flex;align-items:flex-end;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="createClientInline(${idx})" style="margin-bottom:0">Crear y vincular</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelClientInline(${idx})" style="margin-bottom:0">Cancelar</button>
+        </div>
+      </div>
+      <div id="nc-msg-${idx}" style="font-size:11px;margin-top:6px"></div>
+    </div>`;
+}
+
+function onClientOrgChange(sel, idx) {
+  const block = document.getElementById('client-block-' + idx);
+  const existing = block.querySelector('.new-client-inline');
+  if (sel.value === '__new__') {
+    if (!existing) block.insertAdjacentHTML('beforeend', buildNewClientInline(idx));
+  } else {
+    if (existing) existing.remove();
+  }
+}
+
+async function createClientInline(idx) {
+  const org   = document.getElementById('nc-org-'+idx)?.value.trim();
+  const name  = document.getElementById('nc-name-'+idx)?.value.trim();
+  const email = document.getElementById('nc-email-'+idx)?.value.trim();
+  const pass  = document.getElementById('nc-pass-'+idx)?.value.trim();
+  const msg   = document.getElementById('nc-msg-'+idx);
+
+  if (!org || !name || !email || !pass) { msg.style.color='#c0392b'; msg.textContent='Completa todos los campos.'; return; }
+  if (pass.length < 6) { msg.style.color='#c0392b'; msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
+
+  msg.style.color='#555'; msg.textContent='Creando cuenta...';
+  const tok = _aciSessionToken();
+  try {
+    const res = await fetch('/api/clients' + (tok ? '?_t='+encodeURIComponent(tok) : ''), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', ...(tok ? {'X-ACI-Session': tok} : {})},
+      body: JSON.stringify({action:'create', org, name, email, password: pass})
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { msg.style.color='#c0392b'; msg.textContent = data.error || 'Error al crear cliente.'; return; }
+
+    // Add org to selector and select it
+    if (!state.modalData.clientOrgs) state.modalData.clientOrgs = [];
+    if (!state.modalData.clientOrgs.includes(org)) state.modalData.clientOrgs.push(org);
+    state.modalData.clientOrgs.sort();
+
+    const sel = document.querySelector(`#client-block-${idx} .client-name`);
+    if (sel && sel.tagName === 'SELECT') {
+      // Add option and select it
+      const opt = document.createElement('option');
+      opt.value = org; opt.textContent = org; opt.selected = true;
+      sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+      sel.value = org;
+    }
+    // Remove inline form
+    const inline = document.getElementById('new-client-inline-'+idx);
+    if (inline) inline.remove();
+    msg.textContent = '';
+  } catch(e) {
+    msg.style.color='#c0392b'; msg.textContent='Error de red. Intenta nuevamente.';
+  }
+}
+
+function cancelClientInline(idx) {
+  const sel = document.querySelector(`#client-block-${idx} .client-name`);
+  if (sel && sel.tagName === 'SELECT') sel.value = '';
+  const inline = document.getElementById('new-client-inline-'+idx);
+  if (inline) inline.remove();
 }
 
 function buildModalNewOp2() {
@@ -4593,7 +4696,26 @@ function handleClick(e) {
   else if (a === 'chat-send') { chatSend(); }
   else if (a === 'chat-clear') { state.chatHistory=[]; state.chatLoading=false; render(); }
   else if (a === 'chat-suggest') { const q=el.dataset.q; if(q){ if(!state.chatHistory)state.chatHistory=[]; const inp=document.getElementById('chat-input'); if(inp){inp.value=q;} else {state.chatHistory.push({role:'user',content:q});state.chatLoading=true;render();scrollChatToBottom();chatSend.call({_preset:q});} } }
-  else if (a === 'open-new-op') { state.modal='new-op-1'; state.modalData={}; render(); }
+  else if (a === 'open-new-op') {
+    state.modal='new-op-1'; state.modalData={}; render();
+    // Load registered client orgs for the selector
+    const tok = _aciSessionToken();
+    fetch('/api/clients' + (tok ? '?_t='+encodeURIComponent(tok) : ''), {
+      headers: tok ? {'X-ACI-Session': tok} : {}
+    }).then(r => r.ok ? r.json() : {}).then(data => {
+      const orgs = [...new Set(Object.values(data).map(c => c.org || c.name).filter(Boolean))].sort();
+      state.modalData.clientOrgs = orgs;
+      // Re-render client blocks only if modal still open
+      if (state.modal === 'new-op-1') {
+        const container = document.getElementById('clients-container');
+        if (container) {
+          const d = state.modalData;
+          const clients = d.clients || [{ name: '', ref: '' }];
+          container.innerHTML = clients.map((c, i) => buildClientBlock(c, i)).join('');
+        }
+      }
+    }).catch(() => {});
+  }
   else if (a === 'open-op') { state.view='op'; state.currentOpId=el.dataset.id; state.currentModule=null; state.currentAlijoIdx=0; render(); }
   else if (a === 'close-modal') { state.modal=null; render(); }
   else if (a === 'close-modal-bg') { state.modal=null; render(); }
@@ -5164,7 +5286,7 @@ function handleModalNext() {
   // Collect clients
   const names = document.querySelectorAll('.client-name');
   const refs = document.querySelectorAll('.client-ref');
-  d.clients = Array.from(names).map((n, i) => ({ name: n.value, ref: refs[i]?.value || '' })).filter(c => c.name);
+  d.clients = Array.from(names).map((n, i) => ({ name: n.value, ref: refs[i]?.value || '' })).filter(c => c.name && c.name !== '__new__');
 
   if (!d.country || !d.vesselName || !d.product || !d.port) {
     alert('Por favor complete los campos obligatorios: País, Buque, Producto y Puerto.');
