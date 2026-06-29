@@ -985,6 +985,8 @@ async function loadClientsList() {
 }
 
 // ===== HOME =====
+function getClient(op) { return op.client || op.clients?.[0]?.name || ''; }
+
 function buildHome(ops) {
   if (ops.length === 0) return `
     <div class="empty-state">
@@ -994,10 +996,9 @@ function buildHome(ops) {
       <button class="btn btn-primary" data-action="open-new-op">+ Nueva Operación</button>
     </div>`;
 
-  // Unique sorted client list
-  const clients = [...new Set(ops.map(o => o.client || '').filter(Boolean))].sort();
+  const clients = [...new Set(ops.map(getClient).filter(Boolean))].sort();
   const filtered = state.filterClient
-    ? ops.filter(o => (o.client || '') === state.filterClient)
+    ? ops.filter(o => getClient(o) === state.filterClient)
     : ops;
 
   return `
@@ -1036,7 +1037,7 @@ function buildOpCard(op) {
       </div>
       <div class="op-card-vessel">${op.vessel.name || 'Buque sin nombre'}</div>
       <div class="op-card-meta">Viaje ${op.vessel.voyage || '—'} &nbsp;·&nbsp; IMO ${op.vessel.imo || '—'}</div>
-      <div class="op-card-meta" style="margin-top:4px">${op.client ? `<span style="color:var(--accent2);font-weight:600">${op.client}</span>` : clients}</div>
+      <div class="op-card-meta" style="margin-top:4px">${getClient(op) ? `<span style="color:var(--accent2);font-weight:600">${getClient(op)}</span>` : '—'}</div>
       <div class="op-card-footer">
         <span class="op-type-badge ${op.type === 'vef' ? 'type-vef' : op.type === 'alije' ? 'type-alije' : op.type === 'terminal' ? 'type-terminal' : 'type-custom'}">${t?.label || (op.type ? op.type : 'Personalizada')}</span>
         <span class="op-card-date">${date}</span>
@@ -5293,6 +5294,7 @@ function handleModalCreate() {
       vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
       product: { type: d.product, crudeName: d.crudeName || '' },
       clients: d.clients,
+      client: (d.clients[0]?.name || ''),
       port: d.port,
       terminal: d.terminal || '',
       inspectionCompany: d.inspectionCompany || '',
@@ -5321,6 +5323,7 @@ function handleModalCreate() {
       vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
       product: { type: d.product, crudeName: d.crudeName || '' },
       clients: d.clients,
+      client: (d.clients[0]?.name || ''),
       port: d.port,
       terminal: d.terminal || '',
       inspectionCompany: d.inspectionCompany || '',
