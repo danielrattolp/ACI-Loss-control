@@ -40,7 +40,7 @@ class handler(BaseHTTPRequestHandler):
         safe = {}
         for email, c in raw.items():
             if isinstance(c, dict):
-                safe[email] = {'name': c.get('name', email), 'email': email, 'active': c.get('active', True)}
+                safe[email] = {'name': c.get('name', email), 'org': c.get('org', c.get('name', email)), 'email': email, 'active': c.get('active', True)}
         self._json(200, safe)
 
     def do_POST(self):
@@ -54,10 +54,11 @@ class handler(BaseHTTPRequestHandler):
         if action == 'create':
             email    = (body.get('email')    or '').strip().lower()
             name     = (body.get('name')     or '').strip()
+            org      = (body.get('org')      or name).strip()
             password = (body.get('password') or '').strip()
             if not email or not name or not password:
                 self._json(400, {'error': 'email, nombre y contraseña requeridos'}); return
-            clients[email] = {'name': name, 'password_hash': _hash(password), 'active': True, 'force_change': True}
+            clients[email] = {'name': name, 'org': org, 'password_hash': _hash(password), 'active': True, 'force_change': True}
             kv_set('aci_clients', clients)
             self._json(200, {'ok': True, 'email': email, 'name': name})
 

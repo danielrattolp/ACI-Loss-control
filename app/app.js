@@ -899,14 +899,18 @@ function buildClientesView() {
 
     <div class="card" style="margin-bottom:20px">
       <div class="card-title">Agregar nuevo cliente</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:12px">
         <div>
-          <label class="field-label">Nombre (empresa)</label>
-          <input class="field-input" id="new-client-name" placeholder="YPF S.A." type="text">
+          <label class="field-label">Empresa (cliente en ops)</label>
+          <input class="field-input" id="new-client-org" placeholder="ENAP" type="text">
+        </div>
+        <div>
+          <label class="field-label">Nombre del contacto</label>
+          <input class="field-input" id="new-client-name" placeholder="Juan Pérez" type="text">
         </div>
         <div>
           <label class="field-label">Email corporativo</label>
-          <input class="field-input" id="new-client-email" placeholder="contacto@ypf.com" type="email">
+          <input class="field-input" id="new-client-email" placeholder="juan@enap.cl" type="email">
         </div>
         <div>
           <label class="field-label">Contraseña de acceso</label>
@@ -950,6 +954,7 @@ async function loadClientsList() {
     el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
         <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Empresa</th>
+        <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Contacto</th>
         <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Email</th>
         <th style="text-align:left;padding:8px 10px;color:var(--muted2);font-size:11px;border-bottom:1px solid var(--line)">Estado</th>
         <th style="padding:8px 10px;border-bottom:1px solid var(--line)"></th>
@@ -957,6 +962,7 @@ async function loadClientsList() {
       <tbody>
         ${entries.map(([email, c]) => `
         <tr id="client-row-${btoa(email).replace(/=/g,'')}">
+          <td style="padding:10px;font-weight:600">${c.org || c.name}</td>
           <td style="padding:10px">${c.name}</td>
           <td style="padding:10px;color:var(--muted)">${email}</td>
           <td style="padding:10px">
@@ -4520,19 +4526,21 @@ function handleClick(e) {
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
   else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
   else if (a === 'client-create') {
+    const org      = (document.getElementById('new-client-org')?.value  || '').trim();
     const name     = (document.getElementById('new-client-name')?.value || '').trim();
     const email    = (document.getElementById('new-client-email')?.value || '').trim();
     const password = (document.getElementById('new-client-pass')?.value || '').trim();
     const res_el   = document.getElementById('client-create-result');
-    if (!name || !email || !password) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa nombre, email y contraseña.</span>'; return; }
+    if (!org || !name || !email || !password) { if (res_el) res_el.innerHTML = '<span style="color:var(--danger)">Completa empresa, nombre, email y contraseña.</span>'; return; }
     fetch('/api/clients', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
-      body: JSON.stringify({action:'create', name, email, password}) })
+      body: JSON.stringify({action:'create', org, name, email, password}) })
       .then(r => r.json()).then(data => {
         if (data.ok) {
           if (res_el) res_el.innerHTML = `<div style="background:var(--line2);border-radius:8px;padding:10px 12px">
-            <div style="color:var(--accent2);font-weight:600;margin-bottom:4px">✓ Cliente creado</div>
-            <div style="font-size:12px;color:var(--ink)">El cliente puede ingresar en <strong>acilatam.cl/cliente</strong> con su email y la contraseña que definiste.</div>
+            <div style="color:var(--accent2);font-weight:600;margin-bottom:4px">✓ Acceso creado para ${org}</div>
+            <div style="font-size:12px;color:var(--ink)">${name} puede ingresar en <strong>acilatam.cl/cliente</strong> con su email y contraseña.</div>
           </div>`;
+          document.getElementById('new-client-org').value  = '';
           document.getElementById('new-client-name').value = '';
           document.getElementById('new-client-email').value = '';
           document.getElementById('new-client-pass').value = '';

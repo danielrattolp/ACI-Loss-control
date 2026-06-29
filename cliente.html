@@ -188,7 +188,8 @@
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────
-let clientName = '';
+let clientName  = '';  // contact name
+let clientOrg   = '';  // company/org — used to filter ops
 let clientEmail = '';
 let allOps = [];
 let filteredOps = [];
@@ -201,7 +202,7 @@ async function init() {
     const res = await fetch('/api/client_auth');
     const data = await res.json();
     if (data.ok) {
-      showApp(data.name, data.email);
+      showApp(data.name, data.org || data.name, data.email);
       return;
     }
   } catch(e) {}
@@ -230,10 +231,9 @@ async function doLogin(e) {
       if (data.force_change) {
         document.getElementById('login-form').style.display = 'none';
         document.getElementById('change-pass-form').style.display = 'block';
-        // store name/email for after password change
-        window._pendingAuth = { name: data.name, email: data.email };
+        window._pendingAuth = { name: data.name, org: data.org || data.name, email: data.email };
       } else {
-        showApp(data.name, data.email);
+        showApp(data.name, data.org || data.name, data.email);
       }
     } else {
       err.textContent = data.error || 'Credenciales incorrectas';
@@ -263,8 +263,8 @@ async function doChangePassword(e) {
     });
     const data = await res.json();
     if (data.ok) {
-      const { name, email } = window._pendingAuth || {};
-      showApp(name, email);
+      const { name, org, email } = window._pendingAuth || {};
+      showApp(name, org || name, email);
     } else {
       err.textContent = data.error || 'Error al cambiar contraseña.';
       btn.disabled = false; btn.textContent = 'Guardar contraseña y continuar';
@@ -275,15 +275,16 @@ async function doChangePassword(e) {
   }
 }
 
-async function showApp(name, email) {
-  clientName = name;
+async function showApp(name, org, email) {
+  clientName  = name;
+  clientOrg   = org || name;
   clientEmail = email;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-nav').style.display = 'flex';
   document.getElementById('app-main').style.display = 'block';
   document.getElementById('nav-name').textContent = name;
-  document.getElementById('client-title').textContent = name;
-  document.getElementById('client-subtitle').textContent = `Tendencias volumétricas · ${email}`;
+  document.getElementById('client-title').textContent = clientOrg;
+  document.getElementById('client-subtitle').textContent = `Tendencias volumétricas · ${name} · ${email}`;
   await loadData();
 }
 
@@ -299,8 +300,8 @@ async function loadData() {
     const ops = await res.json();
     // Filter to this client's operations only
     allOps = (ops || []).filter(op =>
-      (op.client || '').toLowerCase().includes(clientName.toLowerCase()) ||
-      clientName.toLowerCase().includes((op.client || '').toLowerCase())
+      (op.client || '').toLowerCase().includes(clientOrg.toLowerCase()) ||
+      clientOrg.toLowerCase().includes((op.client || '').toLowerCase())
     ).sort((a, b) => {
       const dA = a.modules?.['datos-origen']?.inspectionDate || a.createdAt || '';
       const dB = b.modules?.['datos-origen']?.inspectionDate || b.createdAt || '';

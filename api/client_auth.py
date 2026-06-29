@@ -68,10 +68,11 @@ class handler(BaseHTTPRequestHandler):
 
         session_token = secrets.token_urlsafe(32)
         sessions = kv_get('aci_client_sessions', {})
-        sessions[session_token] = {'email': email, 'name': client['name']}
+        org = client.get('org', client['name'])
+        sessions[session_token] = {'email': email, 'name': client['name'], 'org': org}
         kv_set('aci_client_sessions', sessions)
         self._json(200, {'ok': True, 'session': session_token,
-                         'name': client['name'], 'email': email,
+                         'name': client['name'], 'org': org, 'email': email,
                          'force_change': bool(client.get('force_change', False))})
 
     def do_GET(self):
@@ -88,7 +89,7 @@ class handler(BaseHTTPRequestHandler):
         client = clients.get(info['email'])
         if not client or not client.get('active', True):
             self._json(401, {'error': 'Acceso revocado'}); return
-        self._json(200, {'ok': True, 'name': info['name'], 'email': info['email']})
+        self._json(200, {'ok': True, 'name': info['name'], 'org': info.get('org', info['name']), 'email': info['email']})
 
     def _json(self, code, data):
         payload = json.dumps(data).encode()
