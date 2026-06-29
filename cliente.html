@@ -153,7 +153,7 @@
     <select id="filter-vessel" onchange="applyFilters()">
       <option value="">Todos los buques</option>
     </select>
-    <input type="text" id="filter-search" placeholder="Buscar operación…" oninput="applyFilters()" style="min-width:180px">
+    <input type="text" id="filter-search" placeholder="Buscar por código ACI, N° BL o referencia cliente…" oninput="applyFilters()" style="min-width:280px;flex:1">
   </div>
 
   <!-- Charts -->
@@ -331,8 +331,19 @@ function applyFilters() {
   filteredOps = allOps.filter(op => {
     if (crude  && (op.product?.crudeName || op.product?.type || '') !== crude)  return false;
     if (vessel && (op.vessel?.name || '') !== vessel) return false;
-    if (search && !(op.code || '').toLowerCase().includes(search) &&
-                  !(op.vessel?.name || '').toLowerCase().includes(search)) return false;
+    if (search) {
+      const ori = op.modules?.['datos-origen'] || {};
+      const haystack = [
+        op.code,
+        op.vessel?.name,
+        ori.blNumber,
+        ori.blRef,
+        op.product?.crudeName,
+        ori.origin?.portName,
+        ori.destination?.portName,
+      ].map(v => (v || '').toLowerCase()).join(' ');
+      if (!haystack.includes(search)) return false;
+    }
     return true;
   });
   renderStats();
