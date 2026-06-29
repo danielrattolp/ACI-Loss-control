@@ -528,16 +528,125 @@ function renderTable() {
 
 // ── PDF Download ───────────────────────────────────────────────────────
 async function downloadPDF(opId) {
-  // Fetch the op from server, build PDF in a popup (same logic as internal app)
   try {
     const res = await fetch('/api/ops');
     const ops = await res.json();
-    const op = ops.find(o => o.id === opId);
+    const op = (Array.isArray(ops) ? ops : []).find(o => o.id === opId);
     if (!op) { alert('Operación no encontrada'); return; }
 
-    // Store temporarily in sessionStorage for PDF generation
-    sessionStorage.setItem('aci_pdf_op', JSON.stringify(op));
-    window.open('/cliente/pdf?op=' + encodeURIComponent(opId), '_blank');
+    const now   = new Date().toLocaleDateString('es-CL', {day:'2-digit', month:'long', year:'numeric'});
+    const fmtN  = (v, d=2) => v ? parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d}) : '—';
+    const fmtD  = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-CL') : '—';
+    const kv    = (l, v) => `<tr><td class="lbl">${l}</td><td>${v||'—'}</td></tr>`;
+
+    const ori = op.modules?.['datos-origen'] || {};
+    const bl  = ori.bl || {};
+    const arr = op.modules?.['ullage-arribo']?.totals || {};
+    const re  = op.modules?.['reporte-evolutivo'] || {};
+
+    const deltaGSV = bl.gsv && arr.gsv
+      ? ((parseFloat(arr.gsv) - parseFloat(bl.gsv)) / parseFloat(bl.gsv) * 100).toFixed(3)
+      : null;
+    const deltaColor = deltaGSV && parseFloat(deltaGSV) < 0 ? '#c0392b' : '#27ae60';
+
+    const css = `
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:10.5px;color:#1a1a2e;padding:20px 30px;line-height:1.5}
+      .cover{text-align:center;padding:60px 40px;border-bottom:3px solid #1a2f5a;margin-bottom:30px}
+      .cover-logo{font-size:28px;font-weight:900;color:#1a2f5a;letter-spacing:2px}
+      .cover-logo span{color:#c8a415}
+      .cover-sub{font-size:13px;color:#555;margin:4px 0 24px;text-transform:uppercase;letter-spacing:1px}
+      .cover-code{font-size:22px;font-weight:800;color:#1a2f5a;margin:16px 0 8px}
+      .cover-tbl{margin:20px auto;border-collapse:collapse;min-width:360px}
+      .cover-tbl td{padding:6px 14px;border-bottom:1px solid #eee;text-align:left;font-size:11px}
+      .cover-tbl td:first-child{font-weight:700;color:#555;width:160px}
+      .cover-footer{font-size:9px;color:#999;margin-top:30px}
+      h2{font-size:13px;color:#1a2f5a;border-bottom:2px solid #1a2f5a;padding-bottom:4px;margin:20px 0 12px;text-transform:uppercase;letter-spacing:.5px}
+      h3{font-size:11px;color:#333;margin:14px 0 8px}
+      table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px}
+      th{background:#1a2f5a;color:#fff;padding:6px 8px;text-align:left;font-size:9.5px}
+      td{padding:5px 8px;border-bottom:1px solid #eee}
+      table.kv td{border:none;padding:3px 8px}
+      table.kv td.lbl{font-weight:700;color:#555;width:200px}
+      .balance{background:#f8faff;border:1px solid #c0cfe8;border-radius:4px;padding:14px;margin:10px 0}
+      .balance-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e8eaf0;font-size:11px}
+      .balance-row:last-child{border:none;font-weight:700;font-size:12px;margin-top:6px;padding-top:8px}
+      .delta{color:${deltaColor};font-weight:700}
+      .re-box{background:#fffbf0;border:1px solid #c8a415;border-radius:4px;padding:14px;font-size:10.5px;line-height:1.7;white-space:pre-wrap}
+      .page-break{page-break-after:always}
+      .footer-stamp{text-align:right;font-size:8px;color:#aaa;margin-top:30px;padding-top:10px;border-top:1px solid #eee}
+      @media print{body{padding:10px 20px}.page-break{page-break-after:always}}
+    `;
+
+    const html = `<!DOCTYPE html><html lang="es"><head>
+      <meta charset="UTF-8">
+      <title>${op.code} — Reporte Evolutivo — ACI Loss Control</title>
+      <style>${css}</style>
+    </head><body>
+
+    <div class="cover">
+      <div class="cover-logo">ACI <span>Loss Control</span></div>
+      <div class="cover-sub">Reporte Evolutivo — Portal Cliente</div>
+      <div class="cover-code">${op.code || ''}</div>
+      <table class="cover-tbl">
+        <tr><td>Buque</td><td><strong>${op.vessel?.name || '—'}</strong></td></tr>
+        <tr><td>IMO</td><td>${op.vessel?.imo || '—'}</td></tr>
+        <tr><td>Producto</td><td>${op.product?.crudeName || op.product?.type || '—'}</td></tr>
+        <tr><td>Puerto origen</td><td>${ori.origin?.portName || ori.loadPort || '—'}</td></tr>
+        <tr><td>Puerto destino</td><td>${ori.destination?.portName || '—'}</td></tr>
+        <tr><td>Fecha inspección</td><td>${fmtD(ori.inspectionDate)}</td></tr>
+        <tr><td>N° Bill of Lading</td><td>${ori.blNumber || '—'}</td></tr>
+        <tr><td>Cliente</td><td>${op.client || '—'}</td></tr>
+        <tr><td>Fecha del reporte</td><td>${now}</td></tr>
+      </table>
+      <div class="cover-footer">Documento confidencial — Uso exclusivo del cliente · ACI Loss Control SpA</div>
+    </div>
+    <div class="page-break"></div>
+
+    <h2>Balance de Cantidades</h2>
+    <h3>Bill of Lading (Origen)</h3>
+    <table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>
+      <tr><td>GSV</td><td>${fmtN(bl.gsv)} BBL</td></tr>
+      <tr><td>Free Water (FW)</td><td>${fmtN(bl.fw)} BBL</td></tr>
+      <tr><td>TCV</td><td>${fmtN(bl.tcv)} BBL</td></tr>
+      <tr><td>API Gravity</td><td>${fmtN(bl.api,1)} °API</td></tr>
+      <tr><td>BSW</td><td>${fmtN(bl.bsw,3)} %</td></tr>
+      <tr><td>Densidad a 15°C</td><td>${fmtN(bl.densityAt15,1)} kg/m³</td></tr>
+      <tr><td>NSV</td><td>${fmtN(bl.nsv)} BBL</td></tr>
+    </tbody></table>
+
+    <h3>Ullage al Arribo (Destino)</h3>
+    <table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>
+      <tr><td>GSV</td><td>${fmtN(arr.gsv)} BBL</td></tr>
+      <tr><td>Free Water (FW)</td><td>${fmtN(arr.fw)} BBL</td></tr>
+      <tr><td>TCV</td><td>${fmtN(arr.tcv)} BBL</td></tr>
+      <tr><td>API Gravity</td><td>${fmtN(arr.api,1)} °API</td></tr>
+      <tr><td>BSW</td><td>${fmtN(arr.bsw,3)} %</td></tr>
+      <tr><td>Densidad a 15°C</td><td>${fmtN(arr.densityAt15,1)} kg/m³</td></tr>
+      <tr><td>NSV</td><td>${fmtN(arr.nsv)} BBL</td></tr>
+    </tbody></table>
+
+    <h3>Diferencia Origen vs Arribo</h3>
+    <div class="balance">
+      <div class="balance-row"><span>GSV Origen (BL)</span><span>${fmtN(bl.gsv)} BBL</span></div>
+      <div class="balance-row"><span>GSV Arribo (Ullage)</span><span>${fmtN(arr.gsv)} BBL</span></div>
+      <div class="balance-row"><span>Δ GSV</span><span>${deltaGSV ? fmtN(parseFloat(arr.gsv)-parseFloat(bl.gsv)) + ' BBL' : '—'}</span></div>
+      <div class="balance-row"><span>Δ GSV %</span><span class="delta">${deltaGSV ? deltaGSV+'%' : '—'}</span></div>
+    </div>
+
+    ${re.notes ? `<div class="page-break"></div>
+    <h2>Conclusión — Reporte Evolutivo</h2>
+    <div class="re-box">${re.notes}</div>` : ''}
+
+    <div class="footer-stamp">Generado el ${now} · ACI Loss Control SpA · acilatam.cl</div>
+    </body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) { alert('Permite ventanas emergentes para este sitio y vuelve a intentarlo.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 800);
   } catch(e) {
     alert('Error al generar PDF. Intente nuevamente.');
   }
