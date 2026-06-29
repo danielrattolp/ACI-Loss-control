@@ -286,6 +286,7 @@ let state = {
   modal: null,
   modalStep: 1,
   modalData: {},
+  filterClient: '',
 };
 
 // ===== STORAGE =====
@@ -992,10 +993,17 @@ function buildHome(ops) {
       <div class="empty-sub">Inicia una nueva operación para comenzar el seguimiento y control de pérdidas.</div>
       <button class="btn btn-primary" data-action="open-new-op">+ Nueva Operación</button>
     </div>`;
+
+  // Unique sorted client list
+  const clients = [...new Set(ops.map(o => o.client || '').filter(Boolean))].sort();
+  const filtered = state.filterClient
+    ? ops.filter(o => (o.client || '') === state.filterClient)
+    : ops;
+
   return `
     <div class="home-header">
       <div class="home-title">Operaciones</div>
-      <div class="home-sub">${ops.length} operación${ops.length !== 1 ? 'es' : ''} registrada${ops.length !== 1 ? 's' : ''}</div>
+      <div class="home-sub">${filtered.length} de ${ops.length} operación${ops.length !== 1 ? 'es' : ''}</div>
     </div>
     <div class="home-actions">
       <button class="btn btn-primary" data-action="open-new-op">+ Nueva Operación</button>
@@ -1003,10 +1011,17 @@ function buildHome(ops) {
       <label style="background:var(--paper);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:6px 12px;border-radius:var(--r);cursor:pointer" title="Importar operaciones desde JSON">
         ⬆ Importar <input type="file" accept=".json" style="display:none" data-action="import-ops">
       </label>
+      <select id="filter-client-sel" onchange="state.filterClient=this.value;render()"
+        style="background:var(--paper);border:1px solid ${state.filterClient ? 'var(--accent)' : 'var(--line)'};color:${state.filterClient ? 'var(--accent)' : 'var(--muted)'};font-size:12px;padding:6px 12px;border-radius:var(--r);cursor:pointer;font-weight:${state.filterClient ? '600' : '400'}">
+        <option value="">Todos los clientes</option>
+        ${clients.map(c => `<option value="${c}" ${state.filterClient === c ? 'selected' : ''}>${c}</option>`).join('')}
+      </select>
+      ${state.filterClient ? `<button class="btn" onclick="state.filterClient='';render()" style="background:var(--paper);border:1px solid var(--line);color:var(--muted);font-size:11px;padding:6px 10px">✕ Limpiar</button>` : ''}
     </div>
+    ${filtered.length === 0 ? `<div style="text-align:center;padding:48px;color:var(--muted);font-size:14px">Sin operaciones para <strong>${state.filterClient}</strong></div>` : `
     <div class="ops-grid">
-      ${ops.map(op => buildOpCard(op)).join('')}
-    </div>`;
+      ${filtered.map(op => buildOpCard(op)).join('')}
+    </div>`}`;
 }
 
 function buildOpCard(op) {
@@ -1021,7 +1036,7 @@ function buildOpCard(op) {
       </div>
       <div class="op-card-vessel">${op.vessel.name || 'Buque sin nombre'}</div>
       <div class="op-card-meta">Viaje ${op.vessel.voyage || '—'} &nbsp;·&nbsp; IMO ${op.vessel.imo || '—'}</div>
-      <div class="op-card-meta" style="margin-top:4px">${clients}</div>
+      <div class="op-card-meta" style="margin-top:4px">${op.client ? `<span style="color:var(--accent2);font-weight:600">${op.client}</span>` : clients}</div>
       <div class="op-card-footer">
         <span class="op-type-badge ${op.type === 'vef' ? 'type-vef' : op.type === 'alije' ? 'type-alije' : op.type === 'terminal' ? 'type-terminal' : 'type-custom'}">${t?.label || (op.type ? op.type : 'Personalizada')}</span>
         <span class="op-card-date">${date}</span>
