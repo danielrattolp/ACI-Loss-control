@@ -575,7 +575,8 @@ async function downloadPDF(opId) {
       .re-box{background:#fffbf0;border:1px solid #c8a415;border-radius:4px;padding:14px;font-size:10.5px;line-height:1.7;white-space:pre-wrap}
       .page-break{page-break-after:always}
       .footer-stamp{text-align:right;font-size:8px;color:#aaa;margin-top:30px;padding-top:10px;border-top:1px solid #eee}
-      @media print{body{padding:10px 20px}.page-break{page-break-after:always}}
+      @page{size:letter;margin:14mm 12mm}
+      @media print{body{padding:0}.page-break{page-break-after:always}}
     `;
 
     const html = `<!DOCTYPE html><html lang="es"><head>

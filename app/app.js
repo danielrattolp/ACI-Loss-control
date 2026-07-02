@@ -3350,8 +3350,10 @@ function printFullReport(opId, selectedMods) {
     .signatures{display:flex;gap:40px;margin-top:40px;padding-top:20px;border-top:1px solid #ddd}
     .sig-box{flex:1;text-align:center;font-size:10px;color:#555}
     .sig-line{border-top:1px solid #333;margin:0 20px 6px}
+    @page{size:letter;margin:14mm 12mm}
     @media print{
       body{font-size:10px}
+      .cover{min-height:auto;height:calc(100vh - 60px);margin:0}
       .page-break{page-break-after:always}
       .section{page-break-inside:avoid}
       table{page-break-inside:auto}
