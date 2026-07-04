@@ -539,15 +539,190 @@ async function downloadPDF(opId) {
     const fmtD  = v => v ? new Date(v+'T12:00:00').toLocaleDateString('es-CL') : '—';
     const kv    = (l, v) => `<tr><td class="lbl">${l}</td><td>${v||'—'}</td></tr>`;
 
-    const ori = op.modules?.['datos-origen'] || {};
+    const mods = op.modules || {};
+    const order = op.moduleOrder || Object.keys(mods);
+    const ori = mods['datos-origen'] || {};
     const bl  = ori.bl || {};
-    const arr = op.modules?.['ullage-arribo']?.totals || {};
-    const re  = op.modules?.['reporte-evolutivo'] || {};
+    const arrMod = mods['ullage-arribo'] || {};
+    const arr = arrMod.totals || {};
+    const re  = mods['reporte-evolutivo'] || {};
 
     const deltaGSV = bl.gsv && arr.gsv
       ? ((parseFloat(arr.gsv) - parseFloat(bl.gsv)) / parseFloat(bl.gsv) * 100).toFixed(3)
       : null;
     const deltaColor = deltaGSV && parseFloat(deltaGSV) < 0 ? '#c0392b' : '#27ae60';
+
+    const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const iaBlock = txt => txt ? `<div class="ia-block"><div class="ia-tag">🤖 Análisis Consultor IA</div>${esc(txt)}</div>` : '';
+    const sec = (title, body) => `<div class="section"><h2>${title}</h2>${body}</div>`;
+
+    // ── Secciones por módulo (datos + análisis IA) ──────────
+    const S = {};
+
+    // 1. Datos de Origen
+    S['datos-origen'] = () => {
+      const ut = ori.ullageOrigen?.tanks || [];
+      return sec('1. Datos de Origen — Bill of Lading', `
+        <table class="kv">
+          ${kv('N° Bill of Lading', ori.blNumber)}
+          ${kv('Fecha BL', fmtD(ori.blDate))}
+          ${kv('Puerto de carga', ori.loadPort || ori.origin?.portName)}
+          ${kv('Terminal', ori.loadTerminal || ori.origin?.terminal)}
+        </table>
+        <h3>Cantidades B/L</h3>
+        <table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>
+          <tr><td>GSV @60°F</td><td>${fmtN(bl.gsv)} BBL</td></tr>
+          <tr><td>Free Water</td><td>${fmtN(bl.fw)} BBL</td></tr>
+          <tr><td>TCV</td><td>${fmtN(bl.tcv)} BBL</td></tr>
+          <tr><td>API Gravity</td><td>${fmtN(bl.api,1)} °API</td></tr>
+          <tr><td>BS&W</td><td>${fmtN(bl.bsw,3)} %</td></tr>
+          <tr><td>Densidad @15°C</td><td>${fmtN(bl.densityAt15,1)} kg/m³</td></tr>
+          <tr><td>NSV @60°F</td><td>${fmtN(bl.nsv)} BBL</td></tr>
+        </tbody></table>
+        ${ut.length ? `<h3>Ullage de Origen — por tanque</h3>
+        <table><thead><tr><th>Tanque</th><th>Alt. Ref (m)</th><th>Alt. Medida (m)</th><th>API</th><th>Temp °C</th><th>VCF</th><th>GSV (BBL)</th></tr></thead><tbody>
+          ${ut.map(t=>`<tr><td>${esc(t.name)}</td><td>${t.refHeight||'—'}</td><td>${t.measured||'—'}</td><td>${t.api||'—'}</td><td>${t.temp||'—'}</td><td>${t.vcf||'—'}</td><td>${fmtN(t.gsv,0)}</td></tr>`).join('')}
+        </tbody></table>`:''}
+        ${ori.ullageOrigen?.notes ? `<p class="note">${esc(ori.ullageOrigen.notes)}</p>`:''}
+        ${iaBlock(ori.iaAnalysis)}`);
+    };
+
+    // 2. Key Meeting
+    S['key-meeting'] = () => {
+      const km = mods['key-meeting']||{}; const att = km.attendees||[];
+      return sec('2. Key Meeting / Pre-Transfer Conference', `
+        <table class="kv">
+          ${kv('Fecha', fmtD(km.date))}
+          ${kv('Hora', km.time)}
+          ${kv('Lugar', km.location)}
+        </table>
+        ${att.length ? `<h3>Asistentes</h3>
+        <table><thead><tr><th>Nombre</th><th>Empresa</th><th>Rol</th></tr></thead><tbody>
+          ${att.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.company||'')}</td><td>${esc(a.role||'')}</td></tr>`).join('')}
+        </tbody></table>`:''}
+        ${km.acta ? `<h3>Acta de Reunión</h3><div class="re-box">${esc(km.acta)}</div>`:''}
+        ${iaBlock(km.iaAnalysis)}`);
+    };
+
+    // 3. Time Log
+    S['time-log'] = () => {
+      const tl = mods['time-log']||{}; const ev = tl.events||[];
+      if (!ev.length) return '';
+      return sec('3. Time Log / Statement of Facts', `
+        <table><thead><tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Evento</th><th>Comentario Loss Control</th></tr></thead><tbody>
+          ${ev.map(e=>`<tr><td>${fmtD(e.date)}</td><td>${esc(e.initial||'')}</td><td>${esc(e.final||'')}</td><td>${esc(e.event||'')}</td><td style="font-size:9px">${esc(e.comment||'')}</td></tr>`).join('')}
+        </tbody></table>
+        ${iaBlock(tl.iaAnalysis)}`);
+    };
+
+    // 4. Ullage al Arribo (+ fotos)
+    S['ullage-arribo'] = () => {
+      const t = arrMod.tanks || [];
+      const tm = arrMod.tankMedia || {};
+      let photos = '';
+      const cells = [];
+      t.forEach((tk,i)=>{
+        const slot = tm[i]||{};
+        [['producto','🛢 Producto'],['agua','💧 Agua']].forEach(([k])=>{
+          (slot[k]||[]).forEach(p=>{ if(p.data) cells.push(`<div style="text-align:center"><img src="${p.data}" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #ddd"><div style="font-size:8px;color:#666">TK ${esc(tk.name)} · ${k}</div></div>`); });
+        });
+      });
+      if (cells.length) photos = `<h3>Evidencia Fotográfica de Medición</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${cells.join('')}</div>`;
+      return sec('4. Ullage al Arribo', `
+        <table class="kv">
+          ${kv('Fecha', fmtD(arrMod.date))}
+          ${kv('Trim (m)', arrMod.trim)}
+          ${kv('Lista (°)', arrMod.list)}
+        </table>
+        ${t.length ? `<h3>Medición por Tanque</h3>
+        <table><thead><tr><th>Tanque</th><th>Alt. Ref (m)</th><th>Alt. Medida (m)</th><th>API</th><th>Temp °C</th><th>VCF</th></tr></thead><tbody>
+          ${t.map(tk=>`<tr><td>${esc(tk.name)}</td><td>${tk.refHeight||'—'}</td><td>${tk.measured||'—'}</td><td>${tk.api||'—'}</td><td>${tk.temp||'—'}</td><td>${tk.vcf||'—'}</td></tr>`).join('')}
+        </tbody></table>`:''}
+        <h3>Totales al Arribo</h3>
+        <table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>
+          <tr><td>GSV @60°F</td><td>${fmtN(arr.gsv)} BBL</td></tr>
+          <tr><td>Free Water</td><td>${fmtN(arr.fw)} BBL</td></tr>
+          <tr><td>TCV</td><td>${fmtN(arr.tcv)} BBL</td></tr>
+          <tr><td>API Gravity</td><td>${fmtN(arr.api,1)} °API</td></tr>
+          <tr><td>BS&W</td><td>${fmtN(arr.bsw,3)} %</td></tr>
+          <tr><td>NSV @60°F</td><td>${fmtN(arr.nsv)} BBL</td></tr>
+        </tbody></table>
+        ${arrMod.notes ? `<p class="note">${esc(arrMod.notes)}</p>`:''}
+        ${photos}
+        ${iaBlock(arrMod.iaAnalysis)}`);
+    };
+
+    // 5. VEF al Arribo
+    S['vef-comparativo'] = () => {
+      const vf = mods['vef-comparativo']||{}; const vy = vf.voyages||[];
+      if (!vy.length && !vf.iaAnalysis) return '';
+      return sec('5. VEF al Arribo — Vessel Experience Factor', `
+        ${vy.length ? `<table><thead><tr><th>N° Viaje</th><th>Fecha</th><th>Puerto/Terminal</th><th>Cargo</th><th>TCV Nave</th><th>TCV Shore</th><th>Categoría</th></tr></thead><tbody>
+          ${vy.map(v=>`<tr><td>${esc(v.voyageNum||'')}</td><td>${fmtD(v.date)}</td><td>${esc(v.terminal||'')}</td><td>${esc(v.product||'')}</td><td>${fmtN(v.vesselTCV,0)}</td><td>${fmtN(v.shoreTCV,0)}</td><td style="font-size:9px">${esc((v.category||'').replace(/_/g,' '))}</td></tr>`).join('')}
+        </tbody></table>`:''}
+        ${vf.notes ? `<p class="note">${esc(vf.notes)}</p>`:''}
+        ${iaBlock(vf.iaAnalysis)}`);
+    };
+
+    // 6. Discharge Record
+    S['discharge-record'] = () => {
+      const dr = mods['discharge-record']||{}; const pl = dr.pumpLog||dr.records||[];
+      if (!pl.length && !dr.iaAnalysis) return '';
+      return sec('6. Discharge Record — Registro de Bombeo', `
+        <table class="kv">
+          ${kv('Fecha inicio', fmtD(dr.startDate))}
+          ${kv('Hora inicio', dr.startTime)}
+        </table>
+        ${pl.length ? `<table><thead><tr><th>Hora</th><th>Caudal (m³/h)</th><th>Presión (bar)</th><th>Cant. Acum. (m³)</th></tr></thead><tbody>
+          ${pl.map(r=>`<tr><td>${esc(r.time||'')}</td><td>${esc(r.rate||'')}</td><td>${esc(r.pressure||'')}</td><td>${esc(r.qty||r.volPumped||'')}</td></tr>`).join('')}
+        </tbody></table>`:''}
+        ${dr.notes ? `<p class="note">${esc(dr.notes)}</p>`:''}
+        ${iaBlock(dr.iaAnalysis)}`);
+    };
+
+    // 7. Termómetros
+    S['termometros'] = () => {
+      const tm = mods['termometros']||{};
+      if (!tm.vessel && !tm.iaAnalysis) return '';
+      return sec('7. Verificación de Termómetros', `
+        <table><thead><tr><th>Equipo</th><th>ID</th><th>Últ. Calibración</th><th>Lectura °F</th></tr></thead><tbody>
+          <tr><td>Buque</td><td>${esc(tm.vessel?.id||'—')}</td><td>${fmtD(tm.vessel?.calibDate)}</td><td>${tm.vessel?.tempF||'—'}</td></tr>
+          <tr><td>Surveyor</td><td>${esc(tm.surveyor?.id||'—')}</td><td>${fmtD(tm.surveyor?.calibDate)}</td><td>${tm.surveyor?.tempF||'—'}</td></tr>
+          <tr><td>ACI</td><td>${esc(tm.aci?.id||'—')}</td><td>${fmtD(tm.aci?.calibDate)}</td><td>${tm.aci?.tempF||'—'}</td></tr>
+        </tbody></table>
+        ${tm.generalRemarks ? `<p class="note">${esc(tm.generalRemarks)}</p>`:''}
+        ${iaBlock(tm.iaAnalysis)}`);
+    };
+
+    // 8. Checklist
+    const chkKey = order.find(k=>k.startsWith('checklist'));
+    S[chkKey] = () => {
+      const chk = mods[chkKey]||{}; const secs = chk.items||[];
+      if (!secs.length && !chk.iaAnalysis) return '';
+      let c=0,p=0,n=0,na=0,pts=0,max=0;
+      secs.forEach(s=>s.items.forEach(it=>{ if(it.val==='c'){c++;pts+=2;max+=2;} else if(it.val==='p'){p++;pts+=1;max+=2;} else if(it.val==='n'){n++;max+=2;} else if(it.val==='na'){na++;} }));
+      const pct = max>0?Math.round(pts/max*100):null;
+      const verdict = pct===null?'Sin Evaluar':pct>=80?'SATISFACTORIO':pct>=60?'REGULAR':'DEFICIENTE';
+      return sec('8. Checklist de Inspección', `
+        <table class="kv">
+          ${kv('Inspector', chk.inspector)}
+          ${kv('Fecha', fmtD(chk.date))}
+          ${kv('Resultado Global', (pct!==null?pct+'% — ':'')+'<strong>'+verdict+'</strong>')}
+          ${kv('Detalle', 'C='+c+'  P='+p+'  N='+n+'  NA='+na)}
+        </table>
+        ${secs.map(s2=>`<h3>${esc(s2.section||s2.title||s2.name||'')}</h3>
+          <table><thead><tr><th style="width:58%">Ítem</th><th>Estado</th><th>Observación</th></tr></thead><tbody>
+          ${s2.items.map(it=>`<tr><td>${esc(it.text)}</td><td style="text-align:center;font-weight:700">${it.val==='c'?'C':it.val==='p'?'P':it.val==='n'?'N':it.val==='na'?'NA':'—'}</td><td style="font-size:9px">${esc(it.comment||'')}</td></tr>`).join('')}
+        </tbody></table>`).join('')}
+        ${iaBlock(chk.iaAnalysis)}`);
+    };
+
+    // Ensamblar secciones en el orden del módulo (excepto reporte-evolutivo, va al final)
+    const moduleSections = order
+      .filter(k => k !== 'reporte-evolutivo' && S[k])
+      .map(k => S[k]())
+      .filter(Boolean)
+      .join('<div class="page-break"></div>');
 
     const css = `
       *{box-sizing:border-box;margin:0;padding:0}
@@ -573,6 +748,12 @@ async function downloadPDF(opId) {
       .balance-row:last-child{border:none;font-weight:700;font-size:12px;margin-top:6px;padding-top:8px}
       .delta{color:${deltaColor};font-weight:700}
       .re-box{background:#fffbf0;border:1px solid #c8a415;border-radius:4px;padding:14px;font-size:10.5px;line-height:1.7;white-space:pre-wrap}
+      .section{margin-bottom:8px}
+      .ia-block{background:#f8f9ff;border-left:3px solid #1a2f5a;padding:10px 14px;font-size:10px;line-height:1.6;white-space:pre-wrap;margin:10px 0;border-radius:0 4px 4px 0}
+      .ia-tag{font-size:9px;font-weight:800;color:#1a2f5a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;white-space:normal}
+      .note{font-size:9px;color:#555;font-style:italic;margin:6px 0;padding:6px 10px;background:#f5f5f5;border-radius:3px;white-space:pre-wrap}
+      .section{page-break-inside:auto}
+      tr{page-break-inside:avoid}
       .page-break{page-break-after:always}
       .footer-stamp{text-align:right;font-size:8px;color:#aaa;margin-top:30px;padding-top:10px;border-top:1px solid #eee}
       @page{size:letter;margin:14mm 12mm}
@@ -604,7 +785,10 @@ async function downloadPDF(opId) {
     </div>
     <div class="page-break"></div>
 
-    <h2>Balance de Cantidades</h2>
+    ${moduleSections}
+    ${moduleSections ? '<div class="page-break"></div>' : ''}
+
+    <h2>Balance Consolidado de Cantidades</h2>
     <h3>Bill of Lading (Origen)</h3>
     <table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>
       <tr><td>GSV</td><td>${fmtN(bl.gsv)} BBL</td></tr>
