@@ -324,12 +324,10 @@ function logout(reason) {
 async function loadData() {
   try {
     const res = await fetch('/api/ops');
+    if (res.status === 401) { logout(); return; }
     const ops = await res.json();
-    // Filter to this client's operations only
-    allOps = (ops || []).filter(op =>
-      (op.client || '').toLowerCase().includes(clientOrg.toLowerCase()) ||
-      clientOrg.toLowerCase().includes((op.client || '').toLowerCase())
-    ).sort((a, b) => {
+    // El servidor ya devuelve solo las ops de esta empresa (filtrado server-side).
+    allOps = (Array.isArray(ops) ? ops : []).sort((a, b) => {
       const dA = a.modules?.['datos-origen']?.inspectionDate || a.createdAt || '';
       const dB = b.modules?.['datos-origen']?.inspectionDate || b.createdAt || '';
       return dA.localeCompare(dB);

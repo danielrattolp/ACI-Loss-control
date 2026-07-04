@@ -297,7 +297,7 @@ function saveOps(ops) {
   try { localStorage.setItem('aci_ops', JSON.stringify(ops)); } catch(e) {
     if (e.name === 'QuotaExceededError' || e.code === 22) alert('Almacenamiento local lleno. Las fotos se guardan en el servidor pero pueden perderse al recargar. Elimina imágenes antiguas o exporta la operación.');
   }
-  fetch('/api/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ops) }).catch(() => {});
+  fetch('/api/ops', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() }, body: JSON.stringify(ops) }).catch(() => {});
 }
 function loadCounters() {
   try { return JSON.parse(localStorage.getItem('aci_counters') || '{}'); } catch { return {}; }
@@ -310,7 +310,10 @@ function saveCounters(c) {
 // Al iniciar: carga desde servidor y sincroniza localStorage
 async function syncFromServer() {
   try {
-    const [opsRes, cntRes] = await Promise.all([fetch('/api/ops'), fetch('/api/counters')]);
+    const [opsRes, cntRes] = await Promise.all([
+      fetch('/api/ops', { headers: { 'X-ACI-Session': _aciSessionToken() } }),
+      fetch('/api/counters')
+    ]);
     if (opsRes.ok) {
       const ops = await opsRes.json();
       if (Array.isArray(ops) && ops.length > 0) {
