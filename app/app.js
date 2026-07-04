@@ -5695,5 +5695,27 @@ function editOp(id) {
   render();
 }
 
+// ===== CIERRE DE SESIÓN POR INACTIVIDAD =====
+const IDLE_LIMIT_MS = 15 * 60 * 1000; // 15 minutos sin actividad
+let _idleTimer = null;
+
+function aciLogout(reason) {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  document.cookie = 'aci_session=; path=/; max-age=0';
+  if (reason === 'idle') { try { sessionStorage.setItem('aci_logout_reason', 'idle'); } catch(e) {} }
+  window.location.href = '/operaciones/login';
+}
+
+function resetIdleTimer() {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => aciLogout('idle'), IDLE_LIMIT_MS);
+}
+
+function startIdleTimer() {
+  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(evt =>
+    window.addEventListener(evt, resetIdleTimer, { passive: true }));
+  resetIdleTimer();
+}
+
 // ===== INIT =====
-syncFromServer().then(() => { render(); initEvents(); });
+syncFromServer().then(() => { render(); initEvents(); startIdleTimer(); });

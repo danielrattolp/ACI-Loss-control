@@ -121,6 +121,13 @@
   </div>
 
   <script>
+    try {
+      if (sessionStorage.getItem('aci_logout_reason') === 'idle') {
+        sessionStorage.removeItem('aci_logout_reason');
+        document.getElementById('err').textContent = 'Sesión cerrada por inactividad. Ingresa nuevamente.';
+      }
+    } catch(e) {}
+
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       const btn = document.getElementById('btn');
