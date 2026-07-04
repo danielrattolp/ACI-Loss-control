@@ -2891,7 +2891,11 @@ function showPDFSelector(opId) {
     'discharge-record': '5. Discharge Record',
     'time-log': '6. Time Log / SOF',
     'termometros': '7. Verificación de Termómetros',
+    'checklist': '8. Checklist de Inspección',
     'checklist-inspeccion': '8. Checklist de Inspección',
+    'checklist-madre': '8. Checklist de Inspección',
+    'checklist-buque': '8. Checklist de Inspección',
+    'checklist-terminal': '8. Checklist de Inspección',
     'reporte-evolutivo': '9. Reporte Evolutivo — Conclusión',
   };
 
