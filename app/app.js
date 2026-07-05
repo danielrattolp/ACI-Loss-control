@@ -869,7 +869,7 @@ async function chatSend() {
   try {
     const res = await fetch('/api/consultar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() },
       body: JSON.stringify({ messages: state.chatHistory }),
     });
     const data = await res.json();
@@ -4886,7 +4886,7 @@ function handleClick(e) {
     el.disabled = true; el.textContent = '⏳ Generando acta…';
     fetch('/api/consultar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() },
       body: JSON.stringify({ messages: [{ role: 'user', content: filled }] }),
     }).then(r => r.json()).then(res => {
       if (res.reply) {
@@ -4926,7 +4926,7 @@ function handleClick(e) {
     }
     const btnLabel = media.length ? `🔍 Analizar con IA (${media.length} foto${media.length>1?'s':''})` : '🔍 Analizar con Consultor IA';
     el.disabled = true; el.textContent = `⏳ Analizando${media.length ? ' imágenes y datos' : ''}…`;
-    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messages:[{role:'user',content:msgContent}] }) })
+    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()}, body: JSON.stringify({ messages:[{role:'user',content:msgContent}] }) })
       .then(r=>r.json()).then(res=>{
         if (res.reply) { op.modules[c.mod].iaAnalysis = res.reply; op.modules[c.mod].iaDate = new Date().toISOString(); saveOp(op); render(); }
         else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error.'); }
@@ -4947,7 +4947,7 @@ function handleClick(e) {
     const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
     const prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
 
-    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json'},
+    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({ messages: [{ role:'user', content: prompt }] }) })
       .then(r=>r.json()).then(res=>{
         if (res.reply) {

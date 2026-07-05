@@ -1,7 +1,14 @@
-"""Vercel serverless function — Consultor IA (Anthropic API)."""
+"""Vercel serverless function — Consultor IA (Anthropic API).
+
+Acceso restringido a empleados (AUTH_TOKEN vía cookie aci_session, header
+X-ACI-Session o query ?_t=). Evita que terceros consuman la API key.
+"""
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 import json
 import os
+
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
 
 SYSTEM_PROMPT = """Eres un experto en medición y custody transfer de petróleo crudo y productos
 refinados, con más de 25 años de experiencia operativa en terminales marítimas y Loss Control.
@@ -23,7 +30,23 @@ Si detectas una práctica que contradice la norma API, señálalo claramente."""
 
 
 class handler(BaseHTTPRequestHandler):
+    def _is_employee(self):
+        raw = self.headers.get("cookie", "") or self.headers.get("Cookie", "")
+        tok = ""
+        for part in raw.split(";"):
+            part = part.strip()
+            if part.startswith("aci_session="):
+                tok = part.split("=", 1)[1]; break
+        if not tok:
+            tok = self.headers.get("x-aci-session", "") or self.headers.get("X-ACI-Session", "")
+        if not tok:
+            tok = parse_qs(urlparse(self.path).query).get("_t", [""])[0]
+        return bool(AUTH_TOKEN) and tok == AUTH_TOKEN
+
     def do_POST(self):
+        if not self._is_employee():
+            self._json(401, {"error": "No autorizado"})
+            return
         try:
             import anthropic
         except ImportError:
