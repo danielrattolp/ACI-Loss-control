@@ -52,6 +52,8 @@ class handler(BaseHTTPRequestHandler):
             data_b64 = data_b64.split(',', 1)[1]   # tolera data URL completa
         content_type = body.get('contentType') or 'image/jpeg'
         filename = _safe(body.get('filename'))
+        data_b64 = ''.join(data_b64.split())          # quita espacios/saltos
+        data_b64 += '=' * (-len(data_b64) % 4)        # corrige padding
         try:
             raw = base64.b64decode(data_b64)
         except Exception:
