@@ -341,11 +341,71 @@ function nextCode(countryKey) {
   return `${prefix}-${yy}-${String(counters[countryKey]).padStart(3, '0')}`;
 }
 function getOp(id) { return loadOps().find(o => o.id === id); }
-function saveOp(op) {
+
+// ===== GUARDADO POR OPERACIÓN (PUT + bloqueo optimista) =====
+// Cola por operación: agrupa ediciones rápidas, un PUT en vuelo a la vez,
+// y maneja el 409 (otro usuario guardó primero) recargando la versión fresca.
+const _pendingSaves = {};   // id -> op más reciente por guardar
+const _savingNow    = {};   // id -> hay un PUT en vuelo
+const _saveTimers   = {};   // id -> timer de debounce
+let _conflictShown  = false;
+
+function _writeLocal(op) {
   const ops = loadOps();
   const idx = ops.findIndex(o => o.id === op.id);
   if (idx >= 0) ops[idx] = op; else ops.unshift(op);
-  saveOps(ops);
+  try { localStorage.setItem('aci_ops', JSON.stringify(ops)); }
+  catch(e) { if (e.name === 'QuotaExceededError' || e.code === 22)
+    alert('Almacenamiento local lleno. Elimina imágenes antiguas o exporta la operación.'); }
+}
+function _bumpLocalVersion(id, v) {
+  const ops = loadOps();
+  const o = ops.find(x => x.id === id);
+  if (o) { o._v = v; try { localStorage.setItem('aci_ops', JSON.stringify(ops)); } catch(_){} }
+}
+function _applyServerOp(fresh) {
+  if (!fresh || !fresh.id) return;
+  const ops = loadOps();
+  const idx = ops.findIndex(o => o.id === fresh.id);
+  if (idx >= 0) ops[idx] = fresh; else ops.unshift(fresh);
+  try { localStorage.setItem('aci_ops', JSON.stringify(ops)); } catch(_){}
+  if (state.currentOpId === fresh.id) render();
+}
+function _flushSave(id) {
+  if (_savingNow[id]) return;
+  const op = _pendingSaves[id];
+  if (!op) return;
+  delete _pendingSaves[id];
+  _savingNow[id] = true;
+  // usar la versión más fresca conocida localmente
+  const stored = loadOps().find(o => o.id === id);
+  if (stored && stored._v != null) op._v = stored._v;
+  fetch('/api/ops', { method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() },
+    body: JSON.stringify(op) })
+    .then(async res => {
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        _applyServerOp(data.op);
+        delete _pendingSaves[id];  // descartar edición en conflicto
+        if (!_conflictShown) {
+          _conflictShown = true;
+          alert('Esta operación fue actualizada por otro usuario. Se recargó la versión más reciente — revisa tu último cambio.');
+          setTimeout(() => { _conflictShown = false; }, 3000);
+        }
+      } else if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data._v) _bumpLocalVersion(id, data._v);
+      }
+    })
+    .catch(() => {})
+    .finally(() => { _savingNow[id] = false; if (_pendingSaves[id]) _flushSave(id); });
+}
+function saveOp(op) {
+  _writeLocal(op);                 // inmediato: UI y localStorage
+  _pendingSaves[op.id] = op;       // encolar para el servidor
+  clearTimeout(_saveTimers[op.id]);
+  _saveTimers[op.id] = setTimeout(() => _flushSave(op.id), 350);  // debounce
 }
 function newOpId() { return 'op_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
 
@@ -4747,9 +4807,7 @@ function handleClick(e) {
     const op = getOp(el.dataset.opid);
     if (op) {
       const updated = addModuleToOp(op, el.dataset.type);
-      // Actualizar moduleOrder en op y guardar
-      const ops = loadOps().map(o => o.id === op.id ? updated : o);
-      saveOps(ops);
+      saveOp(updated);
       state.modal = null;
       state.currentModule = updated.moduleOrder[updated.moduleOrder.length - 2] || updated.moduleOrder[0];
       render();
@@ -4761,8 +4819,7 @@ function handleClick(e) {
     const modKey = el.dataset.mod;
     if (op && modKey) {
       const updated = removeModuleFromOp(op, modKey);
-      const ops = loadOps().map(o => o.id === op.id ? updated : o);
-      saveOps(ops);
+      saveOp(updated);
       if (state.currentModule === modKey) state.currentModule = null;
       render();
     }
@@ -5669,8 +5726,13 @@ function addAlijo() {
 // ===== OP MANAGEMENT =====
 function deleteOp(id) {
   if (!confirm('¿Eliminar esta operación? Esta acción no se puede deshacer.')) return;
+  // local
   const ops = loadOps().filter(o => o.id !== id);
-  saveOps(ops);
+  try { localStorage.setItem('aci_ops', JSON.stringify(ops)); } catch(_){}
+  // servidor: borrado por operación
+  fetch('/api/ops?id=' + encodeURIComponent(id), {
+    method: 'DELETE', headers: { 'X-ACI-Session': _aciSessionToken() }
+  }).catch(() => {});
   state.view = 'home';
   state.currentOpId = null;
   render();
