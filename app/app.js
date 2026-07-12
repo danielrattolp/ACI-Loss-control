@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -40,6 +40,7 @@ const MODULE_META = {
   'vsrr-175':            { label: 'Reconciliación (VSRR)', icon: '⚖️' },
   'hechos-campo':        { label: 'Hechos de Campo',      icon: '📋' },
   'reglas':              { label: 'Validación Normativa', icon: '🛡️' },
+  'incertidumbre':       { label: 'Incertidumbre',        icon: '📊' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -72,6 +73,7 @@ const MODULE_LIBRARY = [
   { type: 'vsrr-175',         label: 'Reconciliación (VSRR)', icon: '⚖️', multi: false, desc: 'Descomposición de pérdida por causa — API MPMS 17.5' },
   { type: 'hechos-campo',     label: 'Hechos de Campo',    icon: '📋', multi: false, desc: 'Métodos y equipos usados — API MPMS 17.5' },
   { type: 'reglas',           label: 'Validación Normativa', icon: '🛡️', multi: false, desc: 'Motor de reglas — tolerancias y LOP/NOAD automáticos' },
+  { type: 'incertidumbre',    label: 'Incertidumbre',      icon: '📊', multi: false, desc: 'Bandas de confianza — ISO GUM / MPMS 13' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -500,6 +502,12 @@ function initModuleInstance(type) {
     notes:'', iaAnalysis:'', iaDate:'',
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'incertidumbre') return {
+    // Incertidumbres estándar relativas (%) por fuente — valores típicos editables.
+    components: { gauging:'0.10', temperature:'0.03', density:'0.05', vcf:'0.02', water:'0.02', tables:'0.15' },
+    coverageFactor: '2',   // k=2 ≈ 95% confianza
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
   if (type === 'discharge-record') return {
     enabled: true,
     startDate:'', startTime:'',
@@ -1655,6 +1663,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'vsrr-175') { const opV = getOp(ctx.opId); html = opV ? buildVSRR(opV, data, ctxStr) : ''; }
   else if (mod === 'hechos-campo') html = buildHechosCampo(data, ctxStr);
   else if (mod === 'reglas') { const opV = getOp(ctx.opId); html = opV ? buildReglas(opV, data, ctxStr) : ''; }
+  else if (mod === 'incertidumbre') { const opV = getOp(ctx.opId); html = opV ? buildIncertidumbre(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3358,6 +3367,110 @@ function buildReglas(op, d, ctx) {
     </div>`;
 }
 
+// ===== MOTOR DE INCERTIDUMBRE (ISO GUM / API MPMS 13) =====
+// Propaga las incertidumbres de las fuentes de medición (aforo, temperatura,
+// densidad, VCF, agua, tablas) por raíz de la suma de cuadrados (RSS) sobre
+// la cantidad, y evalúa si una pérdida observada es significativa o ruido.
+function computeUncertainty(op, d) {
+  const mods = op.modules || {};
+  const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const c = d.components || {};
+  const comps = [
+    ['gauging',     'Aforo / gauging del tanque', N(c.gauging)],
+    ['temperature', 'Temperatura',                N(c.temperature)],
+    ['density',     'Densidad / API',             N(c.density)],
+    ['vcf',         'Factor VCF (tablas 11.1)',   N(c.vcf)],
+    ['water',       'Agua libre / S&W',           N(c.water)],
+    ['tables',      'Tablas de aforo (calibración)', N(c.tables)],
+  ];
+  const ss = comps.reduce((s, x) => s + (x[2] != null ? x[2]*x[2] : 0), 0);
+  const uc = Math.sqrt(ss);                    // incertidumbre combinada estándar relativa (%)
+  const k  = N(d.coverageFactor) || 2;
+  const U  = k * uc;                           // incertidumbre expandida relativa (%)
+  const arr = mods['ullage-arribo'] && mods['ullage-arribo'].totals || {};
+  const bl  = mods['datos-origen'] && mods['datos-origen'].bl || {};
+  const Q   = N(arr.gsv) != null ? N(arr.gsv) : N(bl.gsv);   // cantidad de referencia
+  const Uabs = (Q != null) ? Q * U/100 : null;
+
+  // Significancia de la diferencia de custodia (del VAR)
+  const varMod = mods['var-175'];
+  const r = varMod ? (varMod._snapshot || (typeof computeVAR === 'function' ? computeVAR(op, varMod) : null)) : null;
+  const difPct = (r && r.secI && r.secI.available) ? r.secI.difPct : null;
+  const Udiff = U * Math.SQRT2;                // dos mediciones independientes (aprox.)
+  const significant = (difPct != null) ? Math.abs(difPct) > Udiff : null;
+
+  return { comps, uc, k, U, Q, Uabs, difPct, Udiff, significant, unit: r ? r.unit : 'BBL' };
+}
+
+function buildIncertidumbre(op, d, ctx) {
+  const u = computeUncertainty(op, d);
+  const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  const compRow = (key, label, val) => `<tr>
+    <td style="font-size:12px">${label}</td>
+    <td style="text-align:right"><input class="tbl-input" type="number" step="0.01" style="width:90px;text-align:right"
+      value="${esc(val)}" placeholder="0.00" data-action="unc-set" data-ctx="${ctx}" data-obj="components" data-field="${key}"> %</td>
+  </tr>`;
+  const sig = u.significant;
+  const sigColor = sig === null ? 'var(--muted)' : (sig ? '#c62828' : '#2e7d32');
+  const sigText = sig === null ? 'Falta el VAR (Δ de custodia) para evaluar significancia.'
+    : (sig ? 'La diferencia observada SUPERA la incertidumbre de medición — es significativa (posible pérdida real).'
+           : 'La diferencia observada está DENTRO de la incertidumbre de medición — no es estadísticamente significativa (ruido de medición).');
+
+  return `
+    <div class="module-title">📊 Análisis de Incertidumbre</div>
+    <div class="module-subtitle">ISO GUM · API MPMS Cap. 13 · Propagación por RSS</div>
+    <div class="info-box" style="margin-bottom:12px">Ingresa la incertidumbre estándar relativa (1σ, en %) de cada fuente de medición. El sistema las combina y expande al nivel de confianza elegido, y evalúa si la pérdida observada es significativa.</div>
+
+    <div class="card">
+      <div class="card-title">Fuentes de incertidumbre (incertidumbre estándar relativa, 1σ)</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Fuente</th><th style="text-align:right">u (%)</th></tr></thead>
+        <tbody>
+          ${u.comps.map(x => compRow(x[0], x[1], (d.components && d.components[x[0]]) || '')).join('')}
+        </tbody>
+      </table>
+      <div class="form-row" style="margin-top:10px">
+        <div class="field" style="max-width:220px">
+          <label class="field-label">Factor de cobertura k</label>
+          <input class="field-input" type="number" step="0.1" value="${esc(d.coverageFactor||'2')}"
+            data-action="unc-set" data-ctx="${ctx}" data-field="coverageFactor">
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">k=2 ≈ 95% · k=3 ≈ 99.7%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div class="card-title">Resultado</div>
+      <table class="data-table" style="width:100%">
+        <tbody>
+          <tr><td>Incertidumbre combinada estándar (uc)</td><td style="text-align:right;font-family:monospace">${u.uc.toFixed(4)} %</td></tr>
+          <tr><td>Incertidumbre expandida (U = k·uc)</td><td style="text-align:right;font-family:monospace;font-weight:700">±${u.U.toFixed(4)} %</td></tr>
+          <tr><td>Cantidad de referencia (GSV arribo)</td><td style="text-align:right">${u.Q!=null?Math.round(u.Q).toLocaleString('en-US'):'—'} ${u.unit}</td></tr>
+          <tr style="border-top:2px solid var(--line)"><td style="font-weight:700">Incertidumbre absoluta (${(u.k)||2}σ nom.)</td>
+            <td style="text-align:right;font-weight:700;color:var(--accent2,#1a2f5a)">${u.Uabs!=null?'± '+Math.round(u.Uabs).toLocaleString('en-US')+' '+u.unit:'—'}</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">La cantidad de arribo es ${u.Q!=null?Math.round(u.Q).toLocaleString('en-US'):'—'} ${u.unit} ${u.Uabs!=null?'± '+Math.round(u.Uabs).toLocaleString('en-US')+' '+u.unit:''} al ${u.k>=3?'99.7':'95'}% de confianza.</div>
+    </div>
+
+    <div class="card" style="border-left:3px solid ${sigColor}">
+      <div class="card-title">Significancia de la diferencia de custodia</div>
+      <table class="data-table" style="width:100%">
+        <tbody>
+          <tr><td>Δ GSV observado (del VAR)</td><td style="text-align:right">${u.difPct!=null?(u.difPct>=0?'+':'')+u.difPct.toFixed(3)+' %':'—'}</td></tr>
+          <tr><td>Umbral de incertidumbre de la comparación</td><td style="text-align:right">± ${u.Udiff.toFixed(3)} %</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:13px;font-weight:600;color:${sigColor}">${sig===null?'⏳':(sig?'⚠️':'✓')} ${sigText}</div>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Notas</label>
+      <textarea class="field-input" style="height:60px" placeholder="Fuentes de las incertidumbres, certificados, supuestos…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -3620,7 +3733,8 @@ function showPDFSelector(opId) {
     'vsrr-175': '10. Reconciliación (VSRR)',
     'hechos-campo': '11. Hechos de Campo',
     'reglas': '12. Validación Normativa',
-    'reporte-evolutivo': '13. Reporte Evolutivo — Conclusión',
+    'incertidumbre': '13. Análisis de Incertidumbre',
+    'reporte-evolutivo': '14. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -4179,6 +4293,34 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const uncSec = (() => {
+    const ud = mods['incertidumbre']; if (!ud) return '';
+    const u = computeUncertainty(op, ud);
+    const sig = u.significant;
+    const sigTxt = sig===null ? 'Falta el VAR para evaluar significancia.'
+      : (sig ? 'La diferencia observada SUPERA la incertidumbre — significativa (posible pérdida real).'
+             : 'La diferencia observada está DENTRO de la incertidumbre — ruido de medición, no significativa.');
+    return sec('13. Análisis de Incertidumbre — ISO GUM / MPMS 13', `
+      <table class="kv">
+        ${kv('Incertidumbre combinada (uc)', u.uc.toFixed(4)+' %')}
+        ${kv('Incertidumbre expandida (k='+((u.k)||2)+')', '±'+u.U.toFixed(4)+' %')}
+        ${kv('Cantidad de arribo', (u.Q!=null?Math.round(u.Q).toLocaleString('en-US'):'—')+' '+u.unit+(u.Uabs!=null?' ± '+Math.round(u.Uabs).toLocaleString('en-US')+' '+u.unit:''))}
+      </table>
+      <h3>Fuentes de incertidumbre (1σ relativa)</h3>
+      <table><thead><tr><th>Fuente</th><th style="text-align:right">u (%)</th></tr></thead><tbody>
+        ${u.comps.map(x=>`<tr><td>${x[1]}</td><td style="text-align:right">${x[2]!=null?x[2].toFixed(2):'—'}</td></tr>`).join('')}
+      </tbody></table>
+      <h3>Significancia de la diferencia de custodia</h3>
+      <table class="kv">
+        ${kv('Δ GSV observado', u.difPct!=null?(u.difPct>=0?'+':'')+u.difPct.toFixed(3)+' %':'—')}
+        ${kv('Umbral de incertidumbre', '± '+u.Udiff.toFixed(3)+' %')}
+      </table>
+      <div class="conclusion" style="border-color:${sig?'#c62828':'#2e7d32'}">${sigTxt}</div>
+      ${ud.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${ud.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${ud.notes?`<div class="note">${ud.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -4197,6 +4339,7 @@ function printFullReport(opId, selectedMods) {
     ${has('vsrr-175') ? '<div class="page-break"></div>'+vsrrSec : ''}
     ${has('hechos-campo') ? '<div class="page-break"></div>'+hcSec : ''}
     ${has('reglas') ? '<div class="page-break"></div>'+reglasSec : ''}
+    ${has('incertidumbre') ? '<div class="page-break"></div>'+uncSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -5455,6 +5598,16 @@ function varState(ctxStr, block, value) {
   ref.save();
   renderKeepScroll();
 }
+// Incertidumbre: guardar componente/campo + snapshot para el portal. reRender refresca resultados.
+function uncSet(ctxStr, obj, field, value, reRender) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (obj) { if (!ref.data[obj]) ref.data[obj] = {}; ref.data[obj][field] = value; }
+  else ref.data[field] = value;
+  try { ref.data._snapshot = computeUncertainty(ref.op, ref.data); } catch (_) {}
+  ref.save();
+  if (reRender) renderKeepScroll();
+}
 // Hechos de Campo: guardar celda (checkbox o texto). Sin re-render.
 function hcSet(ctxStr, id, col, value) {
   const ref = getModuleRef(decodeCtx(ctxStr));
@@ -5958,6 +6111,7 @@ function handleChange(e) {
   else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'hc-set') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.type==='checkbox' ? el.checked : el.value);
+  else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -6135,6 +6289,7 @@ function handleInput(e) {
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
   else if (a === 'hc-set' && el.type !== 'checkbox') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.value);
+  else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
