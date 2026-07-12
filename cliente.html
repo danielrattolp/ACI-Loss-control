@@ -774,6 +774,35 @@ async function downloadPDF(opId) {
         ${iaBlock(v.iaAnalysis)}`);
     };
 
+    // 10. Reconciliación (VSRR) — desde snapshot
+    S['vsrr-175'] = () => {
+      const v = mods['vsrr-175'] || {};
+      const s = v._snapshot;
+      if (!s || s.netNsv == null) return '';
+      const n = x => x==null ? '—' : Math.round(x).toLocaleString('en-US');
+      const u = s.unit || 'BBL';
+      const c = v.causes || {};
+      const cr = (l,val) => `<tr><td>${esc(l)}</td><td style="text-align:right">${n(parseFloat(val)||0)}</td></tr>`;
+      const resColor = s.reconciled ? '#2e7d32' : '#c62828';
+      return sec('10. Reconciliación de Viaje (VSRR) — API MPMS 17.5', `
+        <table class="kv">
+          ${kv('Total a explicar (NSV neto)', n(s.netNsv)+' '+u)}
+          ${kv('Total explicado', n(s.explained)+' '+u)}
+          ${kv('Residual', `<strong style="color:${resColor}">${n(s.residual)} ${u}</strong> — ${s.reconciled?'Reconciliado':'Sin reconciliar'}`)}
+        </table>
+        <h3>Asignación de pérdida por causa</h3>
+        <table><thead><tr><th>Causa</th><th style="text-align:right">${u}</th></tr></thead><tbody>
+          ${cr('Pérdida por evaporación', c.evaporation)}
+          ${cr('Pérdida a bordo (clingage/líneas)', c.onboard)}
+          ${cr('Contracción volumétrica', c.contraction)}
+          ${cr('ROB no detectado', c.robUndetected)}
+          ${cr('Error de llenado de línea', c.lineFill)}
+          ${cr('Error de medición', c.measurement)}
+          ${cr('Otras diferencias', v.otherDiff)}
+        </tbody></table>
+        ${iaBlock(v.iaAnalysis)}`);
+    };
+
     // Ensamblar secciones en el orden del módulo (excepto reporte-evolutivo, va al final)
     const moduleSections = order
       .filter(k => k !== 'reporte-evolutivo' && S[k])

@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -37,6 +37,7 @@ const MODULE_META = {
   'discharge-record':    { label: 'Discharge Record',     icon: '📋' },
   'termometros':         { label: 'Termómetros',          icon: '🌡️' },
   'var-175':             { label: 'Análisis de Viaje (VAR)', icon: '🧭' },
+  'vsrr-175':            { label: 'Reconciliación (VSRR)', icon: '⚖️' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -66,6 +67,7 @@ const MODULE_LIBRARY = [
   { type: 'slops',            label: 'Slops',              icon: '🪣', multi: false, desc: 'Control de slops' },
   { type: 'checklist',        label: 'Checklist',          icon: '✅', multi: true,  desc: 'Lista de verificación de auditoría' },
   { type: 'var-175',          label: 'Análisis de Viaje (VAR)', icon: '🧭', multi: false, desc: 'Conciliación de cantidades — API MPMS 17.5' },
+  { type: 'vsrr-175',         label: 'Reconciliación (VSRR)', icon: '⚖️', multi: false, desc: 'Descomposición de pérdida por causa — API MPMS 17.5' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -481,6 +483,12 @@ function initModuleInstance(type) {
     robDisch:  { gsv:'' },  // L — ROB total en descarga
     // estado por bloque: 'cargado' | 'na' | 'pendiente'
     states: { outturn:'pendiente', vesselDep:'pendiente', obqLoad:'na', vesselArr:'pendiente', robDisch:'na' },
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
+  if (type === 'vsrr-175') return {
+    // Reconciliación: total (Outturn NSV − B/L NSV) del VAR se descompone en causas.
+    otherDiff: '',
+    causes: { evaporation:'', onboard:'', contraction:'', robUndetected:'', lineFill:'', measurement:'' },
     notes:'', iaAnalysis:'', iaDate:'',
   };
   if (type === 'discharge-record') return {
@@ -1635,6 +1643,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'ullage-arribo' || mtype === 'ullage-ini' || mtype === 'ullage-fin') html = buildUllageArribo(data, mod, ctxStr);
   else if (mod === 'vef-comparativo')                                     html = buildVEFComparativo(data, ctxStr);
   else if (mod === 'var-175') { const opV = getOp(ctx.opId); html = opV ? buildVAR(opV, data, ctxStr) : ''; }
+  else if (mod === 'vsrr-175') { const opV = getOp(ctx.opId); html = opV ? buildVSRR(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3029,6 +3038,125 @@ function buildVAR(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: VSRR — RECONCILIACIÓN DE VIAJE (API MPMS 17.5) =====
+// Toma el total a explicar (Outturn NSV − B/L NSV) del VAR y lo descompone
+// en causas. Verifica que causas + otras diferencias reconcilien el total.
+function computeVSRR(op, d) {
+  const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const varMod = op.modules?.['var-175'] || {};
+  const r = varMod._snapshot || (typeof computeVAR === 'function' ? computeVAR(op, varMod) : null);
+
+  const netNsv    = r?.ind?.netNsv ?? null;      // total a explicar (con signo: recibido − cargado)
+  const netNsvPct = r?.ind?.netNsvPct ?? null;
+  const comp = {
+    transit:   r?.secIV?.transit ?? null,
+    obqRob:    r?.secIV?.obqRob ?? null,
+    theoLoad:  r?.secII?.theoDif ?? null,
+    theoDisch: r?.secIII?.theoDif ?? null,
+  };
+  const causes = d.causes || {};
+  const CK = ['evaporation','onboard','contraction','robUndetected','lineFill','measurement'];
+  const causeSum = CK.reduce((s,k) => s + (N(causes[k]) || 0), 0);
+  const other = N(d.otherDiff) || 0;
+  const explained = causeSum + other;                                   // magnitud explicada (pérdidas)
+  const residual = (netNsv != null) ? (netNsv + explained) : null;      // pérdida (neg) + pérdidas explicadas (pos)
+  const reconciled = (residual != null) && Math.abs(residual) < (r?.bl?.gsv ? r.bl.gsv * 0.0005 : 50);
+  const unit = r?.unit || 'BBL';
+  return { r, hasVar: !!r, netNsv, netNsvPct, comp, causes, causeSum, other, explained, residual, reconciled, unit };
+}
+
+function buildVSRR(op, d, ctx) {
+  const v = computeVSRR(op, d);
+  const u = v.unit;
+  const fmtN = x => x==null ? '<span style="color:var(--muted2)">—</span>' : Math.round(x).toLocaleString('en-US');
+  const fmtP = x => x==null ? '—' : `<span style="color:${Math.abs(x)>0.5?'#c62828':'var(--ink)'};font-weight:600">${x>=0?'+':''}${x.toFixed(3)}%</span>`;
+
+  if (!v.hasVar || v.netNsv == null) {
+    return `
+    <div class="module-title">⚖️ Reconciliación de Viaje (VSRR)</div>
+    <div class="module-subtitle">API MPMS Cap. 17.5 · Ref: ${op.code||''}</div>
+    <div class="info-box" style="border-left-color:var(--amber)">Este módulo reconcilia la pérdida/ganancia del <strong>Análisis de Viaje (VAR)</strong>. Primero completa el VAR (B/L + Outturn NSV) para que aparezca el total a explicar.</div>`;
+  }
+
+  const causeRow = (key, label) => `
+    <tr>
+      <td style="font-size:12px">${label}</td>
+      <td style="text-align:right"><input class="tbl-input" type="number" step="0.001" style="width:120px;text-align:right"
+        value="${(d.causes&&d.causes[key])||''}" placeholder="0"
+        data-action="vsrr-set" data-ctx="${ctx}" data-obj="causes" data-field="${key}"></td>
+    </tr>`;
+  const resColor = v.reconciled ? '#2e7d32' : (Math.abs(v.residual) > 0 ? '#c62828' : 'var(--muted)');
+
+  return `
+    <div class="module-title">⚖️ Reconciliación de Viaje (VSRR)</div>
+    <div class="module-subtitle">API MPMS Cap. 17.5 · Descomposición de pérdida por causa · Ref: ${op.code||''}</div>
+
+    <div class="card">
+      <div class="card-title">Total a explicar (del VAR)</div>
+      <table class="data-table" style="width:100%">
+        <tbody>
+          <tr><td>Pérdida/Ganancia neta NSV (Outturn − B/L)</td>
+            <td style="text-align:right;font-weight:700">${fmtN(v.netNsv)} ${u}</td>
+            <td style="text-align:right">${fmtP(v.netNsvPct)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Componentes de diferencia (automáticos del VAR)</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Componente</th><th style="text-align:right">${u}</th></tr></thead>
+        <tbody>
+          <tr><td>Diferencia en tránsito (buque)</td><td style="text-align:right">${fmtN(v.comp.transit)}</td></tr>
+          <tr><td>Diferencia OBQ/ROB</td><td style="text-align:right">${fmtN(v.comp.obqRob)}</td></tr>
+          <tr><td>Diferencia teórica puerto carga (VEF)</td><td style="text-align:right">${fmtN(v.comp.theoLoad)}</td></tr>
+          <tr><td>Diferencia teórica puerto descarga (VEF)</td><td style="text-align:right">${fmtN(v.comp.theoDisch)}</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Estos valores ayudan a atribuir la pérdida a las causas de abajo.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Asignación de pérdida por causa</div>
+      <div class="info-box" style="margin-bottom:10px">Distribuye la pérdida entre las causas (valores positivos = magnitud de pérdida atribuida). El sistema verifica que reconcilien el total.</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Causa</th><th style="text-align:right">${u}</th></tr></thead>
+        <tbody>
+          ${causeRow('evaporation','Pérdida por evaporación')}
+          ${causeRow('onboard','Pérdida a bordo (clingage/líneas)')}
+          ${causeRow('contraction','Contracción volumétrica')}
+          ${causeRow('robUndetected','ROB no detectado')}
+          ${causeRow('lineFill','Error de llenado de línea')}
+          ${causeRow('measurement','Error de medición')}
+          <tr style="border-top:2px solid var(--line)"><td style="font-weight:700">Otras diferencias</td>
+            <td style="text-align:right"><input class="tbl-input" type="number" step="0.001" style="width:120px;text-align:right"
+              value="${d.otherDiff||''}" placeholder="0" data-action="vsrr-set" data-ctx="${ctx}" data-field="otherDiff"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div class="card-title">Reconciliación</div>
+      <table class="data-table" style="width:100%">
+        <tbody>
+          <tr><td>Total a explicar (|NSV neto|)</td><td style="text-align:right">${fmtN(Math.abs(v.netNsv))} ${u}</td></tr>
+          <tr><td>Total explicado (causas + otras)</td><td style="text-align:right">${fmtN(v.explained)} ${u}</td></tr>
+          <tr style="border-top:2px solid var(--line)"><td style="font-weight:700">Residual sin explicar</td>
+            <td style="text-align:right;font-weight:700;color:${resColor}">${fmtN(v.residual)} ${u}</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:13px;font-weight:600;color:${resColor}">
+        ${v.reconciled ? '✓ Reconciliado — las causas explican la diferencia.' : '⏳ Aún sin reconciliar — ajusta las causas hasta que el residual llegue a cero.'}
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Comentarios / explicación de la reconciliación</label>
+      <textarea class="field-input" style="height:70px" placeholder="Fundamento técnico de la asignación de causas…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -3288,7 +3416,8 @@ function showPDFSelector(opId) {
     'checklist-buque': '8. Checklist de Inspección',
     'checklist-terminal': '8. Checklist de Inspección',
     'var-175': '9. Análisis de Viaje (VAR)',
-    'reporte-evolutivo': '10. Reporte Evolutivo — Conclusión',
+    'vsrr-175': '10. Reconciliación (VSRR)',
+    'reporte-evolutivo': '11. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -3785,6 +3914,35 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const vsrrSec = (() => {
+    const sd = mods['vsrr-175']; if (!sd) return '';
+    const s = computeVSRR(op, sd);
+    if (!s.hasVar || s.netNsv==null) return '';
+    const n = v => v==null ? '—' : Math.round(v).toLocaleString('en-US');
+    const c = sd.causes || {};
+    const cr = (l,val) => `<tr><td>${l}</td><td style="text-align:right">${n(parseFloat(val)||0)}</td></tr>`;
+    const resColor = s.reconciled ? '#2e7d32' : '#c62828';
+    return sec('10. Reconciliación de Viaje (VSRR) — API MPMS 17.5', `
+      <table class="kv">
+        ${kv('Total a explicar (NSV neto)', n(s.netNsv)+' '+s.unit)}
+        ${kv('Total explicado', n(s.explained)+' '+s.unit)}
+        ${kv('Residual', `<strong style="color:${resColor}">${n(s.residual)} ${s.unit}</strong> — ${s.reconciled?'Reconciliado':'Sin reconciliar'}`)}
+      </table>
+      <h3>Asignación de pérdida por causa</h3>
+      <table><thead><tr><th>Causa</th><th style="text-align:right">${s.unit}</th></tr></thead><tbody>
+        ${cr('Pérdida por evaporación', c.evaporation)}
+        ${cr('Pérdida a bordo (clingage/líneas)', c.onboard)}
+        ${cr('Contracción volumétrica', c.contraction)}
+        ${cr('ROB no detectado', c.robUndetected)}
+        ${cr('Error de llenado de línea', c.lineFill)}
+        ${cr('Error de medición', c.measurement)}
+        ${cr('Otras diferencias', sd.otherDiff)}
+      </tbody></table>
+      ${sd.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${sd.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${sd.notes?`<div class="note">${sd.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -3800,6 +3958,7 @@ function printFullReport(opId, selectedMods) {
     ${has('termometros') ? termSec+'<div class="page-break"></div>' : ''}
     ${chkSec}
     ${has('var-175') ? '<div class="page-break"></div>'+varSec : ''}
+    ${has('vsrr-175') ? '<div class="page-break"></div>'+vsrrSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -5058,6 +5217,16 @@ function varState(ctxStr, block, value) {
   ref.save();
   renderKeepScroll();
 }
+// VSRR: guardar causa/campo + snapshot para el portal cliente. reRender: refresca reconciliación.
+function vsrrSet(ctxStr, obj, field, value, reRender) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (obj) { if (!ref.data[obj]) ref.data[obj] = {}; ref.data[obj][field] = value; }
+  else ref.data[field] = value;
+  try { ref.data._snapshot = computeVSRR(ref.op, ref.data); } catch (_) {}
+  ref.save();
+  if (reRender) renderKeepScroll();
+}
 
 // Save a tank field inside a module (used by ullage-arribo and ullage-origen)
 // subObj: 'ullageOrigen' for datos-origen tanks, null for direct module.tanks
@@ -5398,6 +5567,16 @@ III. Buque/tierra descarga: ${r.secIII.available?`Buque descargado M=${n(r.secII
 IV. Buque en tránsito: ${r.secIV.available?`Dif tránsito U=${n(r.secIV.transit)} (${p(r.secIV.transitPct)}), Dif OBQ/ROB W=${n(r.secIV.obqRob)}`:`NO DISPONIBLE — ${r.secIV.reason}`}
 Indicadores: Pérdida/Ganancia neta NSV=${n(r.ind.netNsv)} (${p(r.ind.netNsvPct)})`;
       prompt = `Eres un QPIC certificado experto en API MPMS Cap. 17.5 (Voyage Analysis). Analiza el siguiente cierre de viaje.\n\n${opCtx}\n\n${varData}\n\nEstructura tu respuesta:\n1. DICTAMEN DE CONCILIACIÓN: ¿la pérdida/ganancia está dentro de tolerancia (±0.5% típico)? ¿es significativa o ruido de medición?\n2. ANÁLISIS POR SECCIÓN: interpreta las razones buque/tierra y la tierra teórica por VEF; qué explica cada diferencia.\n3. DATOS FALTANTES: si alguna sección está NO DISPONIBLE, indica exactamente qué falta para cerrar el análisis y NO concluyas sobre lo que no hay.\n4. CAUSAS PROBABLES de la diferencia (contracción térmica, evaporación, ROB no detectado, error de línea/medición).\n5. ACCIONES: ¿se requiere Letter of Protest, VSRR (reconciliación), o nota al cliente?\nSé técnico y conciso. No inventes cifras que no estén en los datos.`;
+    } else if (modKey === 'vsrr-175') {
+      const s = computeVSRR(op, modData);
+      const n = x => x==null ? 'N/D' : Math.round(x).toLocaleString('en-US');
+      const c = s.causes || {};
+      const vsrrData = `RECONCILIACIÓN DE VIAJE (VSRR) — API MPMS 17.5\n
+Total a explicar (NSV neto Outturn − B/L): ${n(s.netNsv)} ${s.unit}
+Componentes del VAR: tránsito=${n(s.comp.transit)}, OBQ/ROB=${n(s.comp.obqRob)}, teórica carga=${n(s.comp.theoLoad)}, teórica descarga=${n(s.comp.theoDisch)}
+Asignación por causa: evaporación=${n(parseFloat(c.evaporation)||0)}, a bordo=${n(parseFloat(c.onboard)||0)}, contracción=${n(parseFloat(c.contraction)||0)}, ROB no detectado=${n(parseFloat(c.robUndetected)||0)}, error línea=${n(parseFloat(c.lineFill)||0)}, error medición=${n(parseFloat(c.measurement)||0)}, otras=${n(s.other)}
+Total explicado: ${n(s.explained)} · Residual sin explicar: ${n(s.residual)} · Estado: ${s.reconciled?'RECONCILIADO':'SIN RECONCILIAR'}`;
+      prompt = `Eres un QPIC certificado experto en API MPMS Cap. 17.5 (VSRR). Evalúa la reconciliación de pérdida por causa.\n\n${opCtx}\n\n${vsrrData}\n\nEstructura tu respuesta:\n1. VALIDEZ DE LA ASIGNACIÓN: ¿las causas asignadas son físicamente razonables para este crudo/operación y su magnitud?\n2. RESIDUAL: si hay residual sin explicar, qué causa adicional podría explicarlo; si está reconciliado, confírmalo.\n3. COHERENCIA con los componentes del VAR (tránsito, OBQ/ROB, teóricas por VEF).\n4. DICTAMEN: ¿la pérdida queda satisfactoriamente explicada o se requiere investigación / Letter of Protest?\nSé técnico y conciso. No inventes cifras.`;
     } else {
       const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
       prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
@@ -5530,6 +5709,7 @@ function handleChange(e) {
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'var-state') varState(el.dataset.ctx, el.dataset.block, el.value);
   else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
+  else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -5705,6 +5885,7 @@ function handleInput(e) {
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
+  else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
