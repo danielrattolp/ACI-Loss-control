@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -36,6 +36,7 @@ const MODULE_META = {
   'vef-comparativo':     { label: 'VEF al Arribo',         icon: '⚖️' },
   'discharge-record':    { label: 'Discharge Record',     icon: '📋' },
   'termometros':         { label: 'Termómetros',          icon: '🌡️' },
+  'var-175':             { label: 'Análisis de Viaje (VAR)', icon: '🧭' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -64,6 +65,7 @@ const MODULE_LIBRARY = [
   { type: 'discharge-record', label: 'Discharge Record',   icon: '📋', multi: false, desc: 'Registro de descarga / carga' },
   { type: 'slops',            label: 'Slops',              icon: '🪣', multi: false, desc: 'Control de slops' },
   { type: 'checklist',        label: 'Checklist',          icon: '✅', multi: true,  desc: 'Lista de verificación de auditoría' },
+  { type: 'var-175',          label: 'Análisis de Viaje (VAR)', icon: '🧭', multi: false, desc: 'Conciliación de cantidades — API MPMS 17.5' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -467,6 +469,19 @@ function initModuleInstance(type) {
   };
   if (type === 'vef-comparativo') return {
     voyages: [], notes: '',
+  };
+  if (type === 'var-175') return {
+    // B/L (tierra carga) y VEF se auto-cargan en vivo desde otros módulos.
+    // Aquí solo se guardan los datos manuales + estados + análisis.
+    meta: { tripType: 'importacion', unit: 'BBL' },
+    outturn:   { tcv:'', fw:'', gsv:'', bsw:'', nsv:'', api:'' }, // tierra descarga (línea 2)
+    vesselDep: { gsv:'' },  // A — buque al zarpe
+    obqLoad:   { gsv:'' },  // B — OBQ total en carga
+    vesselArr: { gsv:'' },  // K — buque al arribo
+    robDisch:  { gsv:'' },  // L — ROB total en descarga
+    // estado por bloque: 'cargado' | 'na' | 'pendiente'
+    states: { outturn:'pendiente', vesselDep:'pendiente', obqLoad:'na', vesselArr:'pendiente', robDisch:'na' },
+    notes:'', iaAnalysis:'', iaDate:'',
   };
   if (type === 'discharge-record') return {
     enabled: true,
@@ -1619,6 +1634,7 @@ function buildModuleContentInner(data, mod, ctx) {
   if (mod === 'datos-origen')                                             html = buildDatosOrigen(data, ctxStr);
   else if (mod === 'ullage-arribo' || mtype === 'ullage-ini' || mtype === 'ullage-fin') html = buildUllageArribo(data, mod, ctxStr);
   else if (mod === 'vef-comparativo')                                     html = buildVEFComparativo(data, ctxStr);
+  else if (mod === 'var-175') { const opV = getOp(ctx.opId); html = opV ? buildVAR(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -2759,6 +2775,257 @@ function buildVEFComparativo(d, ctx) {
       <div class="card-title">VEF al Arribo — Historial de Viajes</div>
       <div class="info-box" style="margin-bottom:12px">Registra el historial de viajes al arribo para calcular el VEF actual del buque según API MPMS 17.9. Puede ser diferente al VEF de origen si el buque realizó viajes adicionales en tránsito.</div>
       ${buildVEFTableSection(d, ctx, null)}
+    </div>`;
+}
+
+// ===== MODULE: VAR — ANÁLISIS DE VIAJE (API MPMS 17.5) =====
+// Motor de cálculo puro. Lee B/L y VEF en vivo de otros módulos (fuente única
+// de verdad); los datos de outturn y buque son manuales con estado.
+function computeVAR(op, d) {
+  const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const mods = op.modules || {};
+  const dor = mods['datos-origen'] || {};
+  const blS = dor.bl || {};
+  const st  = k => (d.states && d.states[k]) || 'pendiente';
+
+  // ── Auto: B/L (tierra carga, línea 1) ──
+  const blGsv = N(blS.gsv);
+  const bl = {
+    tcv: N(blS.tcv), fw: N(blS.fw), gsv: blGsv, api: N(blS.api),
+    sw:  (blGsv!=null && N(blS.bsw)!=null) ? blGsv * N(blS.bsw)/100 : null,
+    nsv: N(blS.nsv),
+  };
+  // ── Auto: VEF carga (vefOrigen) y descarga (vef-comparativo) ──
+  const vefLoad  = dor.vefOrigen?.voyages?.length ? computeVEFStats(dor.vefOrigen.voyages).vef : null;
+  const vefDisch = mods['vef-comparativo']?.voyages?.length ? computeVEFStats(mods['vef-comparativo'].voyages).vef : null;
+
+  // ── Manual: outturn (tierra descarga, línea 2) ──
+  const outAvail = st('outturn') === 'cargado';
+  const outGsv = outAvail ? N(d.outturn?.gsv) : null;
+  const outturn = outAvail ? {
+    tcv: N(d.outturn?.tcv), fw: N(d.outturn?.fw), gsv: outGsv, api: N(d.outturn?.api),
+    sw:  (outGsv!=null && N(d.outturn?.bsw)!=null) ? outGsv * N(d.outturn.bsw)/100 : null,
+    nsv: N(d.outturn?.nsv),
+  } : null;
+
+  // ── Manual: figuras de buque (GSV) con estado ──
+  const A = st('vesselDep')==='cargado' ? N(d.vesselDep?.gsv) : null;   // buque al zarpe
+  const B = st('obqLoad')==='na' ? 0 : (st('obqLoad')==='cargado' ? N(d.obqLoad?.gsv) : null); // OBQ
+  const K = st('vesselArr')==='cargado' ? N(d.vesselArr?.gsv) : null;   // buque al arribo
+  const L = st('robDisch')==='na' ? 0 : (st('robDisch')==='cargado' ? N(d.robDisch?.gsv) : null); // ROB
+
+  const pct = (a,b) => (a!=null && b!=null && b!==0) ? (a/b*100) : null;
+
+  // ── Sección I: tierra-tierra (custody) ──
+  const secI = {
+    available: (bl.gsv!=null && outGsv!=null),
+    difGsv: (bl.gsv!=null && outGsv!=null) ? outGsv - bl.gsv : null,
+    difTcv: (bl.tcv!=null && outturn?.tcv!=null) ? outturn.tcv - bl.tcv : null,
+    difNsv: (bl.nsv!=null && outturn?.nsv!=null) ? outturn.nsv - bl.nsv : null,
+    difPct: (bl.gsv!=null && outGsv!=null) ? pct(outGsv-bl.gsv, bl.gsv) : null,
+    reason: st('outturn')==='na' ? 'Outturn no aplica — base buque' :
+            (!outAvail ? 'Falta outturn de tierra en descarga' : null),
+  };
+  // ── Sección II: buque/tierra en carga ──
+  const C = (A!=null && B!=null) ? A - B : null;   // buque cargado
+  const H = (C!=null && vefLoad) ? C / vefLoad : null; // tierra teórica
+  const secII = {
+    available: (C!=null && bl.gsv!=null),
+    loaded: C,
+    dif: (C!=null && bl.gsv!=null) ? C - bl.gsv : null,
+    difPct: (C!=null && bl.gsv!=null) ? pct(C-bl.gsv, bl.gsv) : null,
+    ratio: (C!=null && bl.gsv) ? C/bl.gsv : null,
+    vef: vefLoad, theo: H,
+    theoDif: (H!=null && bl.gsv!=null) ? H - bl.gsv : null,
+    theoPct: (H!=null && bl.gsv!=null) ? pct(H-bl.gsv, bl.gsv) : null,
+    reason: A==null ? 'Falta buque al zarpe' : (!vefLoad ? 'Sin VEF de carga (5+ viajes)' : null),
+  };
+  // ── Sección III: buque/tierra en descarga ──
+  const M = (K!=null && L!=null) ? K - L : null;   // buque descargado
+  const R = (M!=null && vefDisch) ? M / vefDisch : null;
+  const secIII = {
+    available: (M!=null && outGsv!=null),
+    discharged: M,
+    dif: (M!=null && outGsv!=null) ? M - outGsv : null,
+    difPct: (M!=null && outGsv!=null) ? pct(M-outGsv, outGsv) : null,
+    ratio: (M!=null && outGsv) ? M/outGsv : null,
+    vef: vefDisch, theo: R,
+    theoDif: (R!=null && outGsv!=null) ? R - outGsv : null,
+    theoPct: (R!=null && outGsv!=null) ? pct(R-outGsv, outGsv) : null,
+    reason: K==null ? 'Falta buque al arribo' : (outGsv==null ? 'Falta outturn tierra' : (!vefDisch ? 'Sin VEF de descarga' : null)),
+  };
+  // ── Sección IV: buque en tránsito ──
+  const secIV = {
+    available: (A!=null && K!=null),
+    transit: (A!=null && K!=null) ? K - A : null,
+    transitPct: (A!=null && K!=null) ? pct(K-A, A) : null,
+    obqRob: (B!=null && L!=null) ? B - L : null,
+    reason: (A==null || K==null) ? 'Faltan figuras de buque (zarpe/arribo)' : null,
+  };
+  // ── Indicadores ──
+  const ind = {
+    netNsv: (bl.nsv!=null && outturn?.nsv!=null) ? outturn.nsv - bl.nsv : null,
+    netNsvPct: (bl.nsv!=null && outturn?.nsv!=null) ? pct(outturn.nsv-bl.nsv, bl.nsv) : null,
+    swLoadPct: (bl.sw!=null && bl.gsv) ? pct(bl.sw, bl.gsv) : null,
+    swDischPct: (outturn?.sw!=null && outGsv) ? pct(outturn.sw, outGsv) : null,
+  };
+  // ── Completitud ──
+  const checks = [secI.available, secII.available, secIII.available, secIV.available];
+  const done = checks.filter(Boolean).length;
+  const completeness = Math.round(done / checks.length * 100);
+
+  return { bl, outturn, vefLoad, vefDisch, A, B, C, K, L, secI, secII, secIII, secIV, ind, completeness,
+           unit: d.meta?.unit || 'BBL' };
+}
+
+function buildVAR(op, d, ctx) {
+  const r = computeVAR(op, d);
+  const u = r.unit;
+  const fmtN = v => v==null ? '<span style="color:var(--muted2)">—</span>' : Math.round(v).toLocaleString('en-US');
+  const fmtP = v => v==null ? '<span style="color:var(--muted2)">—</span>' :
+    `<span style="color:${Math.abs(v)>0.5?'#c62828':'var(--ink)'};font-weight:600">${v>=0?'+':''}${v.toFixed(3)}%</span>`;
+  const compColor = r.completeness>=80?'#2e7d32':r.completeness>=50?'#b8901f':'#c62828';
+
+  // Selector de estado por bloque
+  const stSel = (block, label) => {
+    const cur = (d.states && d.states[block]) || 'pendiente';
+    const opt = (v,t) => `<option value="${v}" ${cur===v?'selected':''}>${t}</option>`;
+    return `<select class="field-input" style="font-size:11px;padding:4px 6px;width:auto" data-action="var-state" data-ctx="${ctx}" data-block="${block}">
+      ${opt('cargado','✓ Cargado')}${opt('na','— No aplica')}${opt('pendiente','⏳ Pendiente')}
+    </select>`;
+  };
+  // Input de una cantidad manual
+  const qtyInput = (block, field, ph='0') => `<input class="tbl-input" type="number" step="0.001"
+    value="${(d[block]&&d[block][field])||''}" placeholder="${ph}"
+    data-action="var-set" data-ctx="${ctx}" data-block="${block}" data-field="${field}">`;
+
+  const secRow = (label, val, pctVal, ref) => `<tr>
+    <td style="font-size:12px">${label}</td>
+    <td style="text-align:right;font-family:var(--mono,monospace);font-size:12px">${fmtN(val)}</td>
+    <td style="text-align:right">${pctVal!==undefined?fmtP(pctVal):''}</td>
+    <td style="font-size:10px;color:var(--muted)">${ref||''}</td>
+  </tr>`;
+
+  const unavail = reason => `<tr><td colspan="4" style="font-size:11px;color:var(--amber);padding:8px 6px">⏳ ${reason||'Datos insuficientes'}</td></tr>`;
+
+  return `
+    <div class="module-title">🧭 Análisis de Viaje (VAR)</div>
+    <div class="module-subtitle">API MPMS Cap. 17.5 · Conciliación de cantidades · Ref: ${op.code||''}</div>
+
+    <div class="card" style="display:flex;align-items:center;gap:14px">
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Completitud del análisis</div>
+        <div style="height:10px;background:var(--line2);border-radius:6px;overflow:hidden">
+          <div style="height:100%;width:${r.completeness}%;background:${compColor};border-radius:6px"></div>
+        </div>
+      </div>
+      <div style="font-size:24px;font-weight:800;color:${compColor}">${r.completeness}%</div>
+    </div>
+
+    <div class="info-box" style="margin-bottom:12px">Las cantidades del <strong>B/L</strong> y los <strong>VEF</strong> se toman automáticamente de los módulos Datos de Origen y VEF. Completa manualmente el <strong>outturn de tierra</strong> y las <strong>figuras de buque</strong>, marcando cada bloque como Cargado, No aplica o Pendiente.</div>
+
+    <div class="card">
+      <div class="card-title">Datos base (automáticos)</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Fuente</th><th style="text-align:right">GSV (${u})</th><th style="text-align:right">TCV</th><th style="text-align:right">NSV</th><th>Origen</th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight:600">B/L (tierra carga)</td><td style="text-align:right">${fmtN(r.bl.gsv)}</td><td style="text-align:right">${fmtN(r.bl.tcv)}</td><td style="text-align:right">${fmtN(r.bl.nsv)}</td><td style="font-size:10px;color:var(--sea)">Datos de Origen</td></tr>
+          <tr><td style="font-weight:600">VEF carga</td><td colspan="3" style="text-align:right">${r.vefLoad!=null?r.vefLoad.toFixed(5):'<span style=\"color:var(--muted2)\">—</span>'}</td><td style="font-size:10px;color:var(--sea)">VEF Origen</td></tr>
+          <tr><td style="font-weight:600">VEF descarga</td><td colspan="3" style="text-align:right">${r.vefDisch!=null?r.vefDisch.toFixed(5):'<span style=\"color:var(--muted2)\">—</span>'}</td><td style="font-size:10px;color:var(--sea)">VEF al Arribo</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Outturn — Tierra en descarga (línea 2) ${stSel('outturn')}</div>
+      ${(d.states?.outturn==='cargado') ? `
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">GSV (${u})</label>${qtyInput('outturn','gsv')}</div>
+        <div class="field"><label class="field-label">TCV</label>${qtyInput('outturn','tcv')}</div>
+        <div class="field"><label class="field-label">Free Water</label>${qtyInput('outturn','fw')}</div>
+        <div class="field"><label class="field-label">API @60°F</label>${qtyInput('outturn','api')}</div>
+        <div class="field"><label class="field-label">BS&W (%)</label>${qtyInput('outturn','bsw')}</div>
+        <div class="field"><label class="field-label">NSV</label>${qtyInput('outturn','nsv')}</div>
+      </div>` : `<div style="font-size:12px;color:var(--muted);padding:6px 0">${d.states?.outturn==='na'?'Marcado como no aplica — la comparación de custodia usará base buque.':'Pendiente de cargar.'}</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Figuras de buque (GSV)</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:520px">
+        <thead><tr><th>Figura</th><th>Estado</th><th style="text-align:right">GSV (${u})</th></tr></thead>
+        <tbody>
+          <tr><td>Buque al zarpe (A)</td><td>${stSel('vesselDep')}</td><td style="text-align:right">${d.states?.vesselDep==='cargado'?qtyInput('vesselDep','gsv'):'<span style=\"color:var(--muted2)\">—</span>'}</td></tr>
+          <tr><td>OBQ total en carga (B)</td><td>${stSel('obqLoad')}</td><td style="text-align:right">${d.states?.obqLoad==='cargado'?qtyInput('obqLoad','gsv'):(d.states?.obqLoad==='na'?'0':'<span style=\"color:var(--muted2)\">—</span>')}</td></tr>
+          <tr><td>Buque al arribo (K)</td><td>${stSel('vesselArr')}</td><td style="text-align:right">${d.states?.vesselArr==='cargado'?qtyInput('vesselArr','gsv'):'<span style=\"color:var(--muted2)\">—</span>'}</td></tr>
+          <tr><td>ROB total en descarga (L)</td><td>${stSel('robDisch')}</td><td style="text-align:right">${d.states?.robDisch==='cargado'?qtyInput('robDisch','gsv'):(d.states?.robDisch==='na'?'0':'<span style=\"color:var(--muted2)\">—</span>')}</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">I. Comparación tierra-tierra (custody transfer)</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Concepto</th><th style="text-align:right">${u}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>
+        <tbody>
+          ${r.secI.available ? `
+            ${secRow('Δ GSV (Outturn − B/L)', r.secI.difGsv, r.secI.difPct, '2−1')}
+            ${secRow('Δ TCV', r.secI.difTcv, undefined, '')}
+            ${secRow('Δ NSV', r.secI.difNsv, undefined, '')}
+          ` : unavail(r.secI.reason)}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">II. Buque/tierra en carga</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Concepto</th><th style="text-align:right">${u}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>
+        <tbody>${r.secII.available ? `
+          ${secRow('Buque cargado (C = A−B)', r.secII.loaded, undefined, 'C')}
+          ${secRow('Diferencia vs B/L (D)', r.secII.dif, r.secII.difPct, 'D=C−1')}
+          ${r.secII.theo!=null ? secRow('Tierra teórica por VEF (H=C/G)', r.secII.theo, r.secII.theoPct, 'H') : ''}
+        ` : unavail(r.secII.reason)}</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">III. Buque/tierra en descarga</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Concepto</th><th style="text-align:right">${u}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>
+        <tbody>${r.secIII.available ? `
+          ${secRow('Buque descargado (M = K−L)', r.secIII.discharged, undefined, 'M')}
+          ${secRow('Diferencia vs Outturn (N)', r.secIII.dif, r.secIII.difPct, 'N=M−2')}
+          ${r.secIII.theo!=null ? secRow('Tierra teórica por VEF (R=M/Q)', r.secIII.theo, r.secIII.theoPct, 'R') : ''}
+        ` : unavail(r.secIII.reason)}</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">IV. Buque en tránsito (carga → descarga)</div>
+      <table class="data-table" style="width:100%">
+        <thead><tr><th>Concepto</th><th style="text-align:right">${u}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>
+        <tbody>${r.secIV.available ? `
+          ${secRow('Diferencia en tránsito (U = K−A)', r.secIV.transit, r.secIV.transitPct, 'U')}
+          ${r.secIV.obqRob!=null ? secRow('Diferencia OBQ/ROB (W = B−L)', r.secIV.obqRob, undefined, 'W') : ''}
+        ` : unavail(r.secIV.reason)}</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Indicadores</div>
+      <table class="data-table" style="width:100%">
+        <tbody>
+          ${secRow('Pérdida/Ganancia neta NSV', r.ind.netNsv, r.ind.netNsvPct, 'Outturn−B/L')}
+          ${secRow('S&W puerto carga', r.ind.swLoadPct!=null?null:null, r.ind.swLoadPct, 'S&W/GSV')}
+          ${secRow('S&W puerto descarga', null, r.ind.swDischPct, 'S&W/GSV')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Comentarios / Cartas de Protesta</label>
+      <textarea class="field-input" style="height:70px" placeholder="Observaciones del análisis de viaje…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
     </div>`;
 }
 
@@ -4738,6 +5005,23 @@ function saveNested(ctxStr, obj, field, value) {
   ref.save();
 }
 
+// ── VAR (17.5): guardar cantidad manual y estado de bloque ──
+function varSet(ctxStr, block, field, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data[block]) ref.data[block] = {};
+  ref.data[block][field] = value;
+  ref.save();
+}
+function varState(ctxStr, block, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.states) ref.data.states = {};
+  ref.data.states[block] = value;
+  ref.save();
+  renderKeepScroll();
+}
+
 // Save a tank field inside a module (used by ullage-arribo and ullage-origen)
 // subObj: 'ullageOrigen' for datos-origen tanks, null for direct module.tanks
 function saveUllTank(ctxStr, subObj, idx, field, value) {
@@ -5192,6 +5476,8 @@ function handleChange(e) {
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'var-state') varState(el.dataset.ctx, el.dataset.block, el.value);
+  else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -5366,6 +5652,7 @@ function handleInput(e) {
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
+  else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
