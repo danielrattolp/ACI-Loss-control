@@ -1019,6 +1019,13 @@ async function uploadPhoto(base64, name, contentType) {
     return d.url || null;
   } catch (_) { return null; }
 }
+// renderKeepScroll: re-renderiza conservando la posición de scroll
+// (evita el salto al inicio al subir/borrar una foto).
+function renderKeepScroll() {
+  const y = window.scrollY;
+  render();
+  window.scrollTo(0, y);
+}
 // photoBase64: base64 de una foto (embebida o traída desde Blob) para el análisis IA.
 async function photoBase64(p) {
   if (!p) return null;
@@ -5127,7 +5134,7 @@ function handleClick(e) {
     if (!ref) return;
     const idx = parseInt(el.dataset.idx);
     if (ref.data.media && ref.data.media[idx] !== undefined) {
-      ref.data.media.splice(idx, 1); ref.save(); render();
+      ref.data.media.splice(idx, 1); ref.save(); renderKeepScroll();
     }
   }
   else if (a === 'tank-media-remove') {
@@ -5137,7 +5144,7 @@ function handleClick(e) {
     const slot = el.dataset.slot;
     const idx = parseInt(el.dataset.idx);
     if (ref.data.tankMedia?.[tankIdx]?.[slot]) {
-      ref.data.tankMedia[tankIdx][slot].splice(idx, 1); ref.save(); render();
+      ref.data.tankMedia[tankIdx][slot].splice(idx, 1); ref.save(); renderKeepScroll();
     }
   }
   else if (a === 'add-vef-voyage') {
@@ -5295,7 +5302,7 @@ function handleChange(e) {
           if (url) ref.data.media.push({ name: file.name, url, mediaType: 'image/jpeg', ts: Date.now() });
           else     ref.data.media.push({ name: file.name, data: compressed, base64: b64, mediaType: 'image/jpeg', ts: Date.now() });
           loaded++;
-          if (loaded === total) { ref.save(); render(); }
+          if (loaded === total) { ref.save(); renderKeepScroll(); }
         };
         img.src = ev2.target.result;
       };
@@ -5330,7 +5337,7 @@ function handleChange(e) {
         const url = await uploadPhoto(b64, file.name, 'image/jpeg');
         if (url) ref.data.tankMedia[tankIdx][slot].push({ name: file.name, url, mediaType:'image/jpeg', ts: Date.now() });
         else     ref.data.tankMedia[tankIdx][slot].push({ name: file.name, data: compressed, base64: b64, mediaType:'image/jpeg', ts: Date.now() });
-        ref.save(); render();
+        ref.save(); renderKeepScroll();
       };
       img.src = ev.target.result;
     };
