@@ -1019,12 +1019,25 @@ async function uploadPhoto(base64, name, contentType) {
     return d.url || null;
   } catch (_) { return null; }
 }
-// renderKeepScroll: re-renderiza conservando la posición de scroll
-// (evita el salto al inicio al subir/borrar una foto).
+// renderKeepScroll: re-renderiza conservando la posición de scroll del
+// contenedor real (.module-content o .main), no de la ventana.
+// Evita el salto al inicio al subir/borrar una foto.
 function renderKeepScroll() {
-  const y = window.scrollY;
+  const mc = document.querySelector('.module-content');
+  const mn = document.querySelector('.main');
+  const mcY = mc ? mc.scrollTop : 0;
+  const mnY = mn ? mn.scrollTop : 0;
+  const wY = window.scrollY;
   render();
-  window.scrollTo(0, y);
+  const restore = () => {
+    const mc2 = document.querySelector('.module-content');
+    const mn2 = document.querySelector('.main');
+    if (mc2) mc2.scrollTop = mcY;
+    if (mn2) mn2.scrollTop = mnY;
+    window.scrollTo(0, wY);
+  };
+  restore();
+  requestAnimationFrame(restore);
 }
 // photoBase64: base64 de una foto (embebida o traída desde Blob) para el análisis IA.
 async function photoBase64(p) {
