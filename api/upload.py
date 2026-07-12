@@ -12,7 +12,8 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 
 AUTH_TOKEN  = os.environ.get('AUTH_TOKEN', '')
-BLOB_TOKEN  = os.environ.get('BLOB_READ_WRITE_TOKEN', '')
+# limpia comillas/espacios que a veces quedan al pegar el token en Vercel
+BLOB_TOKEN  = os.environ.get('BLOB_READ_WRITE_TOKEN', '').strip().strip('"').strip("'").strip()
 BLOB_HOST   = 'https://blob.vercel-storage.com'
 API_VERSION = os.environ.get('BLOB_API_VERSION', '7')  # ajustable si el upstream lo pide
 
