@@ -15,7 +15,7 @@ AUTH_TOKEN  = os.environ.get('AUTH_TOKEN', '')
 # limpia comillas/espacios que a veces quedan al pegar el token en Vercel
 BLOB_TOKEN  = os.environ.get('BLOB_READ_WRITE_TOKEN', '').strip().strip('"').strip("'").strip()
 BLOB_HOST   = 'https://blob.vercel-storage.com'
-API_VERSION = os.environ.get('BLOB_API_VERSION', '7')  # ajustable si el upstream lo pide
+API_VERSION = os.environ.get('BLOB_API_VERSION', '11')  # 11+ soporta blobs privados
 
 def _safe(name):
     name = (name or 'foto.jpg').strip().replace('\\', '/').split('/')[-1]
@@ -69,7 +69,7 @@ class handler(BaseHTTPRequestHandler):
             'x-api-version': API_VERSION,
             'x-content-type': content_type,
             'x-add-random-suffix': '1',
-            'access': 'private',   # store privado; se sirven vía /api/photo autenticado
+            'x-access': 'private',   # store privado; se sirven vía /api/photo autenticado
         })
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
