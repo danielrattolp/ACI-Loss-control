@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -38,6 +38,7 @@ const MODULE_META = {
   'termometros':         { label: 'Termómetros',          icon: '🌡️' },
   'var-175':             { label: 'Análisis de Viaje (VAR)', icon: '🧭' },
   'vsrr-175':            { label: 'Reconciliación (VSRR)', icon: '⚖️' },
+  'hechos-campo':        { label: 'Hechos de Campo',      icon: '📋' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -68,6 +69,7 @@ const MODULE_LIBRARY = [
   { type: 'checklist',        label: 'Checklist',          icon: '✅', multi: true,  desc: 'Lista de verificación de auditoría' },
   { type: 'var-175',          label: 'Análisis de Viaje (VAR)', icon: '🧭', multi: false, desc: 'Conciliación de cantidades — API MPMS 17.5' },
   { type: 'vsrr-175',         label: 'Reconciliación (VSRR)', icon: '⚖️', multi: false, desc: 'Descomposición de pérdida por causa — API MPMS 17.5' },
+  { type: 'hechos-campo',     label: 'Hechos de Campo',    icon: '📋', multi: false, desc: 'Métodos y equipos usados — API MPMS 17.5' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -489,6 +491,10 @@ function initModuleInstance(type) {
     // Reconciliación: total (Outturn NSV − B/L NSV) del VAR se descompone en causas.
     otherDiff: '',
     causes: { evaporation:'', onboard:'', contraction:'', robUndetected:'', lineFill:'', measurement:'' },
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
+  if (type === 'hechos-campo') return {
+    items: {},   // { [itemId]: { load, disch, obs } }
     notes:'', iaAnalysis:'', iaDate:'',
   };
   if (type === 'discharge-record') return {
@@ -1644,6 +1650,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'vef-comparativo')                                     html = buildVEFComparativo(data, ctxStr);
   else if (mod === 'var-175') { const opV = getOp(ctx.opId); html = opV ? buildVAR(opV, data, ctxStr) : ''; }
   else if (mod === 'vsrr-175') { const opV = getOp(ctx.opId); html = opV ? buildVSRR(opV, data, ctxStr) : ''; }
+  else if (mod === 'hechos-campo') html = buildHechosCampo(data, ctxStr);
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3157,6 +3164,88 @@ function buildVSRR(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: HECHOS DE CAMPO (API MPMS 17.5) =====
+const HECHOS_CAMPO = [
+  { section: '1. Medición usada en transferencia de custodia', items: [
+    { id:'1', text:'Base de custodia (tierra o buque)', type:'text' },
+  ]},
+  { section: '2. Operaciones en tierra', items: [
+    { id:'2.1.1', text:'Aforo manual de tanque', type:'check' },
+    { id:'2.1.2', text:'ATG (tanque/remoto/ambos)', type:'check' },
+    { id:'2.1.3', text:'Medidores', type:'check' },
+    { id:'2.1.4.1', text:'Termómetro electrónico portátil', type:'check' },
+    { id:'2.1.4.2', text:'Termómetro de copa', type:'check' },
+    { id:'2.1.4.3', text:'Dispositivo remoto de temperatura', type:'check' },
+    { id:'2.2.1', text:'Muestreador en línea', type:'check' },
+    { id:'2.2.2', text:'Muestreo manual de tanques de tierra', type:'check' },
+    { id:'2.2.3', text:'Muestra puntual de línea', type:'check' },
+    { id:'2.3.1', text:'Método estándar de densidad/API', type:'text' },
+    { id:'2.3.2', text:'Método(s) estándar S&W', type:'text' },
+    { id:'2.4.1', text:'Línea de tierra — identificación/nombre/número', type:'text' },
+    { id:'2.4.2', text:'Línea de tierra — capacidad total', type:'text' },
+    { id:'2.4.3', text:'Método de verificación de condición de línea', type:'text' },
+  ]},
+  { section: '3. Operaciones del buque', items: [
+    { id:'3.1.1', text:'Aforo manual', type:'check' },
+    { id:'3.1.2', text:'Sistemas cerrados', type:'check' },
+    { id:'3.1.3', text:'Medidor electrónico portátil / ATG', type:'check' },
+    { id:'3.1.4.1', text:'Termómetro electrónico portátil', type:'check' },
+    { id:'3.1.4.2', text:'Termómetro de copa', type:'check' },
+    { id:'3.1.4.3', text:'Dispositivo remoto', type:'check' },
+    { id:'3.2.1', text:'Muestreador en línea a bordo', type:'check' },
+    { id:'3.2.2', text:'Muestras compuestas de tanques', type:'check' },
+    { id:'3.2.3', text:'Muestras puntuales del manifold', type:'check' },
+    { id:'3.3.1', text:'Método estándar de densidad/API', type:'text' },
+    { id:'3.3.2', text:'Método(s) estándar S&W', type:'text' },
+    { id:'3.4.1', text:'Línea del buque — identificación/nombre/número', type:'text' },
+    { id:'3.4.2', text:'Línea del buque — capacidad total', type:'text' },
+    { id:'3.4.3', text:'Método de verificación de condición de línea', type:'text' },
+  ]},
+  { section: '4. Cálculos y documentación', items: [
+    { id:'4.1', text:'Carta de protesta emitida', type:'check' },
+    { id:'4.2', text:'Aviso de discrepancia aparente emitido', type:'check' },
+    { id:'4.3.1', text:'Tablas VCF usadas a bordo', type:'text' },
+    { id:'4.3.2', text:'Tablas VCF usadas en tierra', type:'text' },
+    { id:'4.4.1', text:'Calado de arribo', type:'text' },
+    { id:'4.4.2', text:'Calado de zarpe', type:'text' },
+  ]},
+];
+
+function buildHechosCampo(d, ctx) {
+  const items = d.items || {};
+  const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  const cell = (id, col, type) => {
+    const val = items[id] ? items[id][col] : '';
+    if (type === 'check' && col !== 'obs')
+      return `<input type="checkbox" ${val?'checked':''} data-action="hc-set" data-ctx="${ctx}" data-id="${id}" data-col="${col}" style="width:16px;height:16px;cursor:pointer">`;
+    return `<input class="tbl-input" value="${esc(val)}" placeholder="—" data-action="hc-set" data-ctx="${ctx}" data-id="${id}" data-col="${col}">`;
+  };
+  return `
+    <div class="module-title">📋 Hechos de Campo</div>
+    <div class="module-subtitle">API MPMS Cap. 17.5 · Métodos, equipos y documentación en carga y descarga</div>
+    <div class="info-box" style="margin-bottom:12px">Registra qué método/equipo se usó (☑) o su valor en cada puerto. Sirve de respaldo del Análisis de Viaje (VAR).</div>
+    ${HECHOS_CAMPO.map(sec => `
+      <div class="card">
+        <div class="card-title">${sec.section}</div>
+        <div style="overflow-x:auto"><table class="data-table" style="min-width:640px">
+          <thead><tr><th>Elemento / método / equipo</th><th style="text-align:center;width:70px">Carga</th><th style="text-align:center;width:80px">Descarga</th><th>Observaciones</th></tr></thead>
+          <tbody>
+            ${sec.items.map(it => `<tr>
+              <td style="font-size:12px">${it.text}</td>
+              <td style="text-align:center">${cell(it.id,'load',it.type)}</td>
+              <td style="text-align:center">${cell(it.id,'disch',it.type)}</td>
+              <td>${cell(it.id,'obs','text')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>`).join('')}
+    <div class="card">
+      <label class="field-label">Notas</label>
+      <textarea class="field-input" style="height:60px" placeholder="Observaciones generales de campo…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -3417,7 +3506,8 @@ function showPDFSelector(opId) {
     'checklist-terminal': '8. Checklist de Inspección',
     'var-175': '9. Análisis de Viaje (VAR)',
     'vsrr-175': '10. Reconciliación (VSRR)',
-    'reporte-evolutivo': '11. Reporte Evolutivo — Conclusión',
+    'hechos-campo': '11. Hechos de Campo',
+    'reporte-evolutivo': '12. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -3943,6 +4033,21 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const hcSec = (() => {
+    const hd = mods['hechos-campo']; if (!hd) return '';
+    const items = hd.items || {};
+    const mark = v => v===true ? '✓' : (v ? String(v) : '—');
+    return sec('11. Hechos de Campo — API MPMS 17.5', `
+      ${HECHOS_CAMPO.map(s => `
+        <h3>${s.section}</h3>
+        <table><thead><tr><th>Elemento</th><th style="text-align:center">Carga</th><th style="text-align:center">Descarga</th><th>Obs.</th></tr></thead><tbody>
+          ${s.items.map(it => { const r = items[it.id]||{}; return `<tr><td>${it.text}</td><td style="text-align:center">${mark(r.load)}</td><td style="text-align:center">${mark(r.disch)}</td><td>${r.obs||''}</td></tr>`; }).join('')}
+        </tbody></table>`).join('')}
+      ${hd.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${hd.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${hd.notes?`<div class="note">${hd.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -3959,6 +4064,7 @@ function printFullReport(opId, selectedMods) {
     ${chkSec}
     ${has('var-175') ? '<div class="page-break"></div>'+varSec : ''}
     ${has('vsrr-175') ? '<div class="page-break"></div>'+vsrrSec : ''}
+    ${has('hechos-campo') ? '<div class="page-break"></div>'+hcSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -5217,6 +5323,15 @@ function varState(ctxStr, block, value) {
   ref.save();
   renderKeepScroll();
 }
+// Hechos de Campo: guardar celda (checkbox o texto). Sin re-render.
+function hcSet(ctxStr, id, col, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.items) ref.data.items = {};
+  if (!ref.data.items[id]) ref.data.items[id] = {};
+  ref.data.items[id][col] = value;
+  ref.save();
+}
 // VSRR: guardar causa/campo + snapshot para el portal cliente. reRender: refresca reconciliación.
 function vsrrSet(ctxStr, obj, field, value, reRender) {
   const ref = getModuleRef(decodeCtx(ctxStr));
@@ -5710,6 +5825,7 @@ function handleChange(e) {
   else if (a === 'var-state') varState(el.dataset.ctx, el.dataset.block, el.value);
   else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
+  else if (a === 'hc-set') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.type==='checkbox' ? el.checked : el.value);
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -5886,6 +6002,7 @@ function handleInput(e) {
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
+  else if (a === 'hc-set' && el.type !== 'checkbox') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.value);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
