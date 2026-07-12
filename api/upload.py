@@ -69,7 +69,7 @@ class handler(BaseHTTPRequestHandler):
             'x-api-version': API_VERSION,
             'x-content-type': content_type,
             'x-add-random-suffix': '1',
-            'access': 'public',
+            'access': 'private',   # store privado; se sirven vía /api/photo autenticado
         })
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
