@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -39,6 +39,7 @@ const MODULE_META = {
   'var-175':             { label: 'Análisis de Viaje (VAR)', icon: '🧭' },
   'vsrr-175':            { label: 'Reconciliación (VSRR)', icon: '⚖️' },
   'hechos-campo':        { label: 'Hechos de Campo',      icon: '📋' },
+  'reglas':              { label: 'Validación Normativa', icon: '🛡️' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -70,6 +71,7 @@ const MODULE_LIBRARY = [
   { type: 'var-175',          label: 'Análisis de Viaje (VAR)', icon: '🧭', multi: false, desc: 'Conciliación de cantidades — API MPMS 17.5' },
   { type: 'vsrr-175',         label: 'Reconciliación (VSRR)', icon: '⚖️', multi: false, desc: 'Descomposición de pérdida por causa — API MPMS 17.5' },
   { type: 'hechos-campo',     label: 'Hechos de Campo',    icon: '📋', multi: false, desc: 'Métodos y equipos usados — API MPMS 17.5' },
+  { type: 'reglas',           label: 'Validación Normativa', icon: '🛡️', multi: false, desc: 'Motor de reglas — tolerancias y LOP/NOAD automáticos' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -497,6 +499,7 @@ function initModuleInstance(type) {
     items: {},   // { [itemId]: { load, disch, obs } }
     notes:'', iaAnalysis:'', iaDate:'',
   };
+  if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'discharge-record') return {
     enabled: true,
     startDate:'', startTime:'',
@@ -1651,6 +1654,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'var-175') { const opV = getOp(ctx.opId); html = opV ? buildVAR(opV, data, ctxStr) : ''; }
   else if (mod === 'vsrr-175') { const opV = getOp(ctx.opId); html = opV ? buildVSRR(opV, data, ctxStr) : ''; }
   else if (mod === 'hechos-campo') html = buildHechosCampo(data, ctxStr);
+  else if (mod === 'reglas') { const opV = getOp(ctx.opId); html = opV ? buildReglas(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3246,6 +3250,114 @@ function buildHechosCampo(d, ctx) {
     </div>`;
 }
 
+// ===== MOTOR DE REGLAS (validación normativa determinista) =====
+// Evalúa la operación contra umbrales de norma. Repetible y auditable —
+// separado de la IA. Devuelve hallazgos {status: ok|warn|fail|na}.
+function computeRules(op) {
+  const mods = op.modules || {};
+  const num = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const f = [];
+  const add = (id, norm, label, status, detail, action) => f.push({ id, norm, label, status, detail, action: action||'' });
+
+  // 1. VEF al arribo (MPMS 17.9)
+  const vefMod = mods['vef-comparativo'];
+  if (vefMod && vefMod.voyages && vefMod.voyages.length) {
+    const s = computeVEFStats(vefMod.voyages);
+    if (s.qualCount < 5) add('vef-qual','MPMS 17.9','VEF — viajes calificantes','warn',`${s.qualCount} calificantes (mín. 5 para VEF ≠ 1.0000)`,'Ampliar historial de viajes');
+    else add('vef-qual','MPMS 17.9','VEF — viajes calificantes','ok',`${s.qualCount} viajes calificantes`);
+    if (Math.abs(s.vef - 1) > 0.01) add('vef-band','MPMS 17.9','VEF alejado de 1.0','warn',`VEF ${s.vef.toFixed(5)} (>1% de 1.0)`,'Revisar dispersión de viajes');
+  }
+
+  // 2. Pérdida de custodia (MPMS 17.5) — del VAR
+  const varMod = mods['var-175'];
+  if (varMod) {
+    const r = varMod._snapshot || (typeof computeVAR === 'function' ? computeVAR(op, varMod) : null);
+    if (r && r.secI && r.secI.available) {
+      const p = r.secI.difPct;
+      if (Math.abs(p) > 0.5) add('loss-tol','MPMS 17.5','Pérdida de custodia fuera de tolerancia','fail',`Δ GSV ${p.toFixed(3)}% (límite ±0.5%)`,'Emitir Letter of Protest (LOP)');
+      else add('loss-tol','MPMS 17.5','Pérdida de custodia','ok',`Δ GSV ${p.toFixed(3)}% dentro de ±0.5%`);
+    } else {
+      add('loss-tol','MPMS 17.5','Pérdida de custodia','na','Falta outturn de tierra para evaluar','Completar el VAR');
+    }
+  }
+
+  // 3. Verificación de termómetros (MPMS 7.1)
+  const tm = mods['termometros'];
+  if (tm && (tm.vessel || tm.surveyor || tm.aci)) {
+    const temps = [tm.vessel && tm.vessel.tempF, tm.surveyor && tm.surveyor.tempF, tm.aci && tm.aci.tempF].map(num).filter(x => x != null);
+    if (temps.length >= 2) {
+      const disp = Math.max(...temps) - Math.min(...temps);
+      if (disp > 0.5) add('temp-disp','MPMS 7.1','Dispersión de termómetros','fail',`${disp.toFixed(1)}°F (límite ≤ 0.5°F)`,'Recalibrar / verificar equipos');
+      else add('temp-disp','MPMS 7.1','Verificación de termómetros','ok',`Dispersión ${disp.toFixed(1)}°F ≤ 0.5°F`);
+    }
+  }
+
+  // 4. Reconciliación de pérdida (VSRR, MPMS 17.5)
+  const vsrr = mods['vsrr-175'];
+  if (vsrr) {
+    const s = vsrr._snapshot || (typeof computeVSRR === 'function' ? computeVSRR(op, vsrr) : null);
+    if (s && s.netNsv != null) {
+      if (s.reconciled) add('vsrr-rec','MPMS 17.5','Reconciliación de pérdida','ok','Pérdida explicada por causas');
+      else add('vsrr-rec','MPMS 17.5','Reconciliación de pérdida','warn',`Residual ${Math.round(s.residual)} sin explicar`,'Completar asignación de causas');
+    }
+  }
+
+  // 5. Datos base
+  const bl = (mods['datos-origen'] && mods['datos-origen'].bl) || {};
+  if (num(bl.gsv) == null) add('bl-missing','MPMS 17','B/L sin cantidad','warn','Falta GSV del B/L','Cargar Datos de Origen');
+
+  return f;
+}
+
+function buildReglas(op, d, ctx) {
+  const f = computeRules(op);
+  const counts = { ok:0, warn:0, fail:0, na:0 };
+  f.forEach(x => counts[x.status] = (counts[x.status]||0) + 1);
+  const needLOP = f.some(x => x.status==='fail' && /LOP|Protest/i.test(x.action));
+  const chip = (n, color, label) => `<div style="flex:1;min-width:90px;text-align:center;background:${color}18;border:1px solid ${color}40;border-radius:10px;padding:10px">
+    <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${label}</div></div>`;
+  const badge = st => {
+    const m = { ok:['#2e7d32','Conforme'], warn:['#b8901f','Advertencia'], fail:['#c62828','No conforme'], na:['#888','Pendiente'] }[st];
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${m[0]}18;color:${m[0]};border:1px solid ${m[0]}40;white-space:nowrap">${m[1]}</span>`;
+  };
+  const order = { fail:0, warn:1, na:2, ok:3 };
+  const sorted = [...f].sort((a,b) => order[a.status]-order[b.status]);
+
+  return `
+    <div class="module-title">🛡️ Validación Normativa</div>
+    <div class="module-subtitle">Motor de reglas determinista · API MPMS · evaluación automática y auditable</div>
+
+    ${needLOP ? `<div class="card" style="background:#c6282810;border:1px solid #c6282850">
+      <div style="font-weight:700;color:#c62828">⚠️ Se recomienda emitir Letter of Protest (LOP)</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Una o más comprobaciones superan la tolerancia normativa. Revisa las no conformidades abajo.</div>
+    </div>` : ''}
+
+    <div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${chip(counts.ok,'#2e7d32','Conformes')}
+      ${chip(counts.warn,'#b8901f','Advertencias')}
+      ${chip(counts.fail,'#c62828','No conformes')}
+      ${chip(counts.na,'#888','Pendientes')}
+    </div></div>
+
+    <div class="card">
+      <div class="card-title">Comprobaciones (${f.length})</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:560px">
+        <thead><tr><th>Norma</th><th>Comprobación</th><th>Resultado</th><th>Estado</th><th>Acción</th></tr></thead>
+        <tbody>
+          ${sorted.length ? sorted.map(x => `<tr>
+            <td style="font-size:11px;color:var(--sea);white-space:nowrap">${x.norm}</td>
+            <td style="font-size:12px">${x.label}</td>
+            <td style="font-size:12px;color:var(--muted)">${x.detail}</td>
+            <td>${badge(x.status)}</td>
+            <td style="font-size:11px;color:${x.action?'#c62828':'var(--muted2)'}">${x.action||'—'}</td>
+          </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">Sin datos suficientes para evaluar. Completa los módulos de la operación.</td></tr>'}
+        </tbody>
+      </table></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Evaluación determinista según umbrales de norma — repetible y auditable. Independiente del análisis IA.</div>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -3507,7 +3619,8 @@ function showPDFSelector(opId) {
     'var-175': '9. Análisis de Viaje (VAR)',
     'vsrr-175': '10. Reconciliación (VSRR)',
     'hechos-campo': '11. Hechos de Campo',
-    'reporte-evolutivo': '12. Reporte Evolutivo — Conclusión',
+    'reglas': '12. Validación Normativa',
+    'reporte-evolutivo': '13. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -4048,6 +4161,24 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const reglasSec = (() => {
+    if (!mods['reglas']) return '';
+    const f = computeRules(op);
+    if (!f.length) return '';
+    const lbl = { ok:'Conforme', warn:'Advertencia', fail:'No conforme', na:'Pendiente' };
+    const col = { ok:'#2e7d32', warn:'#b8901f', fail:'#c62828', na:'#888' };
+    const ord = { fail:0, warn:1, na:2, ok:3 };
+    const sorted = [...f].sort((a,b)=>ord[a.status]-ord[b.status]);
+    const needLOP = f.some(x => x.status==='fail' && /LOP|Protest/i.test(x.action));
+    return sec('12. Validación Normativa — Motor de Reglas', `
+      ${needLOP?'<div class="conclusion" style="border-color:#c62828;background:#c6282810"><strong>Se recomienda emitir Letter of Protest (LOP)</strong> — una o más comprobaciones superan la tolerancia normativa.</div>':''}
+      <table><thead><tr><th>Norma</th><th>Comprobación</th><th>Resultado</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+        ${sorted.map(x=>`<tr><td>${x.norm}</td><td>${x.label}</td><td>${x.detail}</td><td style="color:${col[x.status]};font-weight:700">${lbl[x.status]}</td><td>${x.action||'—'}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="note">Evaluación determinista según umbrales de norma — repetible y auditable, independiente del análisis IA.</div>
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -4065,6 +4196,7 @@ function printFullReport(opId, selectedMods) {
     ${has('var-175') ? '<div class="page-break"></div>'+varSec : ''}
     ${has('vsrr-175') ? '<div class="page-break"></div>'+vsrrSec : ''}
     ${has('hechos-campo') ? '<div class="page-break"></div>'+hcSec : ''}
+    ${has('reglas') ? '<div class="page-break"></div>'+reglasSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
