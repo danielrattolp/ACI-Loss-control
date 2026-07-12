@@ -649,7 +649,10 @@ async function downloadPDF(opId) {
       t.forEach((tk,i)=>{
         const slot = tm[i]||{};
         [['producto','🛢 Producto'],['agua','💧 Agua']].forEach(([k])=>{
-          (slot[k]||[]).forEach(p=>{ if(p.data) cells.push(`<div style="text-align:center"><img src="${p.data}" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #ddd"><div style="font-size:8px;color:#666">TK ${esc(tk.name)} · ${k}</div></div>`); });
+          (slot[k]||[]).forEach(p=>{
+            const src = p.url ? (location.origin + '/api/photo?u=' + encodeURIComponent(p.url)) : (p.data || '');
+            if (src) cells.push(`<div style="text-align:center"><img src="${src}" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #ddd"><div style="font-size:8px;color:#666">TK ${esc(tk.name)} · ${k}</div></div>`);
+          });
         });
       });
       if (cells.length) photos = `<h3>Evidencia Fotográfica de Medición</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${cells.join('')}</div>`;

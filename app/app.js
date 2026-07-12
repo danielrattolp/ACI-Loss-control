@@ -998,6 +998,47 @@ function _aciSessionToken() {
   return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('aci_session='))?.split('=')[1]||'';
 }
 
+// ── Fotos en Vercel Blob (privado) ──────────────────────────
+// photoSrc: URL para <img>; usa el proxy si la foto está en Blob (url),
+// o el base64 embebido para fotos antiguas (data).
+function photoSrc(p) {
+  if (!p) return '';
+  if (p.url) return location.origin + '/api/photo?u=' + encodeURIComponent(p.url);
+  return p.data || '';
+}
+// uploadPhoto: sube el base64 a Blob y devuelve la url privada, o null si falla.
+async function uploadPhoto(base64, name, contentType) {
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() },
+      body: JSON.stringify({ filename: name || 'foto.jpg', contentType: contentType || 'image/jpeg', dataBase64: base64 })
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d.url || null;
+  } catch (_) { return null; }
+}
+// photoBase64: base64 de una foto (embebida o traída desde Blob) para el análisis IA.
+async function photoBase64(p) {
+  if (!p) return null;
+  if (p.base64) return p.base64;
+  if (p.data && p.data.includes(',')) return p.data.split(',')[1];
+  if (p.url) {
+    try {
+      const res = await fetch(photoSrc(p));
+      const blob = await res.blob();
+      return await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = () => r(String(fr.result).split(',')[1] || null);
+        fr.onerror = () => r(null);
+        fr.readAsDataURL(blob);
+      });
+    } catch (_) { return null; }
+  }
+  return null;
+}
+
 async function loadClientsList() {
   const el = document.getElementById('clients-list');
   if (!el) return;
@@ -2616,7 +2657,7 @@ function buildUllageArribo(d, mod, ctx) {
               <div style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;margin-bottom:6px">
                 ${photos.map((p, pi) => `
                   <div style="position:relative;display:inline-block">
-                    <img src="${p.data}" alt="${p.name||''}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid ${color}40">
+                    <img src="${photoSrc(p)}" alt="${p.name||''}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid ${color}40">
                     <button style="position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;padding:0;line-height:16px;text-align:center"
                       data-action="tank-media-remove" data-ctx="${ctx}" data-tank-idx="${i}" data-slot="${slotKey}" data-idx="${pi}">×</button>
                   </div>`).join('')}
@@ -3364,7 +3405,7 @@ function printFullReport(opId, selectedMods) {
               <div style="margin-bottom:8px">
                 <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${label}</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  ${photos.map(p => `<img src="${p.data}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #ddd">`).join('')}
+                  ${photos.map(p => `<img src="${photoSrc(p)}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;border:1px solid #ddd">`).join('')}
                 </div>
               </div>` : '';
             return `
@@ -4971,23 +5012,25 @@ function handleClick(e) {
     const prompt = `Actúa como QPIC certificado con dominio de API MPMS Cap. 17 y 11.1.\n\nRealiza un análisis comparativo exhaustivo de las cantidades de origen (BL) versus arribo para la operación ${op.code} — ${op.vessel?.name||''}, producto: ${op.product?.crudeName||op.product?.type||'—'}.${photoNote}\n\nDATOS DE ORIGEN (Bill of Lading):\n- GSV @60°F: ${fmt(bl.gsv,'BBL')}\n- TCV: ${fmt(bl.tcv,'BBL')}\n- Free Water: ${fmt(bl.fw,'BBL')}\n- API @60°F: ${bl.api||'—'} °API\n- BS&W: ${bl.bsw||'—'} %\n- Densidad @15°C: ${bl.densityAt15||'—'} kg/m³\n- VEF de origen: ${vefO}\n- Puerto de carga: ${origen.loadPort||'—'}\n- B/L N°: ${origen.blNumber||'—'}\n\nDATOS DE ARRIBO (Ullage Medición):\n- GSV @60°F: ${fmt(tot.gsv,'BBL')}\n- TCV: ${fmt(tot.tcv,'BBL')}\n- Free Water: ${fmt(tot.fw,'BBL')}\n- API @60°F: ${tot.api||'—'} °API\n- BS&W: ${tot.bsw||'—'} %\n- Densidad @15°C: ${tot.densityAt15||'—'} kg/m³\n- VEF de arribo: ${vefA}\n- Trim: ${arribo.trim||'—'} m  |  Lista: ${arribo.list||'—'}°\n\nDIFERENCIA:\n- ΔGSV: ${dGSV !== null ? dGSV+' BBL ('+pGSV+'%)' : '—'}\n\nNotas ullage arribo: ${arribo.notes||'—'}\n\nPor favor, estructura tu respuesta así:\n\n1. VALIDACIÓN FOTOGRÁFICA (solo si hay imágenes): Describe lo que observas en cada foto — posición de la cinta, lectura, condición del tanque, conformidad con API MPMS.\n2. ANÁLISIS DEL DESVÍO VOLUMÉTRICO: Evalúa si la diferencia está dentro de los rangos normales (±0.5% según API MPMS 17.11). Desglosa posibles causas.\n3. ANÁLISIS DEL VEF: Compara VEF origen vs arribo y su impacto en el volumen.\n4. CALIDAD DEL CARGO: Variaciones de API, BS&W, temperatura entre origen y arribo.\n5. ACCIONES RECOMENDADAS: Letter of Protest, OBQ/ROB, nota al cliente, observaciones para el reporte final.\n6. CONCLUSIÓN TÉCNICA: Dictamen final sobre la operación.`;
     // Build multimodal content: images first, then the text prompt
     const media = arribo.media || [];
-    let msgContent;
-    if (media.length) {
-      const imgBlocks = media.map(m => ({
-        type: 'image',
-        source: { type: 'base64', media_type: m.mediaType || 'image/jpeg', data: m.base64 }
-      }));
-      msgContent = [...imgBlocks, { type: 'text', text: prompt }];
-    } else {
-      msgContent = prompt;
-    }
     const btnLabel = media.length ? `🔍 Analizar con IA (${media.length} foto${media.length>1?'s':''})` : '🔍 Analizar con Consultor IA';
     el.disabled = true; el.textContent = `⏳ Analizando${media.length ? ' imágenes y datos' : ''}…`;
-    fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()}, body: JSON.stringify({ messages:[{role:'user',content:msgContent}] }) })
-      .then(r=>r.json()).then(res=>{
-        if (res.reply) { op.modules[c.mod].iaAnalysis = res.reply; op.modules[c.mod].iaDate = new Date().toISOString(); saveOp(op); render(); }
-        else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error.'); }
-      }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
+    (async () => {
+      let msgContent = prompt;
+      if (media.length) {
+        const imgBlocks = [];
+        for (const m of media) {
+          const b64 = await photoBase64(m);
+          if (b64) imgBlocks.push({ type:'image', source:{ type:'base64', media_type: m.mediaType||'image/jpeg', data: b64 } });
+        }
+        msgContent = [...imgBlocks, { type: 'text', text: prompt }];
+      }
+      try {
+        const res = await fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()}, body: JSON.stringify({ messages:[{role:'user',content:msgContent}] }) });
+        const data = await res.json();
+        if (data.reply) { op.modules[c.mod].iaAnalysis = data.reply; op.modules[c.mod].iaDate = new Date().toISOString(); saveOp(op); render(); }
+        else { el.disabled=false; el.textContent=btnLabel; alert(data.error||'Error.'); }
+      } catch { el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); }
+    })();
   }
   else if (a === 'mod-ia-analyze') {
     const c = decodeCtx(el.dataset.ctx);
@@ -5236,7 +5279,7 @@ function handleChange(e) {
       const reader2 = new FileReader();
       reader2.onload = (ev2) => {
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
           const MAX_DIM = 1600;
           let w = img.width, h = img.height;
           if (w > MAX_DIM || h > MAX_DIM) {
@@ -5248,7 +5291,9 @@ function handleChange(e) {
           canvas.getContext('2d').drawImage(img, 0, 0, w, h);
           const compressed = canvas.toDataURL('image/jpeg', 0.75);
           const b64 = compressed.split(',')[1];
-          ref.data.media.push({ name: file.name, data: compressed, base64: b64, mediaType: 'image/jpeg', ts: Date.now() });
+          const url = await uploadPhoto(b64, file.name, 'image/jpeg');
+          if (url) ref.data.media.push({ name: file.name, url, mediaType: 'image/jpeg', ts: Date.now() });
+          else     ref.data.media.push({ name: file.name, data: compressed, base64: b64, mediaType: 'image/jpeg', ts: Date.now() });
           loaded++;
           if (loaded === total) { ref.save(); render(); }
         };
@@ -5273,7 +5318,7 @@ function handleChange(e) {
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const MAX_DIM = 1600;
         let w = img.width, h = img.height;
         if (w > MAX_DIM || h > MAX_DIM) { const r = Math.min(MAX_DIM/w, MAX_DIM/h); w = Math.round(w*r); h = Math.round(h*r); }
@@ -5281,7 +5326,10 @@ function handleChange(e) {
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         const compressed = canvas.toDataURL('image/jpeg', 0.75);
-        ref.data.tankMedia[tankIdx][slot].push({ name: file.name, data: compressed, base64: compressed.split(',')[1], mediaType:'image/jpeg', ts: Date.now() });
+        const b64 = compressed.split(',')[1];
+        const url = await uploadPhoto(b64, file.name, 'image/jpeg');
+        if (url) ref.data.tankMedia[tankIdx][slot].push({ name: file.name, url, mediaType:'image/jpeg', ts: Date.now() });
+        else     ref.data.tankMedia[tankIdx][slot].push({ name: file.name, data: compressed, base64: b64, mediaType:'image/jpeg', ts: Date.now() });
         ref.save(); render();
       };
       img.src = ev.target.result;
