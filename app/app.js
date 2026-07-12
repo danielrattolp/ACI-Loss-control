@@ -3287,7 +3287,8 @@ function showPDFSelector(opId) {
     'checklist-madre': '8. Checklist de Inspección',
     'checklist-buque': '8. Checklist de Inspección',
     'checklist-terminal': '8. Checklist de Inspección',
-    'reporte-evolutivo': '9. Reporte Evolutivo — Conclusión',
+    'var-175': '9. Análisis de Viaje (VAR)',
+    'reporte-evolutivo': '10. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -3756,6 +3757,34 @@ function printFullReport(opId, selectedMods) {
     }
   `;
 
+  const varSec = (() => {
+    const vd = mods['var-175']; if (!vd) return '';
+    const r = computeVAR(op, vd);
+    const n = v => v==null ? '—' : Math.round(v).toLocaleString('en-US');
+    const p = v => v==null ? '—' : (v>=0?'+':'')+v.toFixed(3)+'%';
+    const row = (l,val,pct,ref) => `<tr><td>${l}</td><td style="text-align:right">${n(val)}</td><td style="text-align:right">${pct!==undefined?p(pct):''}</td><td>${ref||''}</td></tr>`;
+    const na = reason => `<tr><td colspan="4" style="color:#999">Pendiente — ${reason||'datos insuficientes'}</td></tr>`;
+    const th = `<thead><tr><th>Concepto</th><th style="text-align:right">${r.unit}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>`;
+    return sec('9. Análisis de Viaje (VAR) — API MPMS 17.5', `
+      <table class="kv">
+        ${kv('Completitud', r.completeness+'%')}
+        ${kv('B/L GSV', n(r.bl.gsv)+' '+r.unit)}
+        ${kv('VEF carga', r.vefLoad!=null?r.vefLoad.toFixed(5):'—')}
+        ${kv('VEF descarga', r.vefDisch!=null?r.vefDisch.toFixed(5):'—')}
+      </table>
+      <h3>I. Comparación tierra-tierra (custody transfer)</h3>
+      <table>${th}<tbody>${r.secI.available ? row('Δ GSV (Outturn − B/L)', r.secI.difGsv, r.secI.difPct,'2−1')+row('Δ NSV', r.secI.difNsv, undefined,'') : na(r.secI.reason)}</tbody></table>
+      <h3>II. Buque/tierra en carga</h3>
+      <table>${th}<tbody>${r.secII.available ? row('Buque cargado (C=A−B)', r.secII.loaded, undefined,'C')+row('Diferencia vs B/L', r.secII.dif, r.secII.difPct,'D')+(r.secII.theo!=null?row('Tierra teórica por VEF (H=C/G)', r.secII.theo, r.secII.theoPct,'H'):'') : na(r.secII.reason)}</tbody></table>
+      <h3>III. Buque/tierra en descarga</h3>
+      <table>${th}<tbody>${r.secIII.available ? row('Buque descargado (M=K−L)', r.secIII.discharged, undefined,'M')+row('Diferencia vs Outturn', r.secIII.dif, r.secIII.difPct,'N')+(r.secIII.theo!=null?row('Tierra teórica por VEF (R=M/Q)', r.secIII.theo, r.secIII.theoPct,'R'):'') : na(r.secIII.reason)}</tbody></table>
+      <h3>IV. Buque en tránsito (carga → descarga)</h3>
+      <table>${th}<tbody>${r.secIV.available ? row('Diferencia en tránsito (U=K−A)', r.secIV.transit, r.secIV.transitPct,'U')+(r.secIV.obqRob!=null?row('Diferencia OBQ/ROB (W=B−L)', r.secIV.obqRob, undefined,'W'):'') : na(r.secIV.reason)}</tbody></table>
+      ${vd.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${vd.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${vd.notes?`<div class="note">${vd.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -3770,6 +3799,7 @@ function printFullReport(opId, selectedMods) {
     ${tlSec}
     ${has('termometros') ? termSec+'<div class="page-break"></div>' : ''}
     ${chkSec}
+    ${has('var-175') ? '<div class="page-break"></div>'+varSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -5006,11 +5036,17 @@ function saveNested(ctxStr, obj, field, value) {
 }
 
 // ── VAR (17.5): guardar cantidad manual y estado de bloque ──
+// Guarda además un snapshot del cálculo para que el portal del cliente
+// pueda mostrar el VAR sin duplicar el motor de cálculo.
+function _varSnapshot(ref) {
+  try { ref.data._snapshot = computeVAR(ref.op, ref.data); } catch (_) {}
+}
 function varSet(ctxStr, block, field, value) {
   const ref = getModuleRef(decodeCtx(ctxStr));
   if (!ref) return;
   if (!ref.data[block]) ref.data[block] = {};
   ref.data[block][field] = value;
+  _varSnapshot(ref);
   ref.save();
 }
 function varState(ctxStr, block, value) {
@@ -5018,6 +5054,7 @@ function varState(ctxStr, block, value) {
   if (!ref) return;
   if (!ref.data.states) ref.data.states = {};
   ref.data.states[block] = value;
+  _varSnapshot(ref);
   ref.save();
   renderKeepScroll();
 }
@@ -5348,8 +5385,23 @@ function handleClick(e) {
 
     // Build context-aware prompt for this module
     const opCtx = `Operación: ${op.code||'—'} | Buque: ${op.vessel?.name||'—'} (IMO ${op.vessel?.imo||'—'}) | Producto: ${op.product?.crudeName||op.product?.type||'—'} | Puerto: ${op.port||'—'} | Cliente: ${op.client||'—'}`;
-    const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
-    const prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
+    let prompt;
+    if (modKey === 'var-175') {
+      const r = computeVAR(op, modData);
+      const n = v => v==null ? 'N/D' : Math.round(v).toLocaleString('en-US');
+      const p = v => v==null ? 'N/D' : (v>=0?'+':'')+v.toFixed(3)+'%';
+      const varData = `RESULTADO DEL ANÁLISIS DE VIAJE (VAR) — API MPMS 17.5\nCompletitud: ${r.completeness}%\n
+BASE (auto): B/L GSV=${n(r.bl.gsv)} ${r.unit} · NSV=${n(r.bl.nsv)} · VEF carga=${r.vefLoad!=null?r.vefLoad.toFixed(5):'N/D'} · VEF descarga=${r.vefDisch!=null?r.vefDisch.toFixed(5):'N/D'}
+I. Tierra-tierra: ${r.secI.available?`Δ GSV=${n(r.secI.difGsv)} (${p(r.secI.difPct)}), Δ NSV=${n(r.secI.difNsv)}`:`NO DISPONIBLE — ${r.secI.reason}`}
+II. Buque/tierra carga: ${r.secII.available?`Buque cargado C=${n(r.secII.loaded)}, Dif vs B/L=${n(r.secII.dif)} (${p(r.secII.difPct)}), Tierra teórica H=${n(r.secII.theo)} (${p(r.secII.theoPct)})`:`NO DISPONIBLE — ${r.secII.reason}`}
+III. Buque/tierra descarga: ${r.secIII.available?`Buque descargado M=${n(r.secIII.discharged)}, Dif vs Outturn=${n(r.secIII.dif)} (${p(r.secIII.difPct)}), Tierra teórica R=${n(r.secIII.theo)} (${p(r.secIII.theoPct)})`:`NO DISPONIBLE — ${r.secIII.reason}`}
+IV. Buque en tránsito: ${r.secIV.available?`Dif tránsito U=${n(r.secIV.transit)} (${p(r.secIV.transitPct)}), Dif OBQ/ROB W=${n(r.secIV.obqRob)}`:`NO DISPONIBLE — ${r.secIV.reason}`}
+Indicadores: Pérdida/Ganancia neta NSV=${n(r.ind.netNsv)} (${p(r.ind.netNsvPct)})`;
+      prompt = `Eres un QPIC certificado experto en API MPMS Cap. 17.5 (Voyage Analysis). Analiza el siguiente cierre de viaje.\n\n${opCtx}\n\n${varData}\n\nEstructura tu respuesta:\n1. DICTAMEN DE CONCILIACIÓN: ¿la pérdida/ganancia está dentro de tolerancia (±0.5% típico)? ¿es significativa o ruido de medición?\n2. ANÁLISIS POR SECCIÓN: interpreta las razones buque/tierra y la tierra teórica por VEF; qué explica cada diferencia.\n3. DATOS FALTANTES: si alguna sección está NO DISPONIBLE, indica exactamente qué falta para cerrar el análisis y NO concluyas sobre lo que no hay.\n4. CAUSAS PROBABLES de la diferencia (contracción térmica, evaporación, ROB no detectado, error de línea/medición).\n5. ACCIONES: ¿se requiere Letter of Protest, VSRR (reconciliación), o nota al cliente?\nSé técnico y conciso. No inventes cifras que no estén en los datos.`;
+    } else {
+      const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
+      prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
+    }
 
     fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
       body: JSON.stringify({ messages: [{ role:'user', content: prompt }] }) })

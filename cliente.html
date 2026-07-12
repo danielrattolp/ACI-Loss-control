@@ -745,6 +745,35 @@ async function downloadPDF(opId) {
         ${iaBlock(chk.iaAnalysis)}`);
     };
 
+    // 9. Análisis de Viaje (VAR) — usa el snapshot calculado por el app (sin duplicar el motor)
+    S['var-175'] = () => {
+      const v = mods['var-175'] || {};
+      const r = v._snapshot;
+      if (!r) return '';
+      const n = x => x==null ? '—' : Math.round(x).toLocaleString('en-US');
+      const p = x => x==null ? '—' : (x>=0?'+':'')+Number(x).toFixed(3)+'%';
+      const u = r.unit || 'BBL';
+      const row = (l,val,pct,ref) => `<tr><td>${esc(l)}</td><td style="text-align:right">${n(val)}</td><td style="text-align:right">${pct!==undefined?p(pct):''}</td><td style="font-size:9px;color:#777">${esc(ref||'')}</td></tr>`;
+      const na = reason => `<tr><td colspan="4" style="color:#999;font-size:11px">Pendiente — ${esc(reason||'datos insuficientes')}</td></tr>`;
+      const th = `<thead><tr><th>Concepto</th><th style="text-align:right">${u}</th><th style="text-align:right">%</th><th>Ref</th></tr></thead>`;
+      return sec('9. Análisis de Viaje (VAR) — API MPMS 17.5', `
+        <table class="kv">
+          ${kv('Completitud', (r.completeness||0)+'%')}
+          ${kv('B/L GSV', n(r.bl?.gsv)+' '+u)}
+          ${kv('VEF carga', r.vefLoad!=null?Number(r.vefLoad).toFixed(5):'—')}
+          ${kv('VEF descarga', r.vefDisch!=null?Number(r.vefDisch).toFixed(5):'—')}
+        </table>
+        <h3>I. Comparación tierra-tierra (custody transfer)</h3>
+        <table>${th}<tbody>${r.secI?.available ? row('Δ GSV (Outturn − B/L)', r.secI.difGsv, r.secI.difPct,'2−1')+row('Δ NSV', r.secI.difNsv, undefined,'') : na(r.secI?.reason)}</tbody></table>
+        <h3>II. Buque/tierra en carga</h3>
+        <table>${th}<tbody>${r.secII?.available ? row('Buque cargado (C=A−B)', r.secII.loaded, undefined,'C')+row('Diferencia vs B/L', r.secII.dif, r.secII.difPct,'D')+(r.secII.theo!=null?row('Tierra teórica por VEF (H=C/G)', r.secII.theo, r.secII.theoPct,'H'):'') : na(r.secII?.reason)}</tbody></table>
+        <h3>III. Buque/tierra en descarga</h3>
+        <table>${th}<tbody>${r.secIII?.available ? row('Buque descargado (M=K−L)', r.secIII.discharged, undefined,'M')+row('Diferencia vs Outturn', r.secIII.dif, r.secIII.difPct,'N')+(r.secIII.theo!=null?row('Tierra teórica por VEF (R=M/Q)', r.secIII.theo, r.secIII.theoPct,'R'):'') : na(r.secIII?.reason)}</tbody></table>
+        <h3>IV. Buque en tránsito (carga → descarga)</h3>
+        <table>${th}<tbody>${r.secIV?.available ? row('Diferencia en tránsito (U=K−A)', r.secIV.transit, r.secIV.transitPct,'U')+(r.secIV.obqRob!=null?row('Diferencia OBQ/ROB (W=B−L)', r.secIV.obqRob, undefined,'W'):'') : na(r.secIV?.reason)}</tbody></table>
+        ${iaBlock(v.iaAnalysis)}`);
+    };
+
     // Ensamblar secciones en el orden del módulo (excepto reporte-evolutivo, va al final)
     const moduleSections = order
       .filter(k => k !== 'reporte-evolutivo' && S[k])
