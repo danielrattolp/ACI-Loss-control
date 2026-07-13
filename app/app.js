@@ -1979,10 +1979,10 @@ function buildModuleIAPanel(data, mod, ctx, ctxStr) {
   const included = data.iaIncludeInReport !== false;
 
   const includeToggle = analysis ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:${included?'#f0f7f0':'#fff8f0'};border-radius:6px;border:1px solid ${included?'#6aaa6a':'#e8a030'}">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:${included?'rgba(79,191,122,.1)':'rgba(212,165,74,.1)'};border-radius:6px;border:1px solid ${included?'#6aaa6a':'#e8a030'}">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;margin:0">
         <input type="checkbox" ${included?'checked':''} data-action="mod-ia-toggle-report" data-ctx="${ctxStr}" data-mod="${mod}"
-          style="width:15px;height:15px;accent-color:#1a2f5a;cursor:pointer">
+          style="width:15px;height:15px;accent-color:var(--ink);cursor:pointer">
         <span style="font-size:12px;font-weight:600;color:${included?'#2a6a2a':'#b06000'}">
           ${included ? '📊 Incluido en Reporte Evolutivo' : '⬜ No incluido en Reporte Evolutivo'}
         </span>
@@ -1991,7 +1991,7 @@ function buildModuleIAPanel(data, mod, ctx, ctxStr) {
     </div>` : '';
 
   return `
-  <div class="card mod-ia-panel" style="margin-top:20px;border-top:2px solid var(--amber);background:linear-gradient(135deg,#fffef8 0%,#f8faff 100%)">
+  <div class="card mod-ia-panel" style="margin-top:20px;border-top:2px solid var(--amber);background:linear-gradient(135deg,var(--panel2) 0%,var(--panel2) 100%)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${analysis?'10px':'0'}">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🤖</span>
@@ -2006,7 +2006,7 @@ function buildModuleIAPanel(data, mod, ctx, ctxStr) {
       </button>
     </div>
     ${analysis
-      ? `<div class="ia-response" style="margin-top:8px;white-space:pre-wrap;font-size:12px;line-height:1.65;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px 14px">${analysis}</div>${includeToggle}`
+      ? `<div class="ia-response" style="margin-top:8px;white-space:pre-wrap;font-size:12px;line-height:1.65;color:var(--ink);background:var(--white);border:1px solid var(--line);border-radius:6px;padding:12px 14px">${analysis}</div>${includeToggle}`
       : `<div style="font-size:12px;color:var(--muted);padding-top:6px">Haga clic en "Analizar Módulo" para obtener comentarios técnicos del inspector IA basados en los datos ingresados.</div>`}
   </div>`;
 }
@@ -2591,11 +2591,11 @@ function buildVEFTableSection(vefData, ctx, sub) {
     const seq = r.isRejected ? '' : (ordinals[ord++] || `${ord}th`);
     const ratioColor = r.ratio === null ? '' : (Math.abs(r.ratio - 1) > 0.02 ? 'color:#c62828;font-weight:700' : '');
     const qualBadge = r.qualifying
-      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">Y</span>'
+      ? '<span style="background:rgba(79,191,122,.12);color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">Y</span>'
       : '<span style="background:var(--line2);color:var(--muted);padding:1px 6px;border-radius:10px;font-size:10px">N</span>';
     const rejBadge = r.isRejected
-      ? `<span style="background:#ffebee;color:#c62828;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">YES${r.cat.autoReject||r.grossErr?'*':''}</span>`
-      : '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px">No</span>';
+      ? `<span style="background:rgba(228,106,99,.12);color:#c62828;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">YES${r.cat.autoReject||r.grossErr?'*':''}</span>`
+      : '<span style="background:rgba(79,191,122,.12);color:#2e7d32;padding:1px 6px;border-radius:10px;font-size:10px">No</span>';
     const catOpts = Object.entries(VEF_CATS).map(([k,c]) =>
       `<option value="${k}"${v.category===k?' selected':''}>${c.label}</option>`).join('');
     return `
@@ -3074,7 +3074,7 @@ function buildVEFComparativo(d, ctx) {
           <div style="font-size:10px;color:var(--muted);margin-top:2px">${arriboStats?.qualCount||0} viajes cal.</div>
         </div>
         ${diff !== null ? `
-        <div style="text-align:center;padding:16px;border-radius:8px;border:1px solid ${diff<0?'#e57373':'#66bb6a'};background:${diff<0?'#fff5f5':'#f5fff5'}">
+        <div style="text-align:center;padding:16px;border-radius:8px;border:1px solid ${diff<0?'#e57373':'#66bb6a'};background:${diff<0?'rgba(228,106,99,.12)':'rgba(79,191,122,.1)'}">
           <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase">Δ VEF</div>
           <div style="font-size:24px;font-weight:800;color:${diff<0?'#c62828':'#2e7d32'}">${diff>0?'+':''}${diff.toFixed(5)}</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px">${diff>0?'+':''}${((diff/vefO)*100).toFixed(3)}%</div>
@@ -3810,7 +3810,7 @@ function buildTermometros(d, ctx) {
     <div class="card" style="border-color:${vsOK?'#66bb6a':'#e57373'}">
       <div class="card-title">Resultado API MPMS 7.1</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="text-align:center;padding:16px;border-radius:8px;background:${vsOK?'#f5fff5':'#fff5f5'}">
+        <div style="text-align:center;padding:16px;border-radius:8px;background:${vsOK?'rgba(79,191,122,.1)':'rgba(228,106,99,.12)'}">
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Diferencia Buque vs Surveyor</div>
           <div style="font-size:28px;font-weight:700;color:${vsOK?'#2e7d32':'#c62828'}">${diffVS}°F</div>
           <div style="font-size:12px;margin-top:6px;color:${vsOK?'#2e7d32':'#c62828'};font-weight:600">
@@ -3946,7 +3946,7 @@ function buildReporteEvolutivo(op, ctx) {
           <div style="font-size:11px;color:var(--muted)">VEF Arribo</div>
           <div style="font-size:22px;font-weight:700">${vefA?.toFixed(4)||'—'}</div>
         </div>
-        <div style="text-align:center;padding:12px;border-radius:8px;background:${(vefO&&vefA&&vefA-vefO<0)?'#fff5f5':'#f5fff5'}">
+        <div style="text-align:center;padding:12px;border-radius:8px;background:${(vefO&&vefA&&vefA-vefO<0)?'rgba(228,106,99,.12)':'rgba(79,191,122,.1)'}">
           <div style="font-size:11px;color:var(--muted)">Δ VEF</div>
           <div style="font-size:22px;font-weight:700;color:${(vefO&&vefA)?(vefA-vefO<0?'#c62828':'#2e7d32'):'var(--ink)'}">
             ${(vefO&&vefA)?((vefA-vefO>0?'+':'')+(vefA-vefO).toFixed(5)):'—'}
@@ -4025,7 +4025,7 @@ function showPDFSelector(opId) {
   const rows = toggleable.map(k => {
     const label = modLabels[k] || (MODULE_META[k]?.icon||'') + ' ' + (MODULE_META[k]?.label||k);
     return `<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;cursor:pointer">
-      <input type="checkbox" value="${k}" checked style="width:16px;height:16px;accent-color:#1a2f5a">
+      <input type="checkbox" value="${k}" checked style="width:16px;height:16px;accent-color:var(--ink)">
       <span style="font-size:13px">${label}</span>
     </label>`;
   }).join('');
@@ -4034,14 +4034,14 @@ function showPDFSelector(opId) {
   overlay.id = 'pdf-selector-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div style="font-size:18px;font-weight:800;color:#1a2f5a;margin-bottom:4px">📄 Configurar PDF</div>
+    <div style="background:var(--white);border-radius:12px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:18px;font-weight:800;color:var(--ink);margin-bottom:4px">📄 Configurar PDF</div>
       <div style="font-size:12px;color:#888;margin-bottom:16px">Selecciona los módulos a incluir. El Reporte Evolutivo siempre se agrega al final.</div>
       <div style="margin-bottom:12px">${rows}</div>
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f0f4ff;border-radius:8px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--panel2);border-radius:8px;margin-bottom:20px">
         <span style="font-size:16px">📊</span>
-        <span style="font-size:13px;font-weight:600;color:#1a2f5a">Reporte Evolutivo — siempre incluido al final</span>
-        <span style="margin-left:auto;font-size:18px;color:#1a2f5a">✓</span>
+        <span style="font-size:13px;font-weight:600;color:var(--ink)">Reporte Evolutivo — siempre incluido al final</span>
+        <span style="margin-left:auto;font-size:18px;color:var(--ink)">✓</span>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="btn btn-ghost" data-action="pdf-cancel" style="padding:8px 20px">Cancelar</button>
@@ -4136,7 +4136,7 @@ function printFullReport(opId, selectedMods) {
         </tr>`;
       }).join('')
     )}
-    <p style="font-size:9px;color:#666">* Rechazado automáticamente (BUQUE_CON_VEF / Gross Error / Dique / Modif. Tabla)</p>` : ''}
+    <p style="font-size:9px;color:var(--muted)">* Rechazado automáticamente (BUQUE_CON_VEF / Gross Error / Dique / Modif. Tabla)</p>` : ''}
     ${(ullO.tanks||[]).some(t=>t.measured) ? `<h3>Ullage de Origen — por Tanque</h3>
     ${tbl(['Tanque','Alt.Ref.(m)','Alt.Med.(m)','API @60°F','Temp(°C)','VCF','GSV(BBL)','TCV(BBL)'],
       ullO.tanks.filter(t=>t.measured).map(t=>`<tr>
@@ -4284,7 +4284,7 @@ function printFullReport(opId, selectedMods) {
             <td style="font-family:monospace;text-align:center;font-weight:600">${e.initial||'—'}</td>
             <td style="font-family:monospace;text-align:center;font-weight:600">${e.final||'—'}</td>
             <td>${e.event||''}</td>
-            <td style="color:#1a2f5a;font-style:italic">${e.comment||''}</td>
+            <td style="color:var(--ink);font-style:italic">${e.comment||''}</td>
           </tr>`;
         } else {
           // legacy format
@@ -4294,7 +4294,7 @@ function printFullReport(opId, selectedMods) {
             <td style="font-family:monospace;text-align:center;font-weight:600">${dt ? String(dt.getHours()).padStart(2,'0')+String(dt.getMinutes()).padStart(2,'0') : '—'}</td>
             <td style="font-family:monospace;text-align:center">—</td>
             <td>${e.desc||''}</td>
-            <td style="color:#1a2f5a;font-style:italic">${e.rate ? 'Caudal: '+e.rate+' m³/h' : ''}</td>
+            <td style="color:var(--ink);font-style:italic">${e.rate ? 'Caudal: '+e.rate+' m³/h' : ''}</td>
           </tr>`;
         }
       }).join('')
@@ -4426,7 +4426,7 @@ function printFullReport(opId, selectedMods) {
               </div>` : '';
             return `
             <div style="border:1px solid #ddd;border-radius:8px;padding:12px;break-inside:avoid">
-              <div style="font-size:13px;font-weight:700;color:#1a2f5a;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px">Tanque ${tName}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:4px">Tanque ${tName}</div>
               ${photoBlock(slots.producto,'🛢 Medición Producto','#2563eb')}
               ${photoBlock(slots.agua,'💧 Medición Agua','#0891b2')}
             </div>`;
@@ -4443,36 +4443,36 @@ function printFullReport(opId, selectedMods) {
   // ── CSS + ASSEMBLE ──────────────────────────────────────────────────────
   const css = `
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;font-size:11px;color:#111;background:#fff;line-height:1.4}
+    body{font-family:Arial,sans-serif;font-size:11px;color:var(--ink);background:var(--white);line-height:1.4}
     .cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;border:3px solid #1a2f5a;margin:20px}
-    .cover-logo{font-size:36px;font-weight:900;color:#1a2f5a;letter-spacing:2px;margin-bottom:8px}
+    .cover-logo{font-size:36px;font-weight:900;color:var(--ink);letter-spacing:2px;margin-bottom:8px}
     .cover-logo span{color:#c8a415}
-    .cover-title{font-size:18px;font-weight:700;color:#444;margin:20px 0 4px;text-transform:uppercase;letter-spacing:3px}
-    .cover-code{font-size:32px;font-weight:900;color:#1a2f5a;margin:8px 0 32px}
+    .cover-title{font-size:18px;font-weight:700;color:var(--muted);margin:20px 0 4px;text-transform:uppercase;letter-spacing:3px}
+    .cover-code{font-size:32px;font-weight:900;color:var(--ink);margin:8px 0 32px}
     .cover-tbl{margin:0 auto;border-collapse:collapse;min-width:400px}
     .cover-tbl td{padding:6px 16px;border-bottom:1px solid #ddd;text-align:left}
-    .cover-tbl td:first-child{font-weight:700;color:#555;width:160px}
+    .cover-tbl td:first-child{font-weight:700;color:var(--muted);width:160px}
     .cover-footer{margin-top:40px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:12px}
     .page-break{page-break-after:always;height:0}
     .section{padding:16px 24px;border-bottom:2px solid #e8e8e8;margin-bottom:8px}
-    h2{font-size:14px;font-weight:700;color:#1a2f5a;border-bottom:2px solid #1a2f5a;padding-bottom:4px;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
-    h3{font-size:12px;font-weight:700;color:#333;margin:14px 0 6px;border-left:3px solid #c8a415;padding-left:8px}
-    h4{font-size:11px;font-weight:700;color:#555;margin:10px 0 4px}
+    h2{font-size:14px;font-weight:700;color:var(--ink);border-bottom:2px solid #1a2f5a;padding-bottom:4px;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+    h3{font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px;border-left:3px solid #c8a415;padding-left:8px}
+    h4{font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px}
     table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10px}
     th{background:#1a2f5a;color:#fff;padding:5px 8px;text-align:left;font-weight:600;font-size:9px}
     td{padding:4px 8px;border-bottom:1px solid #eee;vertical-align:top}
-    tr:nth-child(even) td{background:#f9f9f9}
+    tr:nth-child(even) td{background:var(--panel2)}
     tr.rejected td{color:#999;text-decoration:line-through}
-    tr.qualifying td{background:#f0fff0}
-    tr.warning td{background:#fff8e8}
-    tr.ok td{background:#f0fff0}
+    tr.qualifying td{background:rgba(79,191,122,.1)}
+    tr.warning td{background:rgba(212,165,74,.1)}
+    tr.ok td{background:rgba(79,191,122,.1)}
     table.kv td{border:none;padding:3px 8px}
-    table.kv td.label{font-weight:700;color:#555;width:200px}
-    .ia-block{background:#f8f9ff;border-left:3px solid #1a2f5a;padding:10px 14px;font-size:10px;line-height:1.6;white-space:pre-wrap;margin-bottom:10px}
-    .conclusion{background:#fffbf0;border:1px solid #c8a415;padding:12px 16px;font-size:11px;line-height:1.7;border-radius:4px}
-    .note{font-size:9px;color:#666;font-style:italic;margin:4px 0 8px;padding:4px 8px;background:#f5f5f5;border-radius:2px}
+    table.kv td.label{font-weight:700;color:var(--muted);width:200px}
+    .ia-block{background:var(--panel2);border-left:3px solid #1a2f5a;padding:10px 14px;font-size:10px;line-height:1.6;white-space:pre-wrap;margin-bottom:10px}
+    .conclusion{background:rgba(212,165,74,.1);border:1px solid #c8a415;padding:12px 16px;font-size:11px;line-height:1.7;border-radius:4px}
+    .note{font-size:9px;color:var(--muted);font-style:italic;margin:4px 0 8px;padding:4px 8px;background:var(--panel2);border-radius:2px}
     .signatures{display:flex;gap:40px;margin-top:40px;padding-top:20px;border-top:1px solid #ddd}
-    .sig-box{flex:1;text-align:center;font-size:10px;color:#555}
+    .sig-box{flex:1;text-align:center;font-size:10px;color:var(--muted)}
     .sig-line{border-top:1px solid #333;margin:0 20px 6px}
     @page{size:letter;margin:14mm 12mm}
     @media print{
@@ -4828,7 +4828,7 @@ function buildKeyMeeting(d, ctx) {
               <button class="btn-na-toggle ${isNA?'active':''}"
                 data-action="km-toggle-na" data-ctx="${ctx}" data-qid="${q.id}"
                 title="${isNA?'Habilitar pregunta':'Marcar como No Aplica'}"
-                style="flex-shrink:0;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${isNA?'#c0392b':'var(--line)'};background:${isNA?'#fdecea':'var(--white)'};color:${isNA?'#c0392b':'var(--muted)'};cursor:pointer;white-space:nowrap">
+                style="flex-shrink:0;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${isNA?'#c0392b':'var(--line)'};background:${isNA?'rgba(228,106,99,.12)':'var(--white)'};color:${isNA?'#c0392b':'var(--muted)'};cursor:pointer;white-space:nowrap">
                 ${isNA?'✕ No Aplica':'N/A'}
               </button>
             </div>
@@ -4957,13 +4957,13 @@ function buildUllage(d, mod, ctx) {
               <th style="font-size:11px">TOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m)</span></th>
               <th style="font-size:11px">FW<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
-              <th style="font-size:11px;background:#e8f4f8">GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px;background:rgba(67,184,166,.1)">GOV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#d4ecf7">GOV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
               <th style="font-size:11px">Temp<br><span style="font-weight:400;color:var(--muted)">(°${tempUnit})</span></th>
               <th style="font-size:11px">API<br><span style="font-weight:400;color:var(--muted)">@60°F</span></th>
               <th style="font-size:11px">BS&W<br><span style="font-weight:400;color:var(--muted)">(%)</span></th>
-              <th style="font-size:11px;background:#e8f4ea">VCF<br><span style="font-weight:400;color:var(--muted)">Tabla ${vcfTabla}</span></th>
-              <th style="font-size:11px;background:#e8f4ea">GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
+              <th style="font-size:11px;background:rgba(79,191,122,.12)">VCF<br><span style="font-weight:400;color:var(--muted)">Tabla ${vcfTabla}</span></th>
+              <th style="font-size:11px;background:rgba(79,191,122,.12)">GSV<br><span style="font-weight:400;color:var(--muted)">(m³)</span></th>
               <th style="font-size:11px;background:#d4edd4">GSV<br><span style="font-weight:400;color:var(--muted)">(BBL)</span></th>
             </tr>
           </thead>
@@ -4986,13 +4986,13 @@ function buildUllage(d, mod, ctx) {
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.tov||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="tov"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fwM||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fwM"></td>
                 <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}" placeholder="0.000" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="fw"></td>
-                <td style="background:#e8f4f8"><span id="gov-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gov>0?gov.toFixed(3):'—'}</span></td>
+                <td style="background:rgba(67,184,166,.1)"><span id="gov-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gov>0?gov.toFixed(3):'—'}</span></td>
                 <td style="background:#d4ecf7"><span id="govbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--sea)">${gov>0?govBbl.toFixed(2):'—'}</span></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="temp"></td>
                 <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="api"></td>
                 <td><input class="tbl-input" type="number" step="0.01" value="${t.bsw||''}" placeholder="0.00" data-action="save-tank" data-ctx="${ctx}" data-tank="${i}" data-field="bsw"></td>
-                <td style="background:#e8f4ea"><span id="vcf-${i}" class="calc-cell" style="display:block;min-width:78px;text-align:right;padding:3px 6px;font-size:11px;font-family:monospace;color:var(--green)">${vcf?vcf.toFixed(6):'—'}</span></td>
-                <td style="background:#e8f4ea"><span id="gsv-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gsv>0?gsv.toFixed(3):'—'}</span></td>
+                <td style="background:rgba(79,191,122,.12)"><span id="vcf-${i}" class="calc-cell" style="display:block;min-width:78px;text-align:right;padding:3px 6px;font-size:11px;font-family:monospace;color:var(--green)">${vcf?vcf.toFixed(6):'—'}</span></td>
+                <td style="background:rgba(79,191,122,.12)"><span id="gsv-${i}" class="calc-cell" style="display:block;min-width:72px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace">${gsv>0?gsv.toFixed(3):'—'}</span></td>
                 <td style="background:#d4edd4"><span id="gsvbbl-${i}" class="calc-cell" style="display:block;min-width:80px;text-align:right;padding:3px 6px;font-size:12px;font-family:monospace;font-weight:700;color:var(--green)">${gsv>0?gsvBbl.toFixed(2):'—'}</span></td>
               </tr>`;}).join('')}
             <tr class="total-row">
@@ -5001,11 +5001,11 @@ function buildUllage(d, mod, ctx) {
               <td><span id="total-tov">${fmt(totalTOV)}</span></td>
               <td></td>
               <td><span id="total-fw">${fmt(totalFW)}</span></td>
-              <td style="background:#e8f4f8"><span id="total-gov">${fmt(totalGOV)}</span></td>
+              <td style="background:rgba(67,184,166,.1)"><span id="total-gov">${fmt(totalGOV)}</span></td>
               <td style="background:#d4ecf7;font-weight:700;color:var(--sea)"><span id="total-govbbl">${totalGOV>0?fmt(totalGOV*6.289812):''}</span></td>
               <td></td><td></td><td></td>
-              <td style="background:#e8f4ea"></td>
-              <td style="background:#e8f4ea"><span id="total-gsv">${fmt(totalGSV)}</span></td>
+              <td style="background:rgba(79,191,122,.12)"></td>
+              <td style="background:rgba(79,191,122,.12)"><span id="total-gsv">${fmt(totalGSV)}</span></td>
               <td style="background:#d4edd4;font-weight:700;color:var(--green)"><span id="total-gsvbbl">${totalGSV>0?fmt(totalGSV*6.289812):''}</span></td>
             </tr>
           </tbody>
@@ -5085,7 +5085,7 @@ function buildUllage(d, mod, ctx) {
           </thead>
           <tbody>
             <!-- Bloque GOV -->
-            <tr style="background:#f0f2f4">
+            <tr style="background:var(--panel2)">
               <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Volumen Observado — API MPMS 12.1</td>
             </tr>
             <tr>
@@ -5108,28 +5108,28 @@ function buildUllage(d, mod, ctx) {
             </tr>
 
             <!-- Factores de conversión -->
-            <tr style="background:#f0f2f4">
+            <tr style="background:var(--panel2)">
               <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Factores de Corrección — API MPMS 11.1 (Tabla 6A Crudo)</td>
             </tr>
-            <tr style="background:#eaf4f8">
+            <tr style="background:rgba(67,184,166,.1)">
               <td style="font-weight:700;color:var(--sea)">Densidad @15°C (ρ₁₅)</td>
               <td class="calc-cell" style="color:var(--sea)">${q ? fmt(q.rho15, 4) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">kg/m³</td>
               <td style="color:var(--muted);font-size:11px">141.5 / (API + 131.5) × 999.016</td>
             </tr>
-            <tr style="background:#eaf4f8">
+            <tr style="background:rgba(67,184,166,.1)">
               <td style="font-weight:700;color:var(--sea)">CTL Tabla 11 / VCF @60°F (15.556°C)</td>
               <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf60F.toFixed(7) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">—</td>
               <td style="color:var(--muted);font-size:11px">API MPMS 11.1 Tabla 6A — ref. 60°F</td>
             </tr>
-            <tr style="background:#eaf4f8">
+            <tr style="background:rgba(67,184,166,.1)">
               <td style="font-weight:700;color:var(--sea)">CTL Tabla 13 / VCF @15°C</td>
               <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf15C.toFixed(7) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">—</td>
               <td style="color:var(--muted);font-size:11px">API MPMS 11.1 Tabla 6A — ref. 15°C</td>
             </tr>
-            <tr style="background:#eaf4f8">
+            <tr style="background:rgba(67,184,166,.1)">
               <td style="font-weight:700;color:var(--sea)">VCF @20°C</td>
               <td class="calc-cell" style="color:var(--sea);font-family:monospace">${q ? q.vcf20C.toFixed(7) : '—'}</td>
               <td style="color:var(--muted);font-size:11px">—</td>
@@ -5137,7 +5137,7 @@ function buildUllage(d, mod, ctx) {
             </tr>
 
             <!-- GSV -->
-            <tr style="background:#f0f2f4">
+            <tr style="background:var(--panel2)">
               <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar (GSV / NSV)</td>
             </tr>
             <tr>
@@ -5178,7 +5178,7 @@ function buildUllage(d, mod, ctx) {
             </tr>
 
             <!-- Masa -->
-            <tr style="background:#f0f2f4">
+            <tr style="background:var(--panel2)">
               <td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:5px 10px;text-transform:uppercase;letter-spacing:.06em">Masa — API MPMS 11.1 / ASTM D1250</td>
             </tr>
             <tr style="background:var(--panel)">
@@ -5325,14 +5325,14 @@ function buildUllageDelta(d, mod, ctx, finTanks, vcfTabla) {
           </tr>
         </thead>
         <tbody>
-          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Observado</td></tr>
+          <tr style="background:var(--panel2)"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Observado</td></tr>
           ${row('GOV (m³ observado)', ini.totalGOV||0, fin.totalGOV||0, dGOV)}
-          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar — GSV</td></tr>
+          <tr style="background:var(--panel2)"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Volumen Estándar — GSV</td></tr>
           ${row('GSV @60°F (m³)', ini.q?.gsv60F, fin.q?.gsv60F, dGSV60, 3, true)}
           ${row('GSV @60°F (BBL)', ini.q?.bbl60F, fin.q?.bbl60F, dBBL, 2, true)}
-          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Net Standard Volume — NSV @60°F</td></tr>
+          <tr style="background:var(--panel2)"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Net Standard Volume — NSV @60°F</td></tr>
           ${row('NSV @60°F (m³) — neto BS&W', ini.q?.nsv60F, fin.q?.nsv60F, dNSV, 3, true)}
-          <tr style="background:#f5f5f5"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Masa</td></tr>
+          <tr style="background:var(--panel2)"><td colspan="4" style="font-size:10px;font-weight:700;color:var(--muted);padding:4px 12px;text-transform:uppercase;letter-spacing:.06em">Masa</td></tr>
           ${row('TM Aire (MT)', ini.q?.tmAir, fin.q?.tmAir, dTM, 3)}
         </tbody>
       </table>
@@ -5644,7 +5644,7 @@ function buildChecklist(d, mod, ctx) {
       <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--green);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">C</span> <b>Cumple</b> (2 pts)</span>
       <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--amber);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">P</span> <b>Parcial</b> (1 pt)</span>
       <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:var(--red);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px">N</span> <b>No cumple</b> (0 pts)</span>
-      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#ccc;border:2px solid #aaa;display:inline-flex;align-items:center;justify-content:center;color:#666;font-weight:700;font-size:9px">N/A</span> No aplica</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:#ccc;border:2px solid #aaa;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700;font-size:9px">N/A</span> No aplica</span>
       <span style="color:var(--muted);font-size:11px">| ${cCount} C · ${pCount} P · ${nCount} N · ${naCount} N/A | ▶ Clic en la pregunta para ver explicación</span>
     </div>
 
@@ -5671,7 +5671,7 @@ function buildChecklist(d, mod, ctx) {
           </div>
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead><tr style="background:#f0f2f4">
+          <thead><tr style="background:var(--panel2)">
             <th style="width:32px;text-align:center;padding:7px 8px;color:var(--muted);font-size:10px">#</th>
             <th style="text-align:left;padding:7px 8px;color:var(--muted);font-size:10px">Pregunta de Auditoría — clic para ver explicación ▼</th>
             <th style="width:40px;text-align:center;padding:7px 4px;color:var(--green);font-size:10px">C</th>
@@ -5682,7 +5682,7 @@ function buildChecklist(d, mod, ctx) {
           </tr></thead>
           <tbody>
             ${sec.items.map((item, ii) => {
-              const rowBg = item.val === 'c' ? '#f0faf1' : item.val === 'n' ? '#fdf2f2' : item.val === 'p' ? '#fffcf0' : '';
+              const rowBg = item.val === 'c' ? 'rgba(79,191,122,.1)' : item.val === 'n' ? 'rgba(228,106,99,.12)' : item.val === 'p' ? 'rgba(212,165,74,.1)' : '';
               const circleBtn = (val, color, label) => {
                 const sel = item.val === val;
                 return `<td style="text-align:center;padding:8px 4px;background:${rowBg}">
@@ -5694,14 +5694,14 @@ function buildChecklist(d, mod, ctx) {
                 <td style="text-align:center;color:var(--muted);font-size:11px;padding:10px 8px;background:${rowBg};vertical-align:top">${ii+1}</td>
                 <td style="padding:10px 8px;background:${rowBg};vertical-align:top">
                   <div style="color:var(--ink);cursor:pointer;line-height:1.5" data-action="chk-toggle-pq" data-si="${si}" data-ii="${ii}">»&nbsp;${item.text}</div>
-                  ${item.pq ? `<div id="pq-${si}-${ii}" style="display:none;margin-top:8px;padding:10px 12px;background:#fff9ee;border-left:3px solid var(--amber);border-radius:0 var(--r) var(--r) 0;font-size:11px;color:var(--ink);line-height:1.65">${item.pq}</div>` : ''}
+                  ${item.pq ? `<div id="pq-${si}-${ii}" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(212,165,74,.1);border-left:3px solid var(--amber);border-radius:0 var(--r) var(--r) 0;font-size:11px;color:var(--ink);line-height:1.65">${item.pq}</div>` : ''}
                 </td>
                 ${circleBtn('c', 'var(--green)', 'C')}
                 ${circleBtn('p', 'var(--amber)', 'P')}
                 ${circleBtn('n', 'var(--red)',   'N')}
                 ${circleBtn('na','#9ca3af',      '—')}
                 <td style="padding:8px;background:${rowBg};vertical-align:top">
-                  <input style="width:100%;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font-size:11px;background:#fff" placeholder="…" value="${escHtml(item.comment||'')}" data-action="chk-comment" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}">
+                  <input style="width:100%;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font-size:11px;background:var(--white)" placeholder="…" value="${escHtml(item.comment||'')}" data-action="chk-comment" data-ctx="${ctx}" data-si="${si}" data-ii="${ii}">
                 </td>
               </tr>`;
             }).join('')}
