@@ -811,30 +811,41 @@ function buildSidebar(ops, currentOp) {
 // ===== BASE DE CONOCIMIENTO NORMATIVA =====
 // Índice curado de normas (título + alcance, sin texto con copyright).
 // Fundamenta las citas del Consultor y sirve de referencia al inspector.
+// Ediciones = las que posee ACI en su biblioteca licenciada (verificado).
 const KNOWLEDGE_BASE = [
-  { org:'API MPMS', color:'#1a2f5a', items:[
-    { ref:'Cap. 7',     title:'Temperature Determination', scope:'Métodos y equipos para medir temperatura del cargo; tolerancia de verificación entre termómetros.' },
-    { ref:'Cap. 8',     title:'Sampling', scope:'Muestreo manual y automático; representatividad de la muestra.' },
-    { ref:'Cap. 11.1',  title:'Volume Correction Factors (VCF)', scope:'Corrección de volumen por temperatura; tablas 6A/6B/6C/6D; conversión GOV→GSV→NSV.' },
-    { ref:'Cap. 12',    title:'Calculation of Petroleum Quantities', scope:'Procedimientos de cálculo de cantidades, redondeo y secuencia.' },
-    { ref:'Cap. 13',    title:'Statistical Aspects of Measuring & Sampling', scope:'Incertidumbre de medición; base estadística; alineado con ISO GUM.' },
-    { ref:'Cap. 17.1',  title:'Marine Measurement — Guidelines', scope:'Buenas prácticas de medición marina; pre-transfer conference.' },
-    { ref:'Cap. 17.2',  title:'Ullage/Innage & Trim/List', scope:'Medición de ullage, correcciones por trim y escora.' },
-    { ref:'Cap. 17.5',  title:'Voyage Analysis (VAR / VSRR)', scope:'Conciliación de cantidades del viaje; comparaciones tierra/buque; reconciliación de pérdida por causa.' },
-    { ref:'Cap. 17.9',  title:'Vessel Experience Factor (VEF)', scope:'Cálculo del VEF; criterios de viajes calificantes; bandas de aceptación.' },
-    { ref:'Cap. 17.11', title:'Ship-to-Ship (STS) Measurement', scope:'Medición en operaciones de alije; equipos cerrados.' },
-    { ref:'Cap. 18',    title:'Custody Transfer', scope:'Transferencia de custodia; documentación y responsabilidades.' },
+  { org:'API MPMS — Marina (Cap. 17)', color:'#1a2f5a', items:[
+    { ref:'17.1',   title:'Guidelines for Marine Inspection', ed:'7ª Ed., Feb 2022', scope:'Buenas prácticas de inspección marina; pre-transfer conference; roles.' },
+    { ref:'17.2',   title:'Measurement of Cargoes On Board Tank Vessels', ed:'Ene 2023', scope:'Ullage/innage; correcciones por trim y escora; medición a bordo.' },
+    { ref:'17.3',   title:'Identification of Free Waters', ed:'Reaf. Jul 2021', scope:'Origen del agua libre asociada a movimientos de cargo.' },
+    { ref:'17.4',   title:'Quantification of Small Volumes (OBQ/ROB)', ed:'Sep 2016', scope:'OBQ/ROB; fórmula de cuña (wedge) para tanques parcialmente llenos.' },
+    { ref:'17.5',   title:'Voyage Analysis & Reconciliation (VAR/VSRR)', ed:'5ª Ed., Jul 2025', scope:'Conciliación de cantidades del viaje; comparaciones tierra/buque; reconciliación de pérdida por causa.' },
+    { ref:'17.6',   title:'Fullness of Pipelines', ed:'Sep 2022', scope:'Verificación de líneas llenas entre buque y tierra.' },
+    { ref:'17.9',   title:'Vessel Experience Factor (VEF)', ed:'Jul 2019', scope:'Cálculo del VEF; viajes calificantes; bandas de aceptación.' },
+    { ref:'17.11',  title:'Closed & Restricted Equipment (EI HM 52)', ed:'3ª Ed., Ene 2024', scope:'Medición y muestreo con equipos cerrados; STS.' },
+    { ref:'17.14.1',title:'Bulk Cargoes by Draft Survey (Ocean)', ed:'Oct 2019', scope:'Medición por calado en graneleros — base del futuro módulo Draft Survey.' },
   ]},
-  { org:'ASTM', color:'#2e7d32', items:[
-    { ref:'D1298 / D287', title:'Density / API Gravity', scope:'Determinación de densidad y gravedad API por hidrómetro.' },
-    { ref:'D4057',        title:'Manual Sampling', scope:'Muestreo manual de petróleo y productos.' },
-    { ref:'D4177',        title:'Automatic Sampling', scope:'Muestreo automático en línea.' },
-    { ref:'D4007',        title:'Water & Sediment (S&W)', scope:'Determinación de agua y sedimento por centrifugación.' },
+  { org:'API MPMS — Cálculo, VCF e incertidumbre', color:'#2e7d32', items:[
+    { ref:'11.1',   title:'Temperature & Pressure VCF', ed:'Addendum 2, May 2019', scope:'Corrección de volumen; tablas 6A/6B/6C/6D; conversión GOV→GSV→NSV — base del motor termodinámico.' },
+    { ref:'11.2.4', title:'Temperature Correction NGL/LPG', ed:'2ª Ed., Jun 2019', scope:'Tablas 23E/24E/53E/54E para NGL y LPG.' },
+    { ref:'12.1.1', title:'Static Petroleum Quantities (Tanks & Vessels)', ed:'Feb 2019', scope:'Procedimientos y secuencia de cálculo de cantidades estáticas; redondeo.' },
+    { ref:'13.1',   title:'Statistical Aspects of Measuring & Sampling', ed:'Jun 1985', scope:'Base estadística de medición y muestreo.' },
+    { ref:'13.3',   title:'Measurement Uncertainty', ed:'Reaf. Dic 2022', scope:'Incertidumbre de medición; alineado con ISO GUM — base del motor de incertidumbre.' },
   ]},
-  { org:'ISO / OCIMF / ISGOTT', color:'#b8901f', items:[
-    { ref:'ISO GUM',   title:'Guide to Uncertainty in Measurement', scope:'Marco de propagación y expresión de incertidumbre; base del motor de incertidumbre.' },
-    { ref:'ISGOTT',    title:'Ship/Shore Safety', scope:'Seguridad en la interfaz buque-terminal; checklist ship-shore.' },
-    { ref:'OCIMF',     title:'Guidelines marinos', scope:'Buenas prácticas de la industria para operaciones marinas.' },
+  { org:'API MPMS — Temperatura, muestreo y calidad', color:'#b8901f', items:[
+    { ref:'7',      title:'Temperature Determination', ed:'Feb 2012', scope:'Métodos de temperatura; tolerancia de verificación entre equipos.' },
+    { ref:'7.2',    title:'Portable Electronic Thermometers', ed:'Reaf. Oct 2023', scope:'Termómetros electrónicos portátiles.' },
+    { ref:'8.1',    title:'Manual Sampling', ed:'Sep 2022', scope:'Muestreo manual de petróleo y productos.' },
+    { ref:'8.2',    title:'Automatic Sampling', ed:'Sep 2022', scope:'Muestreo automático en línea.' },
+    { ref:'9.1',    title:'Density / API Gravity (Hydrometer)', ed:'4ª Ed., May 2025', scope:'Densidad y gravedad API por hidrómetro.' },
+    { ref:'10.3',   title:'Water & Sediment by Centrifuge', ed:'Dic 2022', scope:'Determinación de agua y sedimento (S&W) por centrifugación.' },
+    { ref:'10.9',   title:'Water by Coulometric Karl Fischer', ed:'Jun 2018', scope:'Agua en crudos por Karl Fischer coulométrico.' },
+  ]},
+  { org:'API MPMS — Aforo, custodia y pérdidas', color:'#7a4fb5', items:[
+    { ref:'2.8A',   title:'Calibration of Tanks on Ships/Barges', ed:'Reaf. Nov 2023', scope:'Calibración de tanques de buques y barcazas.' },
+    { ref:'3.1A',   title:'Manual Gauging', ed:'Errata Ene 2021', scope:'Aforo manual de petróleo y productos.' },
+    { ref:'18.1',   title:'Custody Transfer from Lease Tanks (Truck)', ed:'Reaf. Sep 2023', scope:'Transferencia de custodia desde tanques.' },
+    { ref:'19.5',   title:'Atmospheric Emissions — Marine/Land Transfer', ed:'2ª Ed., Jul 2023', scope:'Pérdidas evaporativas en operaciones de transferencia.' },
+    { ref:'23.1',   title:'Reconciliation of Pipeline Quantities', ed:'Jun 2016', scope:'Reconciliación de cantidades en ductos.' },
   ]},
 ];
 

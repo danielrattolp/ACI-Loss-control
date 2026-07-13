@@ -24,10 +24,10 @@ NORMAS CLAVE:
 - Cap. 17.11: Ship-to-Ship operations
 - Cap. 18: Custody Transfer
 
-- Cap. 13: Statistical Aspects of Measuring & Sampling (incertidumbre, GUM)
-- Cap. 17.5: Voyage Analysis (VAR / VSRR)
-- Cap. 7: Temperature Determination
-- ASTM D1298/D287 (densidad/API), D4057/D4177 (muestreo), D4007 (S&W)
+- Cap. 13.3: Measurement Uncertainty (incertidumbre; alineado con ISO GUM)
+- Cap. 17.5: Voyage Analysis & Reconciliation — 5ª Edición, julio 2025 (VAR/VSRR)
+- Cap. 17.4: OBQ/ROB (fórmula de cuña)
+- Cap. 7: Temperature Determination · Cap. 9.1: Densidad/API · Cap. 10.3: S&W
 
 REGLAS DE CITACIÓN Y TRAZABILIDAD (obligatorias):
 1. Cita SIEMPRE el capítulo y sección específicos (ej: "API MPMS 17.5 §4.3", "Cap. 11.1").
