@@ -77,7 +77,7 @@ const MODULE_LIBRARY = [
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
-const TANK_NAMES = ['1P','1S','2P','2S','3P','3S','4P','4S','5P','5S','SLP','SLS','WBP','WBS'];
+const TANK_NAMES = ['1P','1S','2P','2S','3P','3S','4P','4S','5P','5S','6P','6S','SLP','SLS'];
 
 const PRODUCTS = [
   { id: 'crude', label: 'Crudo (Crude Oil)', hasCrudeName: true },
@@ -2735,7 +2735,8 @@ function buildDatosOrigen(d, ctx) {
 
   const ullRow = (t, i) => `
     <tr>
-      <td style="font-weight:600;font-size:12px;text-align:center">${t.name}</td>
+      <td style="width:64px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${t.name||''}" placeholder="TK"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="name"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
           data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
@@ -2750,6 +2751,7 @@ function buildDatosOrigen(d, ctx) {
           data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="gsv" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.tcv||''}"
           data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="tcv" placeholder="—"></td>
+      <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="ullageOrigen" data-idx="${i}" title="Quitar tanque">✕</button></td>
     </tr>`;
 
   return `
@@ -2838,11 +2840,13 @@ function buildDatosOrigen(d, ctx) {
             <th>VCF</th>
             <th>GSV (BBL)</th>
             <th>TCV (BBL)</th>
+            <th></th>
           </tr></thead>
           <tbody>${ullTanks.map((t,i) => ullRow(t,i)).join('')}</tbody>
         </table>
       </div>
-      <textarea class="field-input" style="margin-top:12px;height:60px" placeholder="Notas ullage de origen…"
+      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="ullageOrigen" style="margin:12px 0">＋ Agregar tanque</button>
+      <textarea class="field-input" style="margin-top:4px;height:60px" placeholder="Notas ullage de origen…"
         data-action="save-nested" data-ctx="${ctx}" data-obj="ullageOrigen" data-field="notes">${ull.notes||''}</textarea>
     </div>
 
@@ -2861,7 +2865,8 @@ function buildUllageArribo(d, mod, ctx) {
 
   const tankRow = (t, i) => `
     <tr>
-      <td style="font-weight:600;font-size:12px;text-align:center">${t.name}</td>
+      <td style="width:64px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${t.name||''}" placeholder="TK"
+          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="name"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
@@ -2872,6 +2877,7 @@ function buildUllageArribo(d, mod, ctx) {
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="temp" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.00001" value="${t.vcf||''}"
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
+      <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="" data-idx="${i}" title="Quitar tanque">✕</button></td>
     </tr>`;
 
   const fmtTotVal = (v, dec=2) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
@@ -2925,10 +2931,12 @@ function buildUllageArribo(d, mod, ctx) {
             <th>API @60°F</th>
             <th>Temp (°C)</th>
             <th>VCF</th>
+            <th></th>
           </tr></thead>
           <tbody>${tanks.map((t,i) => tankRow(t,i)).join('')}</tbody>
         </table>
       </div>
+      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="" style="margin-top:12px">＋ Agregar tanque</button>
     </div>
 
     <div class="card">
@@ -5922,6 +5930,22 @@ function saveUllTank(ctxStr, subObj, idx, field, value) {
   target.tanks[idx][field] = value;
   ref.save();
 }
+// Agregar/quitar tanque en tablas de ullage (sub: '' = módulo directo, o 'ullageOrigen')
+function ullAddTank(ctxStr, sub) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  const target = sub ? (ref.data[sub] || (ref.data[sub] = {})) : ref.data;
+  if (!target.tanks) target.tanks = [];
+  target.tanks.push({ name: '', refHeight: '', measured: '', api: '', temp: '', vcf: '', gsv: '', tcv: '' });
+  ref.save();
+  renderKeepScroll();
+}
+function ullRmTank(ctxStr, sub, idx) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  const target = sub ? ref.data[sub] : ref.data;
+  if (target && Array.isArray(target.tanks)) { target.tanks.splice(idx, 1); ref.save(); renderKeepScroll(); }
+}
 
 // ===== EVENT HANDLERS =====
 function initEvents() {
@@ -6108,6 +6132,8 @@ function handleClick(e) {
     _ref.save(); render();
   }
   else if (a === 'dr-add-row') drAddRow(el.dataset.ctx);
+  else if (a === 'ull-add-tank') ullAddTank(el.dataset.ctx, el.dataset.sub);
+  else if (a === 'ull-rm-tank') ullRmTank(el.dataset.ctx, el.dataset.sub, parseInt(el.dataset.idx));
   else if (a === 'dr-rm-row') drRmRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'chk-set') chkSet(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.dataset.val);
   else if (a === 'chk-toggle-pq') {
