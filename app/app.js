@@ -1020,6 +1020,17 @@ function buildFleetIntelligence(ops) {
   const outliers = withData.filter(r => Math.abs(r.delta) > 0.5).sort((a, b) => a.delta - b.delta);
 
   const maxMag = Math.max(0.001, ...withData.map(r => Math.abs(r.delta)));
+
+  // Alertas proactivas — motor de reglas sobre cada operación
+  const alerts = [];
+  for (const op of ops) {
+    let f = [];
+    try { f = computeRules(op); } catch (_) {}
+    f.forEach(x => { if (x.status === 'fail' || (x.status === 'warn' && x.action)) alerts.push({ code: op.code || '—', status: x.status, label: x.label, detail: x.detail, action: x.action }); });
+  }
+  alerts.sort((a, b) => (a.status === 'fail' ? 0 : 1) - (b.status === 'fail' ? 0 : 1));
+  const chrono = [...withData].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
   const groupCard = (title, groups) => {
     const gmax = Math.max(0.001, ...groups.map(g => Math.abs(g.avg)));
     return `<div class="card">
@@ -1050,13 +1061,35 @@ function buildFleetIntelligence(ops) {
     <div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap">
       ${kpi(n, 'Operaciones analizadas')}
       ${kpi(fmtP(avg), 'Δ GSV promedio', dColor(avg))}
-      ${kpi(worst ? worst.code : '—', 'Peor operación', '#c62828')}
+      ${kpi(worst ? worst.code : '—', 'Peor operación', '#e46a63')}
       ${kpi(Math.round(totalGsv).toLocaleString('en-US'), 'GSV total (BBL)')}
     </div></div>
+
+    <div class="card">
+      <div class="card-title">⚠️ Alertas — requieren atención</div>
+      ${alerts.length ? `<div style="display:flex;flex-direction:column;gap:8px">
+        ${alerts.slice(0,14).map(a => `<div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:8px;background:${a.status==='fail'?'rgba(228,106,99,.1)':'rgba(212,165,74,.1)'};border:1px solid ${a.status==='fail'?'rgba(228,106,99,.3)':'rgba(212,165,74,.3)'}">
+          <span style="font-family:monospace;font-size:11px;color:var(--amber);min-width:118px">${a.code}</span>
+          <span style="font-size:12px;flex:1">${a.label} — <span style="color:var(--muted)">${a.detail}</span></span>
+          <span style="font-size:11px;font-weight:600;color:${a.status==='fail'?'var(--red)':'var(--amber)'};white-space:nowrap">${a.action||''}</span>
+        </div>`).join('')}
+      </div>` : '<div style="color:#4fbf7a;padding:6px 0;font-size:13px">✓ Sin alertas — toda la flota dentro de parámetros.</div>'}
+    </div>
 
     ${groupCard('Δ promedio por buque', _fleetGroup(rows, r => r.vessel))}
     ${groupCard('Δ promedio por crudo', _fleetGroup(rows, r => r.crude))}
     ${groupCard('Δ promedio por terminal / puerto', _fleetGroup(rows, r => r.port))}
+
+    <div class="card">
+      <div class="card-title">Tendencia del Δ GSV (cronológica)</div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:8px;border-bottom:1px solid var(--line2)">
+        ${chrono.map(r => { const h = Math.min(100, Math.abs(r.delta)/maxMag*100); return `<div style="flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%" title="${r.code}: ${fmtP(r.delta)}">
+          <div style="width:100%;max-width:28px;height:${h}%;min-height:2px;background:${dColor(r.delta)};border-radius:3px 3px 0 0"></div>
+        </div>`; }).join('')}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:5px">${chrono.map(r => `<div style="flex:1;text-align:center;font-family:monospace;font-size:9px;color:var(--dim);overflow:hidden">${r.code ? r.code.slice(-3) : ''}</div>`).join('')}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Altura = magnitud del Δ. <span style="color:var(--red)">Rojo</span> pérdida · <span style="color:var(--sea)">teal</span> en tolerancia · <span style="color:#5b8fd6">azul</span> ganancia.</div>
+    </div>
 
     <div class="card">
       <div class="card-title">⚠️ Operaciones fuera de rango (|Δ| > 0.5%)</div>
