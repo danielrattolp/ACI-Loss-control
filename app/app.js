@@ -895,6 +895,37 @@ const KB_CONCEPTS = [
     'Pre-transfer conference (key meeting) antes de la operación: acuerda métodos, equipos y responsabilidades.',
     'Ullage/innage con correcciones por trim y escora por tanque, usando tablas de aforo certificadas.',
   ]},
+  { ref:'8', title:'Muestreo', points:[
+    'Muestreo manual (thief/beaker) y automático (in-line sampler); punto y niveles acordados.',
+    'Sets: muestra primaria, retención de buque, retención de tierra y arbitraje (referee).',
+    'Etiquetado, sellado numerado, almacenamiento y período de retención definidos.',
+  ]},
+  { ref:'9.1', title:'Densidad / Gravedad API', points:[
+    'Hidrómetro o termohidrómetro; se mide a temperatura conocida y se corrige a 15°C / 60°F.',
+    'Relación: API = (141.5 / densidad relativa @60°F) − 131.5.',
+  ]},
+  { ref:'10.3 · 10.9', title:'Agua y Sedimento (S&W)', points:[
+    'Métodos: centrífuga (10.3/10.4), destilación, y Karl Fischer coulométrico (10.9) para agua.',
+    'El S&W se descuenta del GSV para obtener el NSV (cantidad neta vendible).',
+  ]},
+  { ref:'17.11', title:'Ship-to-Ship (STS) — EI HM 52', points:[
+    'Alije buque-buque con equipos cerrados/restringidos (UTI/ATG) con certificado vigente.',
+    'Registrar la diferencia en tránsito (in-transit difference) entre buque madre y receptor.',
+    'Definir buque de control de la tasa; STS plan firmado por ambos Masters.',
+  ]},
+  { ref:'17.14', title:'Medición por Calado (Draft Survey)', points:[
+    'Cantidad por desplazamiento del buque: lecturas de calado antes y después de la operación.',
+    'Correcciones por trim, escora y densidad del agua; deducibles (constante, lastre, combustible, aguas).',
+    'Aplica a graneles — base del futuro módulo Draft Survey.',
+  ]},
+  { ref:'12.1.1', title:'Cálculo de Cantidades Estáticas', points:[
+    'Secuencia y redondeo para tanques y buques: TOV → GOV → GSV → NSV.',
+    'Descontar OBQ/ROB y agua libre según corresponda.',
+  ]},
+  { ref:'2.8 · 3.1', title:'Aforo y Calibración', points:[
+    'Tablas de aforo (capacity tables) certificadas del buque/tanque; verificar alturas de referencia.',
+    'Aforo manual con cinta certificada; corrección por temperatura de la cinta y del líquido.',
+  ]},
 ];
 
 function buildKnowledgeBase() {
