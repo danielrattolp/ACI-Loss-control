@@ -770,7 +770,7 @@ function buildLayout() {
     <div class="layout">
       ${buildSidebar(ops, op)}
       <div class="main">
-        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'kb' ? buildKnowledgeBase() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
+        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'kb' ? buildKnowledgeBase() : state.view === 'fleet' ? buildFleetIntelligence(ops) : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
       </div>
     </div>
     ${state.modal ? buildModal() : ''}
@@ -792,6 +792,9 @@ function buildSidebar(ops, currentOp) {
         </div>
         <div class="sidebar-item ${state.view==='kb'?'active':''}" data-action="open-kb">
           <span class="icon">📚</span> Base de Conocimiento
+        </div>
+        <div class="sidebar-item ${state.view==='fleet'?'active':''}" data-action="open-fleet">
+          <span class="icon">📈</span> Inteligencia de Flota
         </div>
       </div>
       <div class="sidebar-section" style="margin-top:8px">Recientes</div>
@@ -964,6 +967,123 @@ function buildKnowledgeBase() {
       </div>`).join('')}
     <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
       <div style="font-size:12px;color:var(--muted)">El Consultor IA está instruido para <strong>citar el capítulo/sección específico</strong>, distinguir norma de interpretación, y no inventar cifras ni citas.</div>
+    </div>`;
+}
+
+// ===== INTELIGENCIA DE FLOTA =====
+// Analiza todas las operaciones juntas: tendencias de pérdida por buque,
+// crudo y terminal, más detección de outliers. La data acumulada como activo.
+function fleetMetrics(ops) {
+  const rows = [];
+  for (const op of ops) {
+    const bl  = (op.modules && op.modules['datos-origen'] && op.modules['datos-origen'].bl) || {};
+    const arr = (op.modules && op.modules['ullage-arribo'] && op.modules['ullage-arribo'].totals) || {};
+    const dor = (op.modules && op.modules['datos-origen']) || {};
+    const blG = parseFloat(bl.gsv), arrG = parseFloat(arr.gsv);
+    const delta = (!isNaN(blG) && !isNaN(arrG) && blG) ? (arrG - blG) / blG * 100 : null;
+    rows.push({
+      code: op.code || '—',
+      vessel: (op.vessel && op.vessel.name) || '—',
+      client: getClient(op) || '—',
+      crude: (op.product && (op.product.crudeName || op.product.type)) || '—',
+      port: (dor.destination && dor.destination.portName) || op.port || '—',
+      date: dor.inspectionDate || op.createdAt || '',
+      blG: isNaN(blG) ? null : blG,
+      delta,
+    });
+  }
+  return rows;
+}
+function _fleetGroup(rows, keyFn) {
+  const m = {};
+  for (const r of rows) { if (r.delta == null) continue; const k = keyFn(r) || '—'; (m[k] = m[k] || []).push(r.delta); }
+  return Object.entries(m)
+    .map(([k, arr]) => ({ k, avg: arr.reduce((a, b) => a + b, 0) / arr.length, n: arr.length }))
+    .sort((a, b) => a.avg - b.avg);
+}
+
+function buildFleetIntelligence(ops) {
+  const rows = fleetMetrics(ops);
+  const withData = rows.filter(r => r.delta != null);
+  const n = withData.length;
+  const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(3) + '%';
+  const dColor = v => v == null ? 'var(--muted)' : (v < -0.5 ? '#c62828' : v > 0.1 ? '#1565c0' : '#2e7d32');
+
+  if (!n) {
+    return `<div class="card"><div class="card-title" style="font-size:18px">📈 Inteligencia de Flota</div>
+      <div class="info-box" style="margin-top:10px">Aún no hay operaciones con B/L y arribo cargados para analizar. Cuando cargues datos de custodia (Datos de Origen + Ullage Arribo), aquí aparecerán las tendencias de pérdida por buque, crudo y terminal.</div></div>`;
+  }
+
+  const avg = withData.reduce((s, r) => s + r.delta, 0) / n;
+  const worst = withData.reduce((w, r) => (w == null || r.delta < w.delta) ? r : w, null);
+  const totalGsv = withData.reduce((s, r) => s + (r.blG || 0), 0);
+  const outliers = withData.filter(r => Math.abs(r.delta) > 0.5).sort((a, b) => a.delta - b.delta);
+
+  const maxMag = Math.max(0.001, ...withData.map(r => Math.abs(r.delta)));
+  const groupCard = (title, groups) => {
+    const gmax = Math.max(0.001, ...groups.map(g => Math.abs(g.avg)));
+    return `<div class="card">
+      <div class="card-title">${title}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${groups.map(g => `
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:150px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${g.k}">${g.k} <span style="color:var(--muted)">(${g.n})</span></div>
+            <div style="flex:1;height:16px;background:var(--line2);border-radius:4px;position:relative;overflow:hidden">
+              <div style="position:absolute;left:0;top:0;height:100%;width:${Math.abs(g.avg)/gmax*100}%;background:${dColor(g.avg)};border-radius:4px"></div>
+            </div>
+            <div style="width:80px;text-align:right;font-family:monospace;font-size:12px;color:${dColor(g.avg)};font-weight:600">${fmtP(g.avg)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  };
+
+  const kpi = (val, label, color) => `<div style="flex:1;min-width:130px;text-align:center;background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px">
+    <div style="font-size:22px;font-weight:800;color:${color||'var(--ink)'}">${val}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px">${label}</div></div>`;
+
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title" style="font-size:18px;margin-bottom:4px">📈 Inteligencia de Flota</div>
+      <div style="font-size:13px;color:var(--muted)">Análisis de las ${n} operaciones con datos de custodia. Tendencias de pérdida/ganancia por buque, crudo y terminal — la data acumulada de ACI como activo estratégico.</div>
+    </div>
+
+    <div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${kpi(n, 'Operaciones analizadas')}
+      ${kpi(fmtP(avg), 'Δ GSV promedio', dColor(avg))}
+      ${kpi(worst ? worst.code : '—', 'Peor operación', '#c62828')}
+      ${kpi(Math.round(totalGsv).toLocaleString('en-US'), 'GSV total (BBL)')}
+    </div></div>
+
+    ${groupCard('Δ promedio por buque', _fleetGroup(rows, r => r.vessel))}
+    ${groupCard('Δ promedio por crudo', _fleetGroup(rows, r => r.crude))}
+    ${groupCard('Δ promedio por terminal / puerto', _fleetGroup(rows, r => r.port))}
+
+    <div class="card">
+      <div class="card-title">⚠️ Operaciones fuera de rango (|Δ| > 0.5%)</div>
+      ${outliers.length ? `<div style="overflow-x:auto"><table class="data-table" style="min-width:560px">
+        <thead><tr><th>Código</th><th>Buque</th><th>Crudo</th><th>Terminal</th><th style="text-align:right">Δ GSV</th></tr></thead>
+        <tbody>${outliers.map(r => `<tr>
+          <td style="font-weight:600;color:var(--sea)">${r.code}</td>
+          <td style="font-size:12px">${r.vessel}</td>
+          <td style="font-size:12px">${r.crude}</td>
+          <td style="font-size:12px">${r.port}</td>
+          <td style="text-align:right;font-weight:700;color:${dColor(r.delta)}">${fmtP(r.delta)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : '<div style="font-size:13px;color:#2e7d32;padding:8px 0">✓ Ninguna operación supera ±0.5%. Flota dentro de tolerancia.</div>'}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Detalle por operación (cronológico)</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:600px">
+        <thead><tr><th>Fecha</th><th>Código</th><th>Buque</th><th>Cliente</th><th style="text-align:right">Δ GSV</th></tr></thead>
+        <tbody>${[...withData].sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(r => `<tr>
+          <td style="font-size:11px;color:var(--muted)">${r.date ? new Date(r.date).toLocaleDateString('es-CL') : '—'}</td>
+          <td style="font-weight:600;color:var(--sea)">${r.code}</td>
+          <td style="font-size:12px">${r.vessel}</td>
+          <td style="font-size:12px">${r.client}</td>
+          <td style="text-align:right;font-weight:600;color:${dColor(r.delta)}">${fmtP(r.delta)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
     </div>`;
 }
 
@@ -5827,6 +5947,7 @@ function handleClick(e) {
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
   else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
   else if (a === 'open-kb') { state.view='kb'; state.currentOpId=null; render(); }
+  else if (a === 'open-fleet') { state.view='fleet'; state.currentOpId=null; render(); }
   else if (a === 'client-create') {
     const org      = (document.getElementById('new-client-org')?.value  || '').trim();
     const name     = (document.getElementById('new-client-name')?.value || '').trim();
