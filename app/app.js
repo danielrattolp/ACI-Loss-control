@@ -932,7 +932,7 @@ function buildKnowledgeBase() {
         </table></div>
       </div>`).join('')}
     <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
-      <div style="font-size:12px;color:var(--muted)">El Consultor IA está instruido para <strong>citar el capítulo/sección específico</strong>, distinguir norma de interpretación, y no inventar cifras ni citas. Sus respuestas se generan con temperatura 0 para ser reproducibles.</div>
+      <div style="font-size:12px;color:var(--muted)">El Consultor IA está instruido para <strong>citar el capítulo/sección específico</strong>, distinguir norma de interpretación, y no inventar cifras ni citas.</div>
     </div>`;
 }
 

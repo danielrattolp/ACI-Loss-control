@@ -125,7 +125,6 @@ class handler(BaseHTTPRequestHandler):
             response = client.messages.create(
                 model="claude-opus-4-8",
                 max_tokens=2048,
-                temperature=0,   # reproducibilidad: misma entrada -> mismo dictamen
                 system=SYSTEM_PROMPT,
                 messages=seq,
             )
