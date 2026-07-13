@@ -42,6 +42,7 @@ const MODULE_META = {
   'reglas':              { label: 'Validación Normativa', icon: '🛡️' },
   'incertidumbre':       { label: 'Incertidumbre',        icon: '📊' },
   'auditoria-doc':       { label: 'Auditoría Documental', icon: '🔎' },
+  'draft-survey':        { label: 'Draft Survey',         icon: '⚓' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -76,6 +77,7 @@ const MODULE_LIBRARY = [
   { type: 'reglas',           label: 'Validación Normativa', icon: '🛡️', multi: false, desc: 'Motor de reglas — tolerancias y LOP/NOAD automáticos' },
   { type: 'incertidumbre',    label: 'Incertidumbre',      icon: '📊', multi: false, desc: 'Bandas de confianza — ISO GUM / MPMS 13' },
   { type: 'auditoria-doc',    label: 'Auditoría Documental', icon: '🔎', multi: false, desc: 'Coherencia interna de cantidades — errores de transcripción' },
+  { type: 'draft-survey',     label: 'Draft Survey',       icon: '⚓', multi: false, desc: 'Medición por calado/desplazamiento — API MPMS 17.14 (graneles)' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -505,6 +507,12 @@ function initModuleInstance(type) {
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'auditoria-doc') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'draft-survey') return {
+    opType: 'descarga',
+    initial: { fwd:'', aft:'', mid:'', displacement:'', density:'1.025', deduct:{ ballast:'', freshWater:'', fuelOil:'', dieselOil:'', lubeOil:'', others:'' } },
+    final:   { fwd:'', aft:'', mid:'', displacement:'', density:'1.025', deduct:{ ballast:'', freshWater:'', fuelOil:'', dieselOil:'', lubeOil:'', others:'' } },
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
   if (type === 'incertidumbre') return {
     // Incertidumbres estándar relativas (%) por fuente — valores típicos editables.
     components: { gauging:'0.10', temperature:'0.03', density:'0.05', vcf:'0.02', water:'0.02', tables:'0.15' },
@@ -1983,6 +1991,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'reglas') { const opV = getOp(ctx.opId); html = opV ? buildReglas(opV, data, ctxStr) : ''; }
   else if (mod === 'incertidumbre') { const opV = getOp(ctx.opId); html = opV ? buildIncertidumbre(opV, data, ctxStr) : ''; }
   else if (mod === 'auditoria-doc') { const opV = getOp(ctx.opId); html = opV ? buildAuditoriaDoc(opV, data, ctxStr) : ''; }
+  else if (mod === 'draft-survey') html = buildDraftSurvey(data, ctxStr);
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3891,6 +3900,88 @@ function buildAuditoriaDoc(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: DRAFT SURVEY (API MPMS 17.14) — medición por calado =====
+function computeDraftSurvey(d) {
+  const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const survey = s => {
+    if (!s) return { disp:null, dispCorr:null, deduct:0, net:null, trim:null };
+    const disp = N(s.displacement), dens = N(s.density);
+    const dispCorr = (disp != null) ? (dens != null ? disp * dens / 1.025 : disp) : null;
+    const dk = ['ballast','freshWater','fuelOil','dieselOil','lubeOil','others'];
+    const deduct = dk.reduce((a, k) => a + (N(s.deduct && s.deduct[k]) || 0), 0);
+    const net = (dispCorr != null) ? dispCorr - deduct : null;
+    const trim = (N(s.aft) != null && N(s.fwd) != null) ? N(s.aft) - N(s.fwd) : null;
+    return { disp, dispCorr, deduct, net, trim };
+  };
+  const ini = survey(d.initial), fin = survey(d.final);
+  let cargo = null;
+  if (ini.net != null && fin.net != null) cargo = (d.opType === 'carga') ? fin.net - ini.net : ini.net - fin.net;
+  return { ini, fin, cargo, opType: d.opType || 'descarga' };
+}
+
+function buildDraftSurvey(d, ctx) {
+  const r = computeDraftSurvey(d);
+  const fmt = v => v == null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const inp = (path, val, step='0.001') => `<input class="tbl-input" type="number" step="${step}" style="text-align:right"
+    value="${val || ''}" placeholder="0" data-action="ds-set" data-ctx="${ctx}" data-path="${path}">`;
+  const dedRows = (which) => [['ballast','Lastre'],['freshWater','Agua dulce'],['fuelOil','Fuel oil'],['dieselOil','Diesel'],['lubeOil','Lubricantes'],['others','Otros / constante']]
+    .map(([k,l]) => `<tr><td style="font-size:12px">${l}</td><td>${inp(which+'.deduct.'+k, d[which] && d[which].deduct && d[which].deduct[k])}</td></tr>`).join('');
+  const surveyCard = (which, title) => {
+    const s = d[which] || {}; const c = which === 'initial' ? r.ini : r.fin;
+    return `<div class="card">
+      <div class="card-title">${title}</div>
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">Calado proa (m)</label>${inp(which+'.fwd', s.fwd, '0.01')}</div>
+        <div class="field"><label class="field-label">Calado popa (m)</label>${inp(which+'.aft', s.aft, '0.01')}</div>
+        <div class="field"><label class="field-label">Calado medio (m)</label>${inp(which+'.mid', s.mid, '0.01')}</div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label class="field-label">Desplazamiento (MT, de tablas)</label>${inp(which+'.displacement', s.displacement, '0.001')}</div>
+        <div class="field"><label class="field-label">Densidad agua (t/m³)</label>${inp(which+'.density', s.density, '0.0001')}</div>
+      </div>
+      <div class="card-title" style="margin-top:12px">Deducibles (MT)</div>
+      <table class="data-table" style="width:100%"><tbody>${dedRows(which)}</tbody></table>
+      <div style="margin-top:10px;padding:10px 12px;background:var(--well);border:1px solid var(--line2);border-radius:8px;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>Desplaz. corregido</span><span style="font-family:monospace;color:var(--ink)">${fmt(c.dispCorr)} MT</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>Total deducibles</span><span style="font-family:monospace;color:var(--ink)">${fmt(c.deduct)} MT</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-top:4px;border-top:1px solid var(--line2);padding-top:6px"><span>Neto (light + cargo)</span><span style="font-family:monospace;color:var(--amber-lt)">${fmt(c.net)} MT</span></div>
+      </div>
+    </div>`;
+  };
+
+  return `
+    <div class="module-title">⚓ Draft Survey</div>
+    <div class="module-subtitle">API MPMS 17.14 · Medición de carga por desplazamiento (calado)</div>
+    <div class="info-box" style="margin-bottom:12px">El desplazamiento se lee de las tablas hidrostáticas del buque a cada calado corregido; el sistema aplica corrección por densidad, resta deducibles y calcula la carga por diferencia.</div>
+
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <label class="field-label" style="margin:0">Tipo de operación</label>
+      <select class="field-input" style="width:auto" data-action="ds-set" data-path="opType" data-ctx="${ctx}">
+        <option value="descarga" ${r.opType==='descarga'?'selected':''}>Descarga (inicial − final)</option>
+        <option value="carga" ${r.opType==='carga'?'selected':''}>Carga (final − inicial)</option>
+      </select>
+    </div>
+
+    <div class="slops-grid">
+      ${surveyCard('initial', '① Survey Inicial')}
+      ${surveyCard('final', '② Survey Final')}
+    </div>
+
+    <div class="card" style="background:linear-gradient(135deg,var(--panel2),var(--white))">
+      <div class="card-title">Carga por Draft Survey</div>
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-family:ui-monospace,monospace;font-size:34px;font-weight:700;color:var(--amber-lt);text-shadow:var(--glow-gold)">${r.cargo!=null?fmt(Math.abs(r.cargo)):'—'} <span style="font-size:18px">MT</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${r.opType==='carga'?'Cargado':'Descargado'} = |Neto final − Neto inicial|</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Notas</label>
+      <textarea class="field-input" style="height:60px" placeholder="Condiciones, correcciones aplicadas, observaciones…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -4155,7 +4246,8 @@ function showPDFSelector(opId) {
     'reglas': '12. Validación Normativa',
     'incertidumbre': '13. Análisis de Incertidumbre',
     'auditoria-doc': '14. Auditoría Documental',
-    'reporte-evolutivo': '15. Reporte Evolutivo — Conclusión',
+    'draft-survey': '15. Draft Survey',
+    'reporte-evolutivo': '16. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -4760,6 +4852,22 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const draftSec = (() => {
+    const dd = mods['draft-survey']; if (!dd) return '';
+    const r = computeDraftSurvey(dd);
+    const n = v => v == null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 3 });
+    const svy = (c, s) => `${kv('Desplazamiento corregido', n(c.dispCorr)+' MT')}${kv('Total deducibles', n(c.deduct)+' MT')}${kv('Neto', '<strong>'+n(c.net)+' MT</strong>')}`;
+    return sec('15. Draft Survey — API MPMS 17.14', `
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px"><h3>Survey Inicial</h3><table class="kv">${svy(r.ini, dd.initial)}</table></div>
+        <div style="flex:1;min-width:200px"><h3>Survey Final</h3><table class="kv">${svy(r.fin, dd.final)}</table></div>
+      </div>
+      <div class="conclusion" style="text-align:center;margin-top:12px"><strong>Carga ${r.opType==='carga'?'cargada':'descargada'}: ${r.cargo!=null?n(Math.abs(r.cargo)):'—'} MT</strong></div>
+      ${dd.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${dd.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${dd.notes?`<div class="note">${dd.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -4780,6 +4888,7 @@ function printFullReport(opId, selectedMods) {
     ${has('reglas') ? '<div class="page-break"></div>'+reglasSec : ''}
     ${has('incertidumbre') ? '<div class="page-break"></div>'+uncSec : ''}
     ${has('auditoria-doc') ? '<div class="page-break"></div>'+auditSec : ''}
+    ${has('draft-survey') ? '<div class="page-break"></div>'+draftSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -6048,6 +6157,17 @@ function uncSet(ctxStr, obj, field, value, reRender) {
   ref.save();
   if (reRender) renderKeepScroll();
 }
+// Draft Survey: setear un valor por ruta profunda (ej "initial.deduct.ballast").
+function dsSet(ctxStr, path, value, reRender) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  const parts = path.split('.');
+  let o = ref.data;
+  for (let i = 0; i < parts.length - 1; i++) { if (!o[parts[i]]) o[parts[i]] = {}; o = o[parts[i]]; }
+  o[parts[parts.length - 1]] = value;
+  ref.save();
+  if (reRender) renderKeepScroll();
+}
 // Hechos de Campo: guardar celda (checkbox o texto). Sin re-render.
 function hcSet(ctxStr, id, col, value) {
   const ref = getModuleRef(decodeCtx(ctxStr));
@@ -6572,6 +6692,7 @@ function handleChange(e) {
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'hc-set') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.type==='checkbox' ? el.checked : el.value);
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
+  else if (a === 'ds-set') dsSet(el.dataset.ctx, el.dataset.path, el.value, true);
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -6750,6 +6871,7 @@ function handleInput(e) {
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
   else if (a === 'hc-set' && el.type !== 'checkbox') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.value);
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
+  else if (a === 'ds-set' && el.tagName !== 'SELECT') dsSet(el.dataset.ctx, el.dataset.path, el.value, false);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
