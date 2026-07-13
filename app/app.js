@@ -770,7 +770,7 @@ function buildLayout() {
     <div class="layout">
       ${buildSidebar(ops, op)}
       <div class="main">
-        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
+        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'kb' ? buildKnowledgeBase() : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
       </div>
     </div>
     ${state.modal ? buildModal() : ''}
@@ -790,6 +790,9 @@ function buildSidebar(ops, currentOp) {
         <div class="sidebar-item ${state.view==='clientes'?'active':''}" data-action="open-clientes">
           <span class="icon">👥</span> Acceso Clientes
         </div>
+        <div class="sidebar-item ${state.view==='kb'?'active':''}" data-action="open-kb">
+          <span class="icon">📚</span> Base de Conocimiento
+        </div>
       </div>
       <div class="sidebar-section" style="margin-top:8px">Recientes</div>
       <div class="sidebar-ops">
@@ -802,6 +805,62 @@ function buildSidebar(ops, currentOp) {
           </div>
         `).join('')}
       </div>
+    </div>`;
+}
+
+// ===== BASE DE CONOCIMIENTO NORMATIVA =====
+// Índice curado de normas (título + alcance, sin texto con copyright).
+// Fundamenta las citas del Consultor y sirve de referencia al inspector.
+const KNOWLEDGE_BASE = [
+  { org:'API MPMS', color:'#1a2f5a', items:[
+    { ref:'Cap. 7',     title:'Temperature Determination', scope:'Métodos y equipos para medir temperatura del cargo; tolerancia de verificación entre termómetros.' },
+    { ref:'Cap. 8',     title:'Sampling', scope:'Muestreo manual y automático; representatividad de la muestra.' },
+    { ref:'Cap. 11.1',  title:'Volume Correction Factors (VCF)', scope:'Corrección de volumen por temperatura; tablas 6A/6B/6C/6D; conversión GOV→GSV→NSV.' },
+    { ref:'Cap. 12',    title:'Calculation of Petroleum Quantities', scope:'Procedimientos de cálculo de cantidades, redondeo y secuencia.' },
+    { ref:'Cap. 13',    title:'Statistical Aspects of Measuring & Sampling', scope:'Incertidumbre de medición; base estadística; alineado con ISO GUM.' },
+    { ref:'Cap. 17.1',  title:'Marine Measurement — Guidelines', scope:'Buenas prácticas de medición marina; pre-transfer conference.' },
+    { ref:'Cap. 17.2',  title:'Ullage/Innage & Trim/List', scope:'Medición de ullage, correcciones por trim y escora.' },
+    { ref:'Cap. 17.5',  title:'Voyage Analysis (VAR / VSRR)', scope:'Conciliación de cantidades del viaje; comparaciones tierra/buque; reconciliación de pérdida por causa.' },
+    { ref:'Cap. 17.9',  title:'Vessel Experience Factor (VEF)', scope:'Cálculo del VEF; criterios de viajes calificantes; bandas de aceptación.' },
+    { ref:'Cap. 17.11', title:'Ship-to-Ship (STS) Measurement', scope:'Medición en operaciones de alije; equipos cerrados.' },
+    { ref:'Cap. 18',    title:'Custody Transfer', scope:'Transferencia de custodia; documentación y responsabilidades.' },
+  ]},
+  { org:'ASTM', color:'#2e7d32', items:[
+    { ref:'D1298 / D287', title:'Density / API Gravity', scope:'Determinación de densidad y gravedad API por hidrómetro.' },
+    { ref:'D4057',        title:'Manual Sampling', scope:'Muestreo manual de petróleo y productos.' },
+    { ref:'D4177',        title:'Automatic Sampling', scope:'Muestreo automático en línea.' },
+    { ref:'D4007',        title:'Water & Sediment (S&W)', scope:'Determinación de agua y sedimento por centrifugación.' },
+  ]},
+  { org:'ISO / OCIMF / ISGOTT', color:'#b8901f', items:[
+    { ref:'ISO GUM',   title:'Guide to Uncertainty in Measurement', scope:'Marco de propagación y expresión de incertidumbre; base del motor de incertidumbre.' },
+    { ref:'ISGOTT',    title:'Ship/Shore Safety', scope:'Seguridad en la interfaz buque-terminal; checklist ship-shore.' },
+    { ref:'OCIMF',     title:'Guidelines marinos', scope:'Buenas prácticas de la industria para operaciones marinas.' },
+  ]},
+];
+
+function buildKnowledgeBase() {
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title" style="font-size:18px;margin-bottom:4px">📚 Base de Conocimiento Normativa</div>
+      <div style="font-size:13px;color:var(--muted)">Índice de referencia de las normas que aplica la plataforma. El Consultor IA cita capítulo y sección de este marco; esta base te permite verificar cada dictamen.</div>
+      <div class="info-box" style="margin-top:12px">Contiene el <strong>alcance</strong> de cada norma (referencia y propósito), no su texto —las normas API/ASTM/ISO son material licenciado. Para el texto completo, consulta la edición oficial vigente.</div>
+    </div>
+    ${KNOWLEDGE_BASE.map(grp => `
+      <div class="card">
+        <div class="card-title" style="color:${grp.color}">${grp.org}</div>
+        <div style="overflow-x:auto"><table class="data-table" style="min-width:640px">
+          <thead><tr><th style="width:110px">Referencia</th><th style="width:230px">Título</th><th>Alcance</th></tr></thead>
+          <tbody>
+            ${grp.items.map(it => `<tr>
+              <td style="font-weight:700;color:${grp.color};font-size:12px;white-space:nowrap">${it.ref}</td>
+              <td style="font-size:12px;font-weight:600">${it.title}</td>
+              <td style="font-size:12px;color:var(--muted)">${it.scope}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>`).join('')}
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div style="font-size:12px;color:var(--muted)">El Consultor IA está instruido para <strong>citar el capítulo/sección específico</strong>, distinguir norma de interpretación, y no inventar cifras ni citas. Sus respuestas se generan con temperatura 0 para ser reproducibles.</div>
     </div>`;
 }
 
@@ -5664,6 +5723,7 @@ function handleClick(e) {
   if (a === 'go-home') { state.view='home'; state.currentOpId=null; render(); }
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
   else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
+  else if (a === 'open-kb') { state.view='kb'; state.currentOpId=null; render(); }
   else if (a === 'client-create') {
     const org      = (document.getElementById('new-client-org')?.value  || '').trim();
     const name     = (document.getElementById('new-client-name')?.value || '').trim();

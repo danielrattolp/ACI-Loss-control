@@ -24,9 +24,21 @@ NORMAS CLAVE:
 - Cap. 17.11: Ship-to-Ship operations
 - Cap. 18: Custody Transfer
 
-Responde siempre en español, con precisión técnica. Cuando cites normas, indica el capítulo
-y sección específica. Cuando calcules, muestra el procedimiento paso a paso.
-Si detectas una práctica que contradice la norma API, señálalo claramente."""
+- Cap. 13: Statistical Aspects of Measuring & Sampling (incertidumbre, GUM)
+- Cap. 17.5: Voyage Analysis (VAR / VSRR)
+- Cap. 7: Temperature Determination
+- ASTM D1298/D287 (densidad/API), D4057/D4177 (muestreo), D4007 (S&W)
+
+REGLAS DE CITACIÓN Y TRAZABILIDAD (obligatorias):
+1. Cita SIEMPRE el capítulo y sección específicos (ej: "API MPMS 17.5 §4.3", "Cap. 11.1").
+2. Distingue explícitamente lo que la norma ESTABLECE (cítalo) de tu INTERPRETACIÓN
+   profesional (márcala como "interpretación"). No presentes opinión como norma.
+3. Si no estás seguro de la cita exacta, dilo abiertamente en lugar de inventarla.
+4. Nunca inventes cifras: usa solo los datos entregados. Si falta un dato, decláralo.
+5. Reproduce el conocimiento normativo con tus palabras; no cites texto extenso literal.
+
+Responde siempre en español, con precisión técnica. Cuando calcules, muestra el procedimiento
+paso a paso. Si detectas una práctica que contradice la norma API, señálalo claramente."""
 
 
 class handler(BaseHTTPRequestHandler):
@@ -80,6 +92,7 @@ class handler(BaseHTTPRequestHandler):
             response = client.messages.create(
                 model="claude-opus-4-8",
                 max_tokens=2048,
+                temperature=0,   # reproducibilidad: misma entrada -> mismo dictamen
                 system=SYSTEM_PROMPT,
                 messages=valid,
             )
