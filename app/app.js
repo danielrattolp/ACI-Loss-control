@@ -43,6 +43,7 @@ const MODULE_META = {
   'incertidumbre':       { label: 'Incertidumbre',        icon: '📊' },
   'auditoria-doc':       { label: 'Auditoría Documental', icon: '🔎' },
   'draft-survey':        { label: 'Draft Survey',         icon: '⚓' },
+  'muestreo':            { label: 'Muestreo',             icon: '🧪' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -78,6 +79,7 @@ const MODULE_LIBRARY = [
   { type: 'incertidumbre',    label: 'Incertidumbre',      icon: '📊', multi: false, desc: 'Bandas de confianza — ISO GUM / MPMS 13' },
   { type: 'auditoria-doc',    label: 'Auditoría Documental', icon: '🔎', multi: false, desc: 'Coherencia interna de cantidades — errores de transcripción' },
   { type: 'draft-survey',     label: 'Draft Survey',       icon: '⚓', multi: false, desc: 'Medición por calado/desplazamiento — API MPMS 17.14 (graneles)' },
+  { type: 'muestreo',         label: 'Muestreo',           icon: '🧪', multi: false, desc: 'Toma, sellado y custodia de muestras — API MPMS Cap. 8' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -507,6 +509,18 @@ function initModuleInstance(type) {
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'auditoria-doc') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'muestreo') return {
+    method:'', point:'',
+    samples: [
+      { type:'Primaria',            taken:true,  seal:'', custodian:'', obs:'' },
+      { type:'Retención Buque',     taken:true,  seal:'', custodian:'', obs:'' },
+      { type:'Retención Tierra',    taken:true,  seal:'', custodian:'', obs:'' },
+      { type:'Arbitraje (Referee)', taken:false, seal:'', custodian:'', obs:'' },
+    ],
+    retentionDays:'90', densityMethod:'', swMethod:'',
+    firstFoot:false, lineSample:false,
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
   if (type === 'draft-survey') return {
     opType: 'descarga',
     initial: { fwd:'', aft:'', mid:'', displacement:'', density:'1.025', deduct:{ ballast:'', freshWater:'', fuelOil:'', dieselOil:'', lubeOil:'', others:'' } },
@@ -1992,6 +2006,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'incertidumbre') { const opV = getOp(ctx.opId); html = opV ? buildIncertidumbre(opV, data, ctxStr) : ''; }
   else if (mod === 'auditoria-doc') { const opV = getOp(ctx.opId); html = opV ? buildAuditoriaDoc(opV, data, ctxStr) : ''; }
   else if (mod === 'draft-survey') html = buildDraftSurvey(data, ctxStr);
+  else if (mod === 'muestreo') html = buildMuestreo(data, ctxStr);
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3900,6 +3915,67 @@ function buildAuditoriaDoc(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: MUESTREO (API MPMS Cap. 8) =====
+function buildMuestreo(d, ctx) {
+  const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  const samples = d.samples || [];
+  const sel = (field, val, opts) => `<select class="field-input" data-action="save-field" data-ctx="${ctx}" data-field="${field}">
+    <option value="">— Seleccionar —</option>
+    ${opts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`;
+  const sRow = (s, i) => `<tr>
+    <td style="text-align:center"><input type="checkbox" ${s.taken?'checked':''} style="width:16px;height:16px;cursor:pointer" data-action="ms-set" data-ctx="${ctx}" data-idx="${i}" data-field="taken"></td>
+    <td><input class="tbl-input" style="text-align:left" value="${esc(s.type)}" placeholder="Tipo" data-action="ms-set" data-ctx="${ctx}" data-idx="${i}" data-field="type"></td>
+    <td><input class="tbl-input" style="text-align:left" value="${esc(s.seal)}" placeholder="N° sello" data-action="ms-set" data-ctx="${ctx}" data-idx="${i}" data-field="seal"></td>
+    <td><input class="tbl-input" style="text-align:left" value="${esc(s.custodian)}" placeholder="Custodio" data-action="ms-set" data-ctx="${ctx}" data-idx="${i}" data-field="custodian"></td>
+    <td><input class="tbl-input" style="text-align:left" value="${esc(s.obs)}" placeholder="Obs." data-action="ms-set" data-ctx="${ctx}" data-idx="${i}" data-field="obs"></td>
+    <td style="width:28px"><button class="btn-icon-sm" data-action="ms-rm" data-ctx="${ctx}" data-idx="${i}" title="Quitar">✕</button></td>
+  </tr>`;
+  return `
+    <div class="module-title">🧪 Muestreo</div>
+    <div class="module-subtitle">API MPMS Cap. 8 · Toma, sellado y cadena de custodia de muestras</div>
+
+    <div class="card">
+      <div class="card-title">Método y punto</div>
+      <div class="form-row">
+        <div class="field"><label class="field-label">Método de muestreo</label>
+          ${sel('method', d.method, ['Manual (thief/beaker)','Continuo (running)','Automático (in-line)','UTI integrado'])}</div>
+        <div class="field"><label class="field-label">Punto de muestreo</label>
+          ${sel('point', d.point, ['Manifold del buque','Línea de shore','Tanque individual'])}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Sets de muestra y sellos</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:640px">
+        <thead><tr><th style="width:60px">Tomada</th><th>Tipo</th><th>N° Sello</th><th>Custodio</th><th>Observación</th><th></th></tr></thead>
+        <tbody>${samples.map((s,i) => sRow(s,i)).join('')}</tbody>
+      </table></div>
+      <button class="btn btn-secondary btn-sm" data-action="ms-add" data-ctx="${ctx}" style="margin-top:12px">＋ Agregar set</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ensayos y retención</div>
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">Método densidad/API</label>
+          <input class="field-input" value="${esc(d.densityMethod)}" placeholder="Ej: ASTM D1298 / MPMS 9.1" data-action="save-field" data-ctx="${ctx}" data-field="densityMethod"></div>
+        <div class="field"><label class="field-label">Método S&W</label>
+          <input class="field-input" value="${esc(d.swMethod)}" placeholder="Ej: Centrífuga / Karl Fischer" data-action="save-field" data-ctx="${ctx}" data-field="swMethod"></div>
+        <div class="field"><label class="field-label">Retención (días)</label>
+          <input class="field-input" type="number" value="${esc(d.retentionDays)}" placeholder="90" data-action="save-field" data-ctx="${ctx}" data-field="retentionDays"></div>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" ${d.firstFoot?'checked':''} style="width:16px;height:16px" data-action="ms-flag" data-ctx="${ctx}" data-field="firstFoot"> First foot sample (inicio carga)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" ${d.lineSample?'checked':''} style="width:16px;height:16px" data-action="ms-flag" data-ctx="${ctx}" data-field="lineSample"> Line sample (inicio descarga)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Notas / cadena de custodia</label>
+      <textarea class="field-input" style="height:60px" placeholder="Etiquetado, almacenamiento, entrega…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${esc(d.notes)}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: DRAFT SURVEY (API MPMS 17.14) — medición por calado =====
 function computeDraftSurvey(d) {
   const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
@@ -4247,7 +4323,8 @@ function showPDFSelector(opId) {
     'incertidumbre': '13. Análisis de Incertidumbre',
     'auditoria-doc': '14. Auditoría Documental',
     'draft-survey': '15. Draft Survey',
-    'reporte-evolutivo': '16. Reporte Evolutivo — Conclusión',
+    'muestreo': '16. Muestreo',
+    'reporte-evolutivo': '17. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -4868,6 +4945,26 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const muestreoSec = (() => {
+    const md = mods['muestreo']; if (!md) return '';
+    const s = md.samples || [];
+    return sec('16. Muestreo — API MPMS Cap. 8', `
+      <table class="kv">
+        ${kv('Método', md.method)}
+        ${kv('Punto', md.point)}
+        ${kv('Método densidad/API', md.densityMethod)}
+        ${kv('Método S&W', md.swMethod)}
+        ${kv('Retención', (md.retentionDays||'—')+' días')}
+        ${kv('First foot / Line sample', (md.firstFoot?'First foot ✓ ':'')+(md.lineSample?'Line sample ✓':'')||'—')}
+      </table>
+      ${s.length?`<h3>Sets de muestra</h3><table><thead><tr><th>Tomada</th><th>Tipo</th><th>N° Sello</th><th>Custodio</th><th>Obs.</th></tr></thead><tbody>
+        ${s.map(x=>`<tr><td>${x.taken?'✓':'—'}</td><td>${x.type||''}</td><td>${x.seal||''}</td><td>${x.custodian||''}</td><td>${x.obs||''}</td></tr>`).join('')}
+      </tbody></table>`:''}
+      ${md.iaAnalysis?`<h3>Análisis Consultor IA</h3><div class="ia-block">${md.iaAnalysis.replace(/\n/g,'<br>')}</div>`:''}
+      ${md.notes?`<div class="note">${md.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -4889,6 +4986,7 @@ function printFullReport(opId, selectedMods) {
     ${has('incertidumbre') ? '<div class="page-break"></div>'+uncSec : ''}
     ${has('auditoria-doc') ? '<div class="page-break"></div>'+auditSec : ''}
     ${has('draft-survey') ? '<div class="page-break"></div>'+draftSec : ''}
+    ${has('muestreo') ? '<div class="page-break"></div>'+muestreoSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -5722,6 +5820,19 @@ function buildTimeLog(d, ctx) {
       </td>
     </tr>`).join('');
 
+  // Cálculo de tiempos desde los eventos
+  const toDate = (ds, hhmm) => { if (!ds || !hhmm || String(hhmm).replace(/\D/g,'').length < 3) return null; const h = String(hhmm).replace(/\D/g,'').padStart(4,'0'); const dt = new Date(ds + 'T' + h.slice(0,2) + ':' + h.slice(2,4) + ':00'); return isNaN(dt) ? null : dt; };
+  let first = null, last = null;
+  events.forEach(e => { const a = toDate(e.date, e.initial); const b = toDate(e.date, e.final) || a; if (a && (!first || a < first)) first = a; if (b && (!last || b > last)) last = b; });
+  const totalH = (first && last && last > first) ? (last - first) / 3600000 : null;
+  const lt = d.laytime || {};
+  const allowedH = parseFloat(lt.allowedH), rate = parseFloat(lt.rateDay);
+  const excessH = (totalH != null && !isNaN(allowedH)) ? totalH - allowedH : null;
+  const demurrage = (excessH != null && !isNaN(rate) && excessH > 0) ? excessH / 24 * rate : 0;
+  const despatch  = (excessH != null && !isNaN(rate) && excessH < 0) ? (-excessH) / 24 * (rate / 2) : 0;
+  const fmtH = h => h == null ? '—' : `${Math.floor(Math.abs(h))}h ${Math.round((Math.abs(h) % 1) * 60)}m`;
+  const fmtUsd = v => v ? '$' + Math.round(v).toLocaleString('en-US') : '$0';
+
   return `
     <div class="module-title">⏱️ Time Log / Statement of Facts</div>
     <div class="module-subtitle">Cronograma de eventos — SOF con comentarios ACI Loss Control</div>
@@ -5749,6 +5860,27 @@ function buildTimeLog(d, ctx) {
         </table>
       </div>
     </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Cálculo de Tiempos · Laytime / Demurrage</div>
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">Laytime permitido (horas)</label>
+          <input class="field-input" type="number" step="0.1" value="${lt.allowedH||''}" placeholder="Ej: 36"
+            data-action="tl-laytime" data-ctx="${ctx}" data-field="allowedH"></div>
+        <div class="field"><label class="field-label">Tasa demurrage (USD/día)</label>
+          <input class="field-input" type="number" step="1" value="${lt.rateDay||''}" placeholder="Ej: 25000"
+            data-action="tl-laytime" data-ctx="${ctx}" data-field="rateDay"></div>
+        <div class="field"><label class="field-label">Despatch = ½ demurrage</label>
+          <input class="field-input" value="por saved time" disabled style="opacity:.6"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px">
+        <div class="discharge-kpi"><div class="discharge-kpi-val">${fmtH(totalH)}</div><div class="discharge-kpi-lbl">Tiempo total (eventos)</div></div>
+        <div class="discharge-kpi"><div class="discharge-kpi-val" style="color:${excessH!=null&&excessH>0?'var(--red)':'var(--sea)'}">${excessH==null?'—':(excessH>0?'+':'−')+fmtH(excessH)}</div><div class="discharge-kpi-lbl">${excessH!=null&&excessH>0?'Exceso (demurrage)':'Ahorro (despatch)'}</div></div>
+        <div class="discharge-kpi"><div class="discharge-kpi-val" style="color:var(--red)">${fmtUsd(demurrage)}</div><div class="discharge-kpi-lbl">Demurrage estimado</div></div>
+        <div class="discharge-kpi"><div class="discharge-kpi-val" style="color:var(--green)">${fmtUsd(despatch)}</div><div class="discharge-kpi-lbl">Despatch estimado</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Tiempo total = desde el primer evento hasta el último. Estimación referencial; el laytime contractual puede excluir interrupciones.</div>
+    </div>
+
     <div class="card" style="margin-top:16px">
       <div class="card-title">Observaciones Generales</div>
       <textarea class="field-textarea" style="width:100%;min-height:80px" placeholder="Notas adicionales del inspector ACI Loss Control..."
@@ -6167,6 +6299,43 @@ function dsSet(ctxStr, path, value, reRender) {
   o[parts[parts.length - 1]] = value;
   ref.save();
   if (reRender) renderKeepScroll();
+}
+// Time Log: laytime/demurrage (nested), re-render para actualizar KPIs.
+function tlLaytime(ctxStr, field, value, reRender) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.laytime) ref.data.laytime = {};
+  ref.data.laytime[field] = value;
+  ref.save();
+  if (reRender) renderKeepScroll();
+}
+// Muestreo (Cap. 8): sets de muestra + flags.
+function msSet(ctxStr, idx, field, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.samples) ref.data.samples = [];
+  if (!ref.data.samples[idx]) ref.data.samples[idx] = {};
+  ref.data.samples[idx][field] = value;
+  ref.save();
+}
+function msFlag(ctxStr, field, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  ref.data[field] = value;
+  ref.save();
+}
+function msAdd(ctxStr) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.samples) ref.data.samples = [];
+  ref.data.samples.push({ type:'', taken:true, seal:'', custodian:'', obs:'' });
+  ref.save(); renderKeepScroll();
+}
+function msRm(ctxStr, idx) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref || !Array.isArray(ref.data.samples)) return;
+  ref.data.samples.splice(idx, 1);
+  ref.save(); renderKeepScroll();
 }
 // Hechos de Campo: guardar celda (checkbox o texto). Sin re-render.
 function hcSet(ctxStr, id, col, value) {
@@ -6693,6 +6862,11 @@ function handleChange(e) {
   else if (a === 'hc-set') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.type==='checkbox' ? el.checked : el.value);
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'ds-set') dsSet(el.dataset.ctx, el.dataset.path, el.value, true);
+  else if (a === 'ms-set') msSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.type==='checkbox' ? el.checked : el.value);
+  else if (a === 'ms-flag') msFlag(el.dataset.ctx, el.dataset.field, el.checked);
+  else if (a === 'ms-add') msAdd(el.dataset.ctx);
+  else if (a === 'ms-rm') msRm(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, true);
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -6872,6 +7046,8 @@ function handleInput(e) {
   else if (a === 'hc-set' && el.type !== 'checkbox') hcSet(el.dataset.ctx, el.dataset.id, el.dataset.col, el.value);
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
   else if (a === 'ds-set' && el.tagName !== 'SELECT') dsSet(el.dataset.ctx, el.dataset.path, el.value, false);
+  else if (a === 'ms-set' && el.type !== 'checkbox') msSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, false);
 
   // Live VEF calculation
   if (el.id === 'vef-shore' || el.id === 'vef-vessel') {
