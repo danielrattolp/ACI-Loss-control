@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'reporte-evolutivo'],
+    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -41,6 +41,7 @@ const MODULE_META = {
   'hechos-campo':        { label: 'Hechos de Campo',      icon: '📋' },
   'reglas':              { label: 'Validación Normativa', icon: '🛡️' },
   'incertidumbre':       { label: 'Incertidumbre',        icon: '📊' },
+  'auditoria-doc':       { label: 'Auditoría Documental', icon: '🔎' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -74,6 +75,7 @@ const MODULE_LIBRARY = [
   { type: 'hechos-campo',     label: 'Hechos de Campo',    icon: '📋', multi: false, desc: 'Métodos y equipos usados — API MPMS 17.5' },
   { type: 'reglas',           label: 'Validación Normativa', icon: '🛡️', multi: false, desc: 'Motor de reglas — tolerancias y LOP/NOAD automáticos' },
   { type: 'incertidumbre',    label: 'Incertidumbre',      icon: '📊', multi: false, desc: 'Bandas de confianza — ISO GUM / MPMS 13' },
+  { type: 'auditoria-doc',    label: 'Auditoría Documental', icon: '🔎', multi: false, desc: 'Coherencia interna de cantidades — errores de transcripción' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -502,6 +504,7 @@ function initModuleInstance(type) {
     notes:'', iaAnalysis:'', iaDate:'',
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'auditoria-doc') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'incertidumbre') return {
     // Incertidumbres estándar relativas (%) por fuente — valores típicos editables.
     components: { gauging:'0.10', temperature:'0.03', density:'0.05', vcf:'0.02', water:'0.02', tables:'0.15' },
@@ -1979,6 +1982,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'hechos-campo') html = buildHechosCampo(data, ctxStr);
   else if (mod === 'reglas') { const opV = getOp(ctx.opId); html = opV ? buildReglas(opV, data, ctxStr) : ''; }
   else if (mod === 'incertidumbre') { const opV = getOp(ctx.opId); html = opV ? buildIncertidumbre(opV, data, ctxStr) : ''; }
+  else if (mod === 'auditoria-doc') { const opV = getOp(ctx.opId); html = opV ? buildAuditoriaDoc(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3794,6 +3798,99 @@ function buildIncertidumbre(op, d, ctx) {
     </div>`;
 }
 
+// ===== AUDITORÍA DOCUMENTAL (coherencia interna de cantidades) =====
+// Valida que las cifras de los documentos de la operación sean internamente
+// coherentes — detecta errores de transcripción antes de emitir el informe.
+function computeDocAudit(op) {
+  const mods = op.modules || {};
+  const N = v => { const n = parseFloat(v); return (v==='' || v==null || isNaN(n)) ? null : n; };
+  const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol;
+  const f = [];
+  const add = (id, label, status, detail) => f.push({ id, label, status, detail });
+
+  const checkBlock = (name, q) => {
+    if (!q) return;
+    const gsv = N(q.gsv), fw = N(q.fw), tcv = N(q.tcv), nsv = N(q.nsv), api = N(q.api), bsw = N(q.bsw), d15 = N(q.densityAt15);
+    if (gsv != null && fw != null && tcv != null) {
+      const exp = gsv + fw, tol = Math.max(1, gsv * 0.0002);
+      add(name+'-tcv', `${name}: TCV = GSV + FW`, near(tcv, exp, tol) ? 'ok' : 'fail', `TCV ${Math.round(tcv).toLocaleString('en-US')} vs GSV+FW ${Math.round(exp).toLocaleString('en-US')}`);
+    }
+    if (gsv != null && bsw != null && nsv != null) {
+      const exp = gsv * (1 - bsw/100), tol = Math.max(1, gsv * 0.0002);
+      add(name+'-nsv', `${name}: NSV = GSV × (1 − S&W)`, near(nsv, exp, tol) ? 'ok' : 'fail', `NSV ${Math.round(nsv).toLocaleString('en-US')} vs esperado ${Math.round(exp).toLocaleString('en-US')}`);
+    }
+    if (api != null && d15 != null) {
+      const exp = 141.5 / (api + 131.5) * 999.016;
+      add(name+'-den', `${name}: densidad @15°C ↔ API`, near(d15, exp, 1.5) ? 'ok' : 'fail', `ρ15 ${d15} vs esperado ${exp.toFixed(1)} kg/m³`);
+    }
+  };
+  checkBlock('B/L', mods['datos-origen'] && mods['datos-origen'].bl);
+  checkBlock('Arribo', mods['ullage-arribo'] && mods['ullage-arribo'].totals);
+
+  // Fechas coherentes
+  const blDate = mods['datos-origen'] && mods['datos-origen'].blDate;
+  const arrDate = (mods['ullage-arribo'] && mods['ullage-arribo'].date) || (mods['datos-origen'] && mods['datos-origen'].inspectionDate);
+  if (blDate && arrDate) add('dates', 'Fecha B/L ≤ fecha de arribo', blDate <= arrDate ? 'ok' : 'fail', `${blDate} → ${arrDate}`);
+
+  // Respaldos adjuntos
+  const docs = (mods['ullage-arribo'] && mods['ullage-arribo'].docs) || {};
+  const docCount = ['vessel','surveyor','aci'].filter(k => (docs[k] || []).length > 0).length;
+  add('docs', 'Documentos de respaldo adjuntos', docCount >= 1 ? 'ok' : 'warn', `${docCount}/3 fuentes con adjuntos (buque/surveyor/ACI)`);
+
+  // Suma de tanques vs total (si hay GSV por tanque en origen)
+  const ot = mods['datos-origen'] && mods['datos-origen'].ullageOrigen && mods['datos-origen'].ullageOrigen.tanks;
+  if (Array.isArray(ot) && ot.some(t => N(t.gsv) != null)) {
+    const sum = ot.reduce((s, t) => s + (N(t.gsv) || 0), 0);
+    const blGsv = N(mods['datos-origen'].bl && mods['datos-origen'].bl.gsv);
+    if (blGsv != null && sum > 0) add('tanksum', 'Suma de tanques ≈ GSV del B/L', near(sum, blGsv, Math.max(2, blGsv*0.001)) ? 'ok' : 'warn', `Σ tanques ${Math.round(sum).toLocaleString('en-US')} vs B/L ${Math.round(blGsv).toLocaleString('en-US')}`);
+  }
+
+  return f;
+}
+
+function buildAuditoriaDoc(op, d, ctx) {
+  const f = computeDocAudit(op);
+  const counts = { ok:0, fail:0, warn:0 };
+  f.forEach(x => counts[x.status] = (counts[x.status]||0) + 1);
+  const chip = (n, color, label) => `<div style="flex:1;min-width:100px;text-align:center;background:${color}18;border:1px solid ${color}40;border-radius:10px;padding:10px">
+    <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${label}</div></div>`;
+  const badge = st => { const m = { ok:['#4fbf7a','Coherente'], fail:['#e46a63','Inconsistente'], warn:['#d4a54a','Revisar'] }[st];
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${m[0]}18;color:${m[0]};border:1px solid ${m[0]}40;white-space:nowrap">${m[1]}</span>`; };
+  const ord = { fail:0, warn:1, ok:2 };
+  const sorted = [...f].sort((a,b) => ord[a.status]-ord[b.status]);
+
+  return `
+    <div class="module-title">🔎 Auditoría Documental</div>
+    <div class="module-subtitle">Coherencia interna de cantidades · detección de errores de transcripción</div>
+
+    ${counts.fail ? `<div class="card" style="background:rgba(228,106,99,.08);border:1px solid rgba(228,106,99,.4)">
+      <div style="font-weight:700;color:var(--red)">⚠️ ${counts.fail} inconsistencia(s) detectada(s)</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Las cifras no cuadran entre sí — revisa antes de emitir el informe.</div>
+    </div>` : ''}
+
+    <div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${chip(counts.ok,'#4fbf7a','Coherentes')}
+      ${chip(counts.warn,'#d4a54a','A revisar')}
+      ${chip(counts.fail,'#e46a63','Inconsistentes')}
+    </div></div>
+
+    <div class="card">
+      <div class="card-title">Comprobaciones de coherencia (${f.length})</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:560px">
+        <thead><tr><th>Comprobación</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          ${sorted.length ? sorted.map(x => `<tr>
+            <td style="font-size:12px;font-weight:600">${x.label}</td>
+            <td style="font-size:12px;color:var(--muted);font-family:ui-monospace,monospace">${x.detail}</td>
+            <td>${badge(x.status)}</td>
+          </tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">Carga B/L y arribo para auditar la coherencia.</td></tr>'}
+        </tbody>
+      </table></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Verificación determinista de la coherencia entre documentos — independiente del análisis IA.</div>
+    </div>`;
+}
+
 // ===== MODULE: TERMÓMETROS =====
 function buildTermometros(d, ctx) {
   const tV = parseFloat(d.vessel?.tempF) || null;
@@ -4057,7 +4154,8 @@ function showPDFSelector(opId) {
     'hechos-campo': '11. Hechos de Campo',
     'reglas': '12. Validación Normativa',
     'incertidumbre': '13. Análisis de Incertidumbre',
-    'reporte-evolutivo': '14. Reporte Evolutivo — Conclusión',
+    'auditoria-doc': '14. Auditoría Documental',
+    'reporte-evolutivo': '15. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -4644,6 +4742,24 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const auditSec = (() => {
+    if (!mods['auditoria-doc']) return '';
+    const f = computeDocAudit(op);
+    if (!f.length) return '';
+    const lbl = { ok:'Coherente', fail:'Inconsistente', warn:'Revisar' };
+    const col = { ok:'#2e7d32', fail:'#c62828', warn:'#b8901f' };
+    const ord = { fail:0, warn:1, ok:2 };
+    const sorted = [...f].sort((a,b)=>ord[a.status]-ord[b.status]);
+    const nFail = f.filter(x=>x.status==='fail').length;
+    return sec('14. Auditoría Documental — Coherencia de Cantidades', `
+      ${nFail?`<div class="conclusion" style="border-color:#c62828;background:#c6282810"><strong>${nFail} inconsistencia(s) detectada(s)</strong> — las cifras no cuadran entre sí; revisar antes de emitir.</div>`:''}
+      <table><thead><tr><th>Comprobación</th><th>Detalle</th><th>Estado</th></tr></thead><tbody>
+        ${sorted.map(x=>`<tr><td>${x.label}</td><td>${x.detail}</td><td style="color:${col[x.status]};font-weight:700">${lbl[x.status]}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="note">Verificación determinista de coherencia interna entre documentos (TCV=GSV+FW, NSV, densidad↔API, fechas, respaldos).</div>
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -4663,6 +4779,7 @@ function printFullReport(opId, selectedMods) {
     ${has('hechos-campo') ? '<div class="page-break"></div>'+hcSec : ''}
     ${has('reglas') ? '<div class="page-break"></div>'+reglasSec : ''}
     ${has('incertidumbre') ? '<div class="page-break"></div>'+uncSec : ''}
+    ${has('auditoria-doc') ? '<div class="page-break"></div>'+auditSec : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
