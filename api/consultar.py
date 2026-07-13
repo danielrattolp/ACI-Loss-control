@@ -103,6 +103,23 @@ class handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "Sin mensajes válidos."})
             return
 
+        # Anthropic exige: contenido no vacío, empezar con 'user' y alternar roles.
+        seq = []
+        for m in valid:
+            content = m["content"].strip()
+            if not content:
+                continue
+            role = m["role"]
+            if not seq and role != "user":
+                continue  # descartar mensajes 'assistant' iniciales
+            if seq and seq[-1]["role"] == role:
+                seq[-1]["content"] += "\n\n" + content  # fusionar consecutivos del mismo rol
+            else:
+                seq.append({"role": role, "content": content})
+        if not seq or seq[-1]["role"] != "user":
+            self._json(400, {"error": "La conversación debe terminar en un mensaje del usuario."})
+            return
+
         try:
             client = anthropic.Anthropic(api_key=api_key)
             response = client.messages.create(
@@ -110,7 +127,7 @@ class handler(BaseHTTPRequestHandler):
                 max_tokens=2048,
                 temperature=0,   # reproducibilidad: misma entrada -> mismo dictamen
                 system=SYSTEM_PROMPT,
-                messages=valid,
+                messages=seq,
             )
             reply = next((b.text for b in response.content if b.type == "text"), "")
             self._json(200, {"reply": reply})
@@ -118,8 +135,10 @@ class handler(BaseHTTPRequestHandler):
             self._json(401, {"error": "API key inválida."})
         except anthropic.RateLimitError:
             self._json(429, {"error": "Límite de tasa alcanzado. Intenta en unos segundos."})
+        except anthropic.BadRequestError as exc:
+            self._json(400, {"error": "Solicitud inválida al modelo: " + str(getattr(exc, "message", None) or exc)[:400]})
         except Exception as exc:
-            self._json(500, {"error": str(exc)})
+            self._json(500, {"error": str(exc)[:400]})
 
     def do_OPTIONS(self):
         self.send_response(200)
