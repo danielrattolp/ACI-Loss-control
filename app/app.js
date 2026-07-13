@@ -849,12 +849,73 @@ const KNOWLEDGE_BASE = [
   ]},
 ];
 
+// Conceptos clave por capítulo — redactados con nuestras palabras (hechos y
+// procedimientos técnicos, no son texto con copyright). Alimentan al Consultor IA.
+const KB_CONCEPTS = [
+  { ref:'17.5', title:'Análisis y Reconciliación de Viaje (VAR)', points:[
+    'Objetivo: conciliar lo cargado (B/L) contra lo desembarcado (outturn) y explicar la diferencia aparente del viaje.',
+    'Comparaciones: tierra-tierra (B/L vs outturn), buque/tierra en carga, buque/tierra en descarga, y buque en tránsito (zarpe vs arribo).',
+    'Tierra teórica = figura del buque ÷ VEF (estima lo esperado en tierra).',
+    'Convención de signo: ganancia positiva, pérdida negativa (recibido − cargado).',
+    'Tolerancia de pérdida de transporte: ±0.5% suele usarse como referencia, pero es contractual — la norma prioriza el análisis, no un aprobado/reprobado fijo.',
+  ]},
+  { ref:'17.5 · VSRR', title:'Reconciliación de pérdida por causa', points:[
+    'Cuando el VAR no explica la diferencia, se descompone en causas: evaporación, pérdida a bordo (clingage/líneas), contracción volumétrica, ROB no detectado, error de llenado de línea y error de medición.',
+    'La cantidad ajustada resulta de restar las causas explicadas; el residual debe tender a cero.',
+  ]},
+  { ref:'11.1', title:'Factores de Corrección de Volumen (VCF)', points:[
+    'Corrige el volumen observado a temperatura estándar (60°F / 15°C) según densidad y expansión térmica del fluido.',
+    'Tablas: 6A crudos · 6B productos refinados · 6C especiales · 6D lubricantes.',
+    'Secuencia: GOV × VCF = GSV; GSV × (1 − S&W) = NSV. El agua libre (FW) se excluye del GSV; TCV = GSV + FW.',
+    'La gravedad API se convierte a densidad; la temperatura se redondea según la convención de la norma.',
+  ]},
+  { ref:'17.9', title:'Vessel Experience Factor (VEF)', points:[
+    'Ratio histórico que compara la figura del buque contra tierra en múltiples viajes; corrige el sesgo consistente del casco.',
+    'Mínimo 5 viajes calificantes. Se rechazan: descargas contra figura de buque, post-dique, cambio de tablas de aforo, y gross error >2%.',
+    'Banda de aceptación ±0.3% alrededor del ratio medio.',
+    'Se aplica a la figura del buque para estimar la cantidad esperada en tierra.',
+  ]},
+  { ref:'13.3', title:'Incertidumbre de Medición', points:[
+    'Combina las incertidumbres estándar de fuentes independientes por raíz de la suma de cuadrados (RSS).',
+    'Incertidumbre expandida U = k · uc; k=2 ≈ 95% de confianza.',
+    'Fuentes típicas: aforo, temperatura, densidad, VCF, agua, tablas de aforo.',
+    'Una diferencia es significativa solo si supera la incertidumbre combinada de la comparación; si no, es ruido de medición.',
+  ]},
+  { ref:'7', title:'Determinación de Temperatura', points:[
+    'Equipos: termómetro electrónico portátil (PET), termómetro de copa, sensores ATG.',
+    'Verificación entre equipos con tolerancia usual ≤0.5°F.',
+    'Medir cada tanque individualmente y a varios niveles (superior/medio/inferior).',
+  ]},
+  { ref:'17.4', title:'OBQ / ROB', points:[
+    'OBQ: cantidad a bordo antes de cargar. ROB: remanente a bordo tras descargar.',
+    'Fórmula de cuña (wedge) para volúmenes pequeños en tanques con trim, bajo el punto de contacto.',
+    'Distinguir líquido de no líquido; descontar del TCV según corresponda.',
+  ]},
+  { ref:'17.1 · 17.2', title:'Medición marina', points:[
+    'Pre-transfer conference (key meeting) antes de la operación: acuerda métodos, equipos y responsabilidades.',
+    'Ullage/innage con correcciones por trim y escora por tanque, usando tablas de aforo certificadas.',
+  ]},
+];
+
 function buildKnowledgeBase() {
   return `
     <div class="card" style="margin-bottom:16px">
       <div class="card-title" style="font-size:18px;margin-bottom:4px">📚 Base de Conocimiento Normativa</div>
-      <div style="font-size:13px;color:var(--muted)">Índice de referencia de las normas que aplica la plataforma. El Consultor IA cita capítulo y sección de este marco; esta base te permite verificar cada dictamen.</div>
-      <div class="info-box" style="margin-top:12px">Contiene el <strong>alcance</strong> de cada norma (referencia y propósito), no su texto —las normas API/ASTM/ISO son material licenciado. Para el texto completo, consulta la edición oficial vigente.</div>
+      <div style="font-size:13px;color:var(--muted)">Índice y conceptos clave de las normas que aplica la plataforma. El Consultor IA razona desde estos conceptos y cita capítulo y sección.</div>
+      <div class="info-box" style="margin-top:12px">Contiene el <strong>alcance</strong> y los <strong>conceptos técnicos</strong> (definiciones, procedimientos, umbrales) redactados por ACI — no el texto literal de las normas. Para el texto oficial, consulta tu edición licenciada.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 Conceptos clave por capítulo</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${KB_CONCEPTS.map(c => `
+          <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+            <div style="font-size:13px;font-weight:700;color:var(--ink)"><span style="color:var(--sea)">${c.ref}</span> — ${c.title}</div>
+            <ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink);line-height:1.55">
+              ${c.points.map(p => `<li style="margin:3px 0">${p}</li>`).join('')}
+            </ul>
+          </div>`).join('')}
+      </div>
     </div>
     ${KNOWLEDGE_BASE.map(grp => `
       <div class="card">
