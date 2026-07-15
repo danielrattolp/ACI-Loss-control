@@ -44,6 +44,7 @@ const MODULE_META = {
   'auditoria-doc':       { label: 'Auditoría Documental', icon: '🔎' },
   'draft-survey':        { label: 'Draft Survey',         icon: '⚓' },
   'muestreo':            { label: 'Muestreo',             icon: '🧪' },
+  'lop-noad':            { label: 'Cartas de Protesta',   icon: '📝' },
   'reporte-evolutivo':   { label: 'Reporte Evolutivo',    icon: '📊' },
   // Legacy
   'origen':               { label: 'Datos Origen',        icon: '📦' },
@@ -80,6 +81,7 @@ const MODULE_LIBRARY = [
   { type: 'auditoria-doc',    label: 'Auditoría Documental', icon: '🔎', multi: false, desc: 'Coherencia interna de cantidades — errores de transcripción' },
   { type: 'draft-survey',     label: 'Draft Survey',       icon: '⚓', multi: false, desc: 'Medición por calado/desplazamiento — API MPMS 17.14 (graneles)' },
   { type: 'muestreo',         label: 'Muestreo',           icon: '🧪', multi: false, desc: 'Toma, sellado y custodia de muestras — API MPMS Cap. 8' },
+  { type: 'lop-noad',         label: 'Cartas de Protesta', icon: '📝', multi: false, desc: 'Letters of Protest y NOAD — redacción asistida por IA' },
   { type: 'summary',          label: 'Summary',            icon: '📊', multi: false, desc: 'Resumen y balances de la operación' },
 ];
 
@@ -509,6 +511,10 @@ function initModuleInstance(type) {
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'auditoria-doc') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'lop-noad') return {
+    letters: [],   // { type, date, by, to, subject, body, status }
+    notes:'', iaAnalysis:'', iaDate:'',
+  };
   if (type === 'muestreo') return {
     method:'', point:'',
     samples: [
@@ -2089,6 +2095,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'auditoria-doc') { const opV = getOp(ctx.opId); html = opV ? buildAuditoriaDoc(opV, data, ctxStr) : ''; }
   else if (mod === 'draft-survey') html = buildDraftSurvey(data, ctxStr);
   else if (mod === 'muestreo') html = buildMuestreo(data, ctxStr);
+  else if (mod === 'lop-noad') { const opV = getOp(ctx.opId); html = opV ? buildLopNoad(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -3997,6 +4004,54 @@ function buildAuditoriaDoc(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: LOP / NOAD (Cartas de Protesta y Avisos) =====
+function buildLopNoad(op, d, ctx) {
+  const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  const letters = d.letters || [];
+  const stColor = s => s==='reconocida'?'#4fbf7a':s==='rechazada'?'#e46a63':'#d4a54a';
+  const letterCard = (l, i) => `
+    <div class="card" style="border-left:3px solid ${l.type==='NOAD'?'#5b8fd6':'#e46a63'}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <select class="field-input" style="width:auto" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="type">
+          <option value="LOP" ${l.type!=='NOAD'?'selected':''}>Letter of Protest (LOP)</option>
+          <option value="NOAD" ${l.type==='NOAD'?'selected':''}>Aviso de Discrepancia (NOAD)</option>
+        </select>
+        <select class="field-input" style="width:auto" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="status">
+          ${['emitida','recibida','reconocida','rechazada'].map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
+        </select>
+        <span style="flex:1"></span>
+        <button class="btn btn-ghost btn-sm" data-action="lop-rm" data-ctx="${ctx}" data-idx="${i}">✕ Quitar</button>
+      </div>
+      <div class="form-row form-row-3">
+        <div class="field"><label class="field-label">Fecha</label><input class="field-input" type="date" value="${esc(l.date)}" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="date"></div>
+        <div class="field"><label class="field-label">Emitida por</label><input class="field-input" value="${esc(l.by)}" placeholder="ACI Loss Control" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="by"></div>
+        <div class="field"><label class="field-label">Dirigida a</label><input class="field-input" value="${esc(l.to)}" placeholder="Master / Terminal / Cliente" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="to"></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label class="field-label">Motivo / discrepancia</label>
+        <input class="field-input" value="${esc(l.subject)}" placeholder="Ej: diferencia volumétrica fuera de tolerancia, sea valve sin precinto…" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="subject"></div>
+      <div class="field" style="margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label class="field-label" style="margin:0">Cuerpo de la carta</label>
+          <button class="btn btn-secondary btn-sm" data-action="lop-ai" data-ctx="${ctx}" data-idx="${i}">✍️ Redactar con IA</button>
+        </div>
+        <textarea class="field-input" style="height:180px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.6" placeholder="Redacta manualmente o genera con IA…" data-action="lop-set" data-ctx="${ctx}" data-idx="${i}" data-field="body">${esc(l.body)}</textarea>
+      </div>
+      <div style="margin-top:8px"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${stColor(l.status)}20;color:${stColor(l.status)};border:1px solid ${stColor(l.status)}40">${(l.status||'emitida').toUpperCase()}</span></div>
+    </div>`;
+
+  return `
+    <div class="module-title">📝 Cartas de Protesta / NOAD</div>
+    <div class="module-subtitle">Gestión de Letters of Protest y Avisos de Discrepancia · redacción asistida por IA</div>
+    <div class="info-box" style="margin-bottom:12px">Registra cada LOP/NOAD de la operación. La IA redacta un borrador formal a partir del motivo y el contexto — revísalo y ajústalo antes de emitir.</div>
+    ${letters.length ? letters.map((l,i) => letterCard(l,i)).join('') : '<div class="card" style="text-align:center;color:var(--muted);padding:24px">Sin cartas registradas. Agrega una para comenzar.</div>'}
+    <button class="btn btn-primary btn-sm" data-action="lop-add" data-ctx="${ctx}" style="margin-bottom:16px">＋ Agregar carta</button>
+    <div class="card">
+      <label class="field-label">Notas</label>
+      <textarea class="field-input" style="height:60px" placeholder="Distribución, acuses de recibo, seguimiento…"
+        data-action="save-field" data-ctx="${ctx}" data-field="notes">${esc(d.notes)}</textarea>
+    </div>`;
+}
+
 // ===== MODULE: MUESTREO (API MPMS Cap. 8) =====
 function buildMuestreo(d, ctx) {
   const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
@@ -4406,7 +4461,8 @@ function showPDFSelector(opId) {
     'auditoria-doc': '14. Auditoría Documental',
     'draft-survey': '15. Draft Survey',
     'muestreo': '16. Muestreo',
-    'reporte-evolutivo': '17. Reporte Evolutivo — Conclusión',
+    'lop-noad': '17. Cartas de Protesta / NOAD',
+    'reporte-evolutivo': '18. Reporte Evolutivo — Conclusión',
   };
 
   // Modules the user can toggle — reporte-evolutivo is always included and fixed
@@ -5047,6 +5103,19 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const lopSecPdf = (() => {
+    const ld = mods['lop-noad']; if (!ld || !(ld.letters||[]).length) return '';
+    return sec('17. Cartas de Protesta / NOAD', `
+      ${ld.letters.map(l => `
+        <div style="border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:12px;break-inside:avoid">
+          <div style="font-size:11px;color:#1a2f5a;font-weight:700">${l.type==='NOAD'?'Aviso de Discrepancia (NOAD)':'Letter of Protest (LOP)'} · ${l.date||''} · ${(l.status||'emitida').toUpperCase()}</div>
+          <table class="kv" style="margin:6px 0">${kv('Emitida por', l.by)}${kv('Dirigida a', l.to)}${kv('Motivo', l.subject)}</table>
+          ${l.body?`<div style="white-space:pre-wrap;font-size:10.5px;line-height:1.6;background:#fafafa;border-left:3px solid #1a2f5a;padding:8px 12px">${l.body.replace(/</g,'&lt;')}</div>`:''}
+        </div>`).join('')}
+      ${ld.notes?`<div class="note">${ld.notes.replace(/\n/g,'<br>')}</div>`:''}
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
@@ -5069,6 +5138,7 @@ function printFullReport(opId, selectedMods) {
     ${has('auditoria-doc') ? '<div class="page-break"></div>'+auditSec : ''}
     ${has('draft-survey') ? '<div class="page-break"></div>'+draftSec : ''}
     ${has('muestreo') ? '<div class="page-break"></div>'+muestreoSec : ''}
+    ${has('lop-noad') ? '<div class="page-break"></div>'+lopSecPdf : ''}
     ${has('reporte-evolutivo') ? '<div class="page-break"></div>'+reSec : ''}
   </body></html>`;
 
@@ -6391,6 +6461,45 @@ function tlLaytime(ctxStr, field, value, reRender) {
   ref.save();
   if (reRender) renderKeepScroll();
 }
+// LOP/NOAD: cartas de protesta.
+function lopSet(ctxStr, idx, field, value) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.letters) ref.data.letters = [];
+  if (!ref.data.letters[idx]) ref.data.letters[idx] = {};
+  ref.data.letters[idx][field] = value;
+  ref.save();
+}
+function lopAdd(ctxStr) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  if (!ref.data.letters) ref.data.letters = [];
+  ref.data.letters.push({ type:'LOP', date:new Date().toISOString().slice(0,10), by:'ACI Loss Control', to:'', subject:'', body:'', status:'emitida' });
+  ref.save(); renderKeepScroll();
+}
+function lopRm(ctxStr, idx) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref || !Array.isArray(ref.data.letters)) return;
+  ref.data.letters.splice(idx, 1);
+  ref.save(); renderKeepScroll();
+}
+function lopAI(ctxStr, idx, btn) {
+  const ref = getModuleRef(decodeCtx(ctxStr));
+  if (!ref) return;
+  const op = ref.op, l = (ref.data.letters && ref.data.letters[idx]) || {};
+  const kind = l.type === 'NOAD' ? 'Notice of Apparent Discrepancy (NOAD)' : 'Letter of Protest (LOP)';
+  const prompt = `Redacta una ${kind} formal y profesional para una operación de inspección de custody transfer marítimo.\n`
+    + `Operación: ${op.code||'—'} · Buque: ${op.vessel?.name||'—'} (IMO ${op.vessel?.imo||'—'}) · Producto: ${op.product?.crudeName||op.product?.type||'—'} · Cliente: ${op.client||'—'}.\n`
+    + `Motivo / discrepancia: ${l.subject||'(especificar la discrepancia observada)'}.\n`
+    + `Dirigida a: ${l.to||'—'} · Emitida por: ${l.by||'ACI Loss Control'} · Fecha: ${l.date||new Date().toISOString().slice(0,10)}.\n\n`
+    + `Estructura: encabezado con fecha, partes y referencia de la operación; cuerpo formal describiendo objetivamente la discrepancia; reserva expresa de derechos de todas las partes; cierre con firma del inspector. En español, tono profesional marítimo, conciso. No inventes cifras ni hechos que no te di.`;
+  btn.disabled = true; btn.textContent = '⏳ Redactando…';
+  fetch('/api/consultar', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()}, body: JSON.stringify({ messages:[{role:'user',content:prompt}] }) })
+    .then(r => r.json()).then(res => {
+      if (res.reply) { ref.data.letters[idx].body = res.reply; ref.save(); render(); }
+      else { btn.disabled = false; btn.textContent = '✍️ Redactar con IA'; alert(res.error || 'Error del servidor.'); }
+    }).catch(() => { btn.disabled = false; btn.textContent = '✍️ Redactar con IA'; alert('Sin conexión al servidor.'); });
+}
 // Muestreo (Cap. 8): sets de muestra + flags.
 function msSet(ctxStr, idx, field, value) {
   const ref = getModuleRef(decodeCtx(ctxStr));
@@ -6947,9 +7056,13 @@ function handleChange(e) {
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
   else if (a === 'ds-set') dsSet(el.dataset.ctx, el.dataset.path, el.value, true);
   else if (a === 'ms-set') msSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.type==='checkbox' ? el.checked : el.value);
+  else if (a === 'lop-set') lopSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'ms-flag') msFlag(el.dataset.ctx, el.dataset.field, el.checked);
   else if (a === 'ms-add') msAdd(el.dataset.ctx);
   else if (a === 'ms-rm') msRm(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'lop-add') lopAdd(el.dataset.ctx);
+  else if (a === 'lop-rm') lopRm(el.dataset.ctx, parseInt(el.dataset.idx));
+  else if (a === 'lop-ai') lopAI(el.dataset.ctx, parseInt(el.dataset.idx), el);
   else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, true);
   else if (a === 'fleet-filter') { state.fleetClient = el.value; render(); }
   else if (a === 'save-km-answer') {
@@ -7132,6 +7245,7 @@ function handleInput(e) {
   else if (a === 'unc-set') uncSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, false);
   else if (a === 'ds-set' && el.tagName !== 'SELECT') dsSet(el.dataset.ctx, el.dataset.path, el.value, false);
   else if (a === 'ms-set' && el.type !== 'checkbox') msSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'lop-set' && el.tagName !== 'SELECT') lopSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, false);
 
   // Live VEF calculation
