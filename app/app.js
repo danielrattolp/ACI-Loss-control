@@ -15,13 +15,13 @@ const OP_TYPES = {
     label: 'Buque con VEF al Arribo',
     icon: '🛢️',
     desc: 'Medición al arribo con VEF. Concilia origen vs destino con comparativa de VEF.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
+    modules: ['resumen-ejec', 'datos-origen', 'key-meeting', 'ullage-arribo', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
   },
   'completa': {
     label: 'Operación Completa',
     icon: '⚓',
     desc: 'Desde origen hasta destino: BL → descarga → alijes → alijadores a tierra.',
-    modules: ['datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
+    modules: ['resumen-ejec', 'datos-origen', 'key-meeting', 'ullage-ini-madre', 'ullage-fin-madre', 'ullage-ini-alijador', 'ullage-fin-alijador', 'vef-comparativo', 'discharge-record', 'termometros', 'checklist', 'var-175', 'vsrr-175', 'hechos-campo', 'reglas', 'incertidumbre', 'auditoria-doc', 'reporte-evolutivo'],
   },
   // Legacy — compatibilidad con operaciones existentes
   'vef':      { label: 'Buque con VEF (legacy)', icon: '🛢️', desc: '', modules: ['origen','key-meeting','ullage-inicial','vef','time-log','checklist-inspeccion','summary'] },
@@ -36,6 +36,7 @@ const MODULE_META = {
   'vef-comparativo':     { label: 'VEF al Arribo',         icon: '⚖️' },
   'discharge-record':    { label: 'Discharge Record',     icon: '📋' },
   'termometros':         { label: 'Termómetros',          icon: '🌡️' },
+  'resumen-ejec':        { label: 'Resumen Ejecutivo',    icon: '📋' },
   'var-175':             { label: 'Análisis de Viaje (VAR)', icon: '🧭' },
   'vsrr-175':            { label: 'Reconciliación (VSRR)', icon: '⚖️' },
   'hechos-campo':        { label: 'Hechos de Campo',      icon: '📋' },
@@ -73,6 +74,7 @@ const MODULE_LIBRARY = [
   { type: 'discharge-record', label: 'Discharge Record',   icon: '📋', multi: false, desc: 'Registro de descarga / carga' },
   { type: 'slops',            label: 'Slops',              icon: '🪣', multi: false, desc: 'Control de slops' },
   { type: 'checklist',        label: 'Checklist',          icon: '✅', multi: true,  desc: 'Lista de verificación de auditoría' },
+  { type: 'resumen-ejec',     label: 'Resumen Ejecutivo',  icon: '📋', multi: false, desc: 'Vista consolidada de toda la operación' },
   { type: 'var-175',          label: 'Análisis de Viaje (VAR)', icon: '🧭', multi: false, desc: 'Conciliación de cantidades — API MPMS 17.5' },
   { type: 'vsrr-175',         label: 'Reconciliación (VSRR)', icon: '⚖️', multi: false, desc: 'Descomposición de pérdida por causa — API MPMS 17.5' },
   { type: 'hechos-campo',     label: 'Hechos de Campo',    icon: '📋', multi: false, desc: 'Métodos y equipos usados — API MPMS 17.5' },
@@ -511,6 +513,7 @@ function initModuleInstance(type) {
   };
   if (type === 'reglas') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
   if (type === 'auditoria-doc') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo cálculo
+  if (type === 'resumen-ejec') return { notes:'', iaAnalysis:'', iaDate:'' };  // solo agregación
   if (type === 'lop-noad') return {
     letters: [],   // { type, date, by, to, subject, body, status }
     notes:'', iaAnalysis:'', iaDate:'',
@@ -2096,6 +2099,7 @@ function buildModuleContentInner(data, mod, ctx) {
   else if (mod === 'draft-survey') html = buildDraftSurvey(data, ctxStr);
   else if (mod === 'muestreo') html = buildMuestreo(data, ctxStr);
   else if (mod === 'lop-noad') { const opV = getOp(ctx.opId); html = opV ? buildLopNoad(opV, data, ctxStr) : ''; }
+  else if (mod === 'resumen-ejec') { const opV = getOp(ctx.opId); html = opV ? buildResumen(opV, data, ctxStr) : ''; }
   else if (mod === 'reporte-evolutivo') { const op2 = getOp(ctx.opId); return op2 ? buildReporteEvolutivo(op2, ctxStr) : ''; }
   else if (mod === 'termometros')                                         html = buildTermometros(data, ctxStr);
   // Legacy
@@ -4004,6 +4008,86 @@ function buildAuditoriaDoc(op, d, ctx) {
     </div>`;
 }
 
+// ===== MODULE: RESUMEN EJECUTIVO (agregación de toda la operación) =====
+function computeResumen(op) {
+  const mods = op.modules || {};
+  const N = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const bl = (mods['datos-origen'] && mods['datos-origen'].bl) || {};
+  const arr = (mods['ullage-arribo'] && mods['ullage-arribo'].totals) || {};
+  const blGsv = N(bl.gsv), arrGsv = N(arr.gsv);
+  const deltaAbs = (blGsv != null && arrGsv != null) ? arrGsv - blGsv : null;
+  const deltaPct = (blGsv && arrGsv != null) ? (arrGsv - blGsv) / blGsv * 100 : null;
+  const vefO = (mods['datos-origen'] && mods['datos-origen'].vefOrigen && mods['datos-origen'].vefOrigen.voyages && mods['datos-origen'].vefOrigen.voyages.length) ? computeVEFStats(mods['datos-origen'].vefOrigen.voyages).vef : null;
+  const vefA = (mods['vef-comparativo'] && mods['vef-comparativo'].voyages && mods['vef-comparativo'].voyages.length) ? computeVEFStats(mods['vef-comparativo'].voyages).vef : null;
+  const varR = mods['var-175'] ? (mods['var-175']._snapshot || (typeof computeVAR === 'function' ? computeVAR(op, mods['var-175']) : null)) : null;
+  const unc = mods['incertidumbre'] ? computeUncertainty(op, mods['incertidumbre']) : null;
+  const rules = computeRules(op), audit = computeDocAudit(op);
+  const rulesFail = rules.filter(x => x.status === 'fail').length;
+  const rulesWarn = rules.filter(x => x.status === 'warn').length;
+  const auditFail = audit.filter(x => x.status === 'fail').length;
+  const needLOP = rules.some(x => x.status === 'fail' && /LOP|Protest/i.test(x.action || ''));
+  const significant = unc ? unc.significant : null;
+  let status = 'ok', statusText = 'Operación conforme';
+  if (rulesFail || auditFail) { status = 'fail'; statusText = 'Requiere atención'; }
+  else if (rulesWarn) { status = 'warn'; statusText = 'Con advertencias'; }
+  return { blGsv, arrGsv, deltaAbs, deltaPct, vefO, vefA, varR, unc, rulesFail, rulesWarn, auditFail, needLOP, significant, status, statusText };
+}
+
+function buildResumen(op, d, ctx) {
+  const r = computeResumen(op);
+  const nf = v => v == null ? '—' : Math.round(v).toLocaleString('en-US');
+  const pf = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(3) + '%';
+  const dc = v => v == null ? 'var(--muted)' : (v < -0.5 ? '#e46a63' : v > 0.1 ? '#5b8fd6' : '#4fbf7a');
+  const stCol = { ok:'#4fbf7a', warn:'#d4a54a', fail:'#e46a63' }[r.status];
+  const well = (val, label, color) => `<div style="background:var(--well);border:1px solid var(--line2);border-radius:10px;padding:14px;text-align:center;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)">
+    <div style="font-family:ui-monospace,monospace;font-size:22px;font-weight:700;color:${color||'var(--amber-lt)'};text-shadow:0 0 8px rgba(238,199,120,.25)">${val}</div>
+    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">${label}</div></div>`;
+
+  return `
+    <div class="module-title">📋 Resumen Ejecutivo</div>
+    <div class="module-subtitle">Estado consolidado de la operación · ${op.code||''}</div>
+
+    <div class="card" style="border-left:3px solid ${stCol};display:flex;align-items:center;gap:14px">
+      <div style="font-size:30px">${r.status==='ok'?'✅':r.status==='warn'?'⚠️':'⛔'}</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:800;color:${stCol}">${r.statusText}</div>
+        <div style="font-size:12px;color:var(--muted)">${r.rulesFail} no conformidad(es) · ${r.rulesWarn} advertencia(s) · ${r.auditFail} inconsistencia(s) documental(es)</div>
+      </div>
+      ${r.needLOP ? '<div style="font-family:ui-monospace,monospace;font-size:11px;font-weight:700;color:#e46a63;border:1px solid #e46a63;border-radius:8px;padding:6px 12px">LOP recomendada</div>' : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Balance de cantidades</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+        ${well(nf(r.blGsv)+'<span style="font-size:12px;color:var(--dim)"> BBL</span>','GSV B/L (origen)')}
+        ${well(nf(r.arrGsv)+'<span style="font-size:12px;color:var(--dim)"> BBL</span>','GSV Arribo')}
+        ${well((r.deltaAbs!=null?(r.deltaAbs>=0?'+':'')+nf(r.deltaAbs):'—'),'Δ GSV (BBL)', dc(r.deltaPct))}
+        ${well(pf(r.deltaPct),'Δ GSV (%)', dc(r.deltaPct))}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Indicadores clave</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+        ${well(r.vefO!=null?r.vefO.toFixed(5):'—','VEF origen', '#43b8a6')}
+        ${well(r.vefA!=null?r.vefA.toFixed(5):'—','VEF arribo', '#43b8a6')}
+        ${well(r.unc!=null?'±'+r.unc.U.toFixed(3)+'%':'—','Incertidumbre (95%)')}
+        ${well(r.significant===null?'—':(r.significant?'Significativa':'No signif.'), 'Δ vs incertidumbre', r.significant===null?'var(--muted)':(r.significant?'#e46a63':'#4fbf7a'))}
+      </div>
+      ${r.significant!==null ? `<div style="margin-top:10px;font-size:12px;color:var(--muted)">${r.significant?'La diferencia observada supera la incertidumbre de medición — posible pérdida real.':'La diferencia observada está dentro de la incertidumbre — ruido de medición, no pérdida real.'}</div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Verificaciones</div>
+      <table class="data-table" style="width:100%"><tbody>
+        <tr><td>Validación normativa (motor de reglas)</td><td style="text-align:right">${r.rulesFail?`<span style="color:#e46a63;font-weight:700">${r.rulesFail} no conforme(s)</span>`:r.rulesWarn?`<span style="color:#d4a54a;font-weight:700">${r.rulesWarn} advertencia(s)</span>`:'<span style="color:#4fbf7a;font-weight:700">Conforme</span>'}</td></tr>
+        <tr><td>Auditoría documental (coherencia)</td><td style="text-align:right">${r.auditFail?`<span style="color:#e46a63;font-weight:700">${r.auditFail} inconsistencia(s)</span>`:'<span style="color:#4fbf7a;font-weight:700">Coherente</span>'}</td></tr>
+        <tr><td>Análisis de viaje (VAR)</td><td style="text-align:right">${r.varR?(r.varR.completeness+'% completo'):'<span style="color:var(--muted)">Sin datos</span>'}</td></tr>
+      </tbody></table>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Vista consolidada — refleja en vivo el estado de los demás módulos.</div>
+    </div>`;
+}
+
 // ===== MODULE: LOP / NOAD (Cartas de Protesta y Avisos) =====
 function buildLopNoad(op, d, ctx) {
   const esc = s => String(s==null?'':s).replace(/"/g,'&quot;');
@@ -4441,6 +4525,7 @@ function showPDFSelector(opId) {
 
   // Labels for all known modules
   const modLabels = {
+    'resumen-ejec': '0. Resumen Ejecutivo',
     'datos-origen': '1. Datos de Origen — Bill of Lading',
     'key-meeting': '2. Key Meeting',
     'ullage-arribo': '3. Ullage al Arribo',
@@ -5116,12 +5201,33 @@ function printFullReport(opId, selectedMods) {
     `);
   })();
 
+  const resumenSec = (() => {
+    if (!mods['resumen-ejec']) return '';
+    const r = computeResumen(op);
+    const nf = v => v == null ? '—' : Math.round(v).toLocaleString('en-US');
+    const pf = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(3) + '%';
+    const stTxt = { ok:'Operación conforme', warn:'Con advertencias', fail:'Requiere atención' }[r.status];
+    const stCol = { ok:'#2e7d32', warn:'#b8901f', fail:'#c62828' }[r.status];
+    return sec('0. Resumen Ejecutivo', `
+      <div class="conclusion" style="border-color:${stCol};background:${stCol}12"><strong style="color:${stCol}">${stTxt}</strong> — ${r.rulesFail} no conformidad(es), ${r.rulesWarn} advertencia(s), ${r.auditFail} inconsistencia(s) documental(es).${r.needLOP?' <strong>Se recomienda LOP.</strong>':''}</div>
+      <table class="kv">
+        ${kv('GSV B/L (origen)', nf(r.blGsv)+' BBL')}
+        ${kv('GSV Arribo', nf(r.arrGsv)+' BBL')}
+        ${kv('Δ GSV', (r.deltaAbs!=null?(r.deltaAbs>=0?'+':'')+nf(r.deltaAbs)+' BBL':'—')+' ('+pf(r.deltaPct)+')')}
+        ${kv('VEF origen / arribo', (r.vefO!=null?r.vefO.toFixed(5):'—')+' / '+(r.vefA!=null?r.vefA.toFixed(5):'—'))}
+        ${kv('Incertidumbre (95%)', r.unc!=null?'±'+r.unc.U.toFixed(3)+'%':'—')}
+        ${kv('Δ vs incertidumbre', r.significant===null?'—':(r.significant?'Significativa (posible pérdida real)':'No significativa (ruido de medición)'))}
+      </table>
+    `);
+  })();
+
   const html = `<!DOCTYPE html><html lang="es"><head>
     <meta charset="UTF-8">
     <title>${op.code} — Reporte Operacional — ACI Loss Control</title>
     <style>${css}</style>
   </head><body>
     ${cover}
+    ${has('resumen-ejec') ? resumenSec+'<div class="page-break"></div>' : ''}
     ${has('datos-origen') ? origenSec+'<div class="page-break"></div>' : ''}
     ${has('key-meeting') ? kmSec+'<div class="page-break"></div>' : ''}
     ${has('ullage-arribo') ? arriboSec : ''}
