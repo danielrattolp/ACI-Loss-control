@@ -1085,6 +1085,14 @@ function buildFleetIntelligence(allOps) {
   alerts.sort((a, b) => (a.status === 'fail' ? 0 : 1) - (b.status === 'fail' ? 0 : 1));
   const chrono = [...withData].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
+  // Valor entregado
+  const price = parseFloat(state.fleetPrice) || 0;
+  const totalDiscBbl = withData.reduce((s, r) => s + Math.abs((r.blG || 0) * (r.delta || 0) / 100), 0);
+  const valueUsd = totalDiscBbl * price;
+  let lopsCount = 0;
+  ops.forEach(o => { lopsCount += ((o.modules && o.modules['lop-noad'] && o.modules['lop-noad'].letters) || []).length; });
+  const nfi = v => Math.round(v).toLocaleString('en-US');
+
   const groupCard = (title, groups) => {
     const gmax = Math.max(0.001, ...groups.map(g => Math.abs(g.avg)));
     return `<div class="card">
@@ -1119,6 +1127,21 @@ function buildFleetIntelligence(allOps) {
       ${kpi(worst ? worst.code : '—', 'Peor operación', '#e46a63')}
       ${kpi(Math.round(totalGsv).toLocaleString('en-US'), 'GSV total (BBL)')}
     </div></div>
+
+    <div class="card" style="background:linear-gradient(135deg,var(--panel2),var(--white))">
+      <div class="card-title">💰 Valor entregado por ACI</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <label class="field-label" style="margin:0">Precio del crudo (USD/BBL)</label>
+        <input class="field-input" style="width:130px" type="number" step="0.01" value="${state.fleetPrice||''}" placeholder="Ej: 70" data-action="fleet-price">
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        ${kpi(nfi(totalDiscBbl)+' BBL', 'Discrepancias cuantificadas')}
+        ${kpi(price ? '$'+nfi(valueUsd) : '—', 'Valor en riesgo gestionado', '#4fbf7a')}
+        ${kpi(outliers.length, 'Casos fuera de rango', '#e46a63')}
+        ${kpi(lopsCount, 'Cartas de protesta', '#d4a54a')}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">La diferencia volumétrica que la inspección de ACI <strong>cuantificó y documentó</strong> × precio del crudo — el valor que tu control protege para el cliente. ${!price?'Ingresa un precio para estimarlo en USD.':''}</div>
+    </div>
 
     <div class="card">
       <div class="card-title">⚠️ Alertas — requieren atención</div>
@@ -1187,6 +1210,10 @@ function printFleetIntel() {
   const totalGsv = rows.reduce((s, r) => s + (r.blG || 0), 0);
   const worst = rows.reduce((w, r) => (w == null || r.delta < w.delta) ? r : w, null);
   const outliers = rows.filter(r => Math.abs(r.delta) > 0.5).sort((a, b) => a.delta - b.delta);
+  const price = parseFloat(state.fleetPrice) || 0;
+  const totalDiscBbl = rows.reduce((s, r) => s + Math.abs((r.blG || 0) * (r.delta || 0) / 100), 0);
+  const valueUsd = totalDiscBbl * price;
+  let lopsCount = 0; ops.forEach(o => { lopsCount += ((o.modules && o.modules['lop-noad'] && o.modules['lop-noad'].letters) || []).length; });
   const grp = keyFn => { const m = {}; rows.forEach(r => { const k = keyFn(r) || '—'; (m[k] = m[k] || []).push(r.delta); }); return Object.entries(m).map(([k, a]) => ({ k, avg: a.reduce((x, y) => x + y, 0) / a.length, n: a.length })).sort((a, b) => a.avg - b.avg); };
   const p = v => (v >= 0 ? '+' : '') + v.toFixed(3) + '%';
   const nf = v => Math.round(v).toLocaleString('en-US');
@@ -1217,6 +1244,13 @@ function printFleetIntel() {
       <div class="kpi"><div class="v">${worst ? worst.code : '—'}</div><div class="l">Peor operación</div></div>
       <div class="kpi"><div class="v">${nf(totalGsv)}</div><div class="l">GSV total (BBL)</div></div>
     </div>
+    <h3>Valor entregado por ACI</h3>
+    <table><tbody>
+      <tr><td>Discrepancias volumétricas cuantificadas</td><td style="text-align:right;font-weight:700">${nf(totalDiscBbl)} BBL</td></tr>
+      <tr><td>Valor en riesgo gestionado${price?' (a $'+price+'/BBL)':''}</td><td style="text-align:right;font-weight:700;color:#2e7d32">${price?'$'+nf(valueUsd):'— (ingresar precio)'}</td></tr>
+      <tr><td>Casos fuera de rango detectados</td><td style="text-align:right;font-weight:700">${outliers.length}</td></tr>
+      <tr><td>Cartas de protesta emitidas</td><td style="text-align:right;font-weight:700">${lopsCount}</td></tr>
+    </tbody></table>
     ${grpTable('Δ promedio por buque', grp(r => r.vessel))}
     ${grpTable('Δ promedio por crudo', grp(r => r.crude))}
     ${grpTable('Δ promedio por terminal / puerto', grp(r => r.port))}
@@ -1596,10 +1630,30 @@ function buildHome(ops) {
     ? ops.filter(o => getClient(o) === state.filterClient)
     : ops;
 
+  // KPIs de flota (centro de mando)
+  const mrows = fleetMetrics(ops).filter(r => r.delta != null);
+  const avgD = mrows.length ? mrows.reduce((s, r) => s + r.delta, 0) / mrows.length : null;
+  let openAlerts = 0, lops = 0;
+  for (const op of ops) {
+    try { openAlerts += computeRules(op).filter(x => x.status === 'fail' || (x.status === 'warn' && x.action)).length; } catch (_) {}
+    lops += ((op.modules && op.modules['lop-noad'] && op.modules['lop-noad'].letters) || []).length;
+  }
+  const kColor = avgD == null ? 'var(--muted)' : (avgD < -0.5 ? '#e46a63' : avgD > 0.1 ? '#5b8fd6' : '#4fbf7a');
+  const tile = (val, label, color) => `<div style="flex:1;min-width:120px;background:var(--well);border:1px solid var(--line2);border-radius:12px;padding:14px 16px;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)">
+    <div style="font-family:ui-monospace,monospace;font-size:24px;font-weight:700;color:${color||'var(--amber-lt)'};text-shadow:0 0 8px rgba(238,199,120,.2)">${val}</div>
+    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${label}</div></div>`;
+
   return `
     <div class="home-header">
-      <div class="home-title">Operaciones</div>
+      <div class="home-title">Centro de Operaciones</div>
       <div class="home-sub">${filtered.length} de ${ops.length} operación${ops.length !== 1 ? 'es' : ''}</div>
+    </div>
+    <div style="padding:16px 32px 0;display:flex;gap:12px;flex-wrap:wrap">
+      ${tile(ops.length, 'Operaciones')}
+      ${tile(mrows.length, 'Con datos de custodia')}
+      ${tile(avgD == null ? '—' : (avgD >= 0 ? '+' : '') + avgD.toFixed(3) + '%', 'Δ GSV promedio', kColor)}
+      ${tile(openAlerts, 'Alertas abiertas', openAlerts ? '#e46a63' : '#4fbf7a')}
+      ${tile(lops, 'Cartas de protesta', lops ? '#d4a54a' : 'var(--muted)')}
     </div>
     <div class="home-actions">
       <button class="btn btn-primary" data-action="open-new-op">+ Nueva Operación</button>
@@ -7171,6 +7225,7 @@ function handleChange(e) {
   else if (a === 'lop-ai') lopAI(el.dataset.ctx, parseInt(el.dataset.idx), el);
   else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, true);
   else if (a === 'fleet-filter') { state.fleetClient = el.value; render(); }
+  else if (a === 'fleet-price') { state.fleetPrice = el.value; render(); }
   else if (a === 'save-km-answer') {
     const ctx2 = decodeCtx(el.dataset.ctx); const ref = getModuleRef(ctx2);
     if (ref) { if (!ref.data.answers) ref.data.answers = {}; ref.data.answers[el.dataset.qid] = el.value; ref.save(); }
@@ -7352,6 +7407,7 @@ function handleInput(e) {
   else if (a === 'ds-set' && el.tagName !== 'SELECT') dsSet(el.dataset.ctx, el.dataset.path, el.value, false);
   else if (a === 'ms-set' && el.type !== 'checkbox') msSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'lop-set' && el.tagName !== 'SELECT') lopSet(el.dataset.ctx, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'fleet-price') { state.fleetPrice = el.value; }
   else if (a === 'tl-laytime') tlLaytime(el.dataset.ctx, el.dataset.field, el.value, false);
 
   // Live VEF calculation
