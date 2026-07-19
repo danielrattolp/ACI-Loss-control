@@ -9,10 +9,21 @@
     { "source": "/cliente",             "destination": "/cliente.html" },
     { "source": "/cliente/(.*)",        "destination": "/cliente.html" }
   ],
+  "functions": {
+    "api/consultar.py": { "maxDuration": 60 }
+  },
   "headers": [
     {
+      "source": "/app.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/app.css",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
       "source": "/app/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
       "source": "/brochure",
