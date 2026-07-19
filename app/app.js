@@ -4487,6 +4487,172 @@ function buildTermometros(d, ctx) {
 }
 
 // ===== MODULE: REPORTE EVOLUTIVO =====
+// ===== ANÁLISIS TÉRMICO — alturas y temperaturas origen vs arribo =====
+// Compara, tanque por tanque, la temperatura y la altura medida en el puerto
+// de carga contra las de arribo (Talcahuano), estima la contracción esperada
+// por enfriamiento (vía VCF) y evalúa la plausibilidad de la temperatura del
+// cargo frente a la del mar y el ambiente. API MPMS Cap. 7 y 11.1.
+function buildThermalAnalysis(op, ctx) {
+  const mods = op.modules || {};
+  const origen = mods['datos-origen'] || {};
+  const bl = origen.bl || {};
+  const originTanks = (origen.ullageOrigen && origen.ullageOrigen.tanks) || [];
+  const arrKeys = (op.moduleOrder || []).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
+  const arrMod = arrKeys.map(k => mods[k]).find(m => m && Array.isArray(m.tanks) && m.tanks.some(t => t && (t.temp !== '' || t.measured !== ''))) || {};
+  const arrTanks = arrMod.tanks || [];
+  const re = mods['reporte-evolutivo'] || {};
+  const sea = parseFloat(re.seaTemp);
+  const amb = parseFloat(re.ambTemp);
+  const loadRef = parseFloat(bl.temp);
+  const norm = s => String(s || '').trim().toUpperCase();
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const f = (v, d = 2) => v == null ? '—' : (v > 0 && d === 2 ? '' : '') + v.toFixed(d);
+  const oriByName = {};
+  originTanks.forEach(t => { if (t && t.name) oriByName[norm(t.name)] = t; });
+
+  const rows = arrTanks
+    .filter(t => t && (norm(t.name) || t.temp !== '' || t.measured !== ''))
+    .map(t => {
+      const o = oriByName[norm(t.name)] || {};
+      const tArr = num(t.temp);
+      let tOri = num(o.temp);
+      let oriFromBL = false;
+      if (tOri == null && !isNaN(loadRef)) { tOri = loadRef; oriFromBL = true; }
+      const dT = (tArr != null && tOri != null) ? (tArr - tOri) : null;
+      const hArr = num(t.measured), hOri = num(o.measured);
+      const dH = (hArr != null && hOri != null) ? (hArr - hOri) : null;
+      const vArr = num(t.vcf), vOri = num(o.vcf);
+      const contr = (vArr && vOri) ? (1 - vOri / vArr) * 100 : null; // % contracción observada esperada por enfriamiento
+      let plaus = { txt: '—', color: 'var(--muted)', bg: 'transparent' };
+      if (tArr != null && !isNaN(sea) && !isNaN(amb)) {
+        if (tArr < sea - 1.5) plaus = { txt: '⚠ menor que mar', color: '#e57373', bg: 'rgba(228,106,99,.14)' };
+        else if (tArr > amb + 8) plaus = { txt: '⚠ muy sobre amb.', color: '#d4a54a', bg: 'rgba(212,165,74,.16)' };
+        else plaus = { txt: '✓ plausible', color: '#66bb6a', bg: 'rgba(79,191,122,.12)' };
+      }
+      return { name: t.name || '—', tOri, tArr, dT, oriFromBL, hOri, hArr, dH, contr, plaus };
+    });
+
+  if (!rows.length) {
+    return `<div class="card">
+      <div class="card-title">🌡️ Análisis Térmico — Alturas y Temperaturas (Origen vs Arribo)</div>
+      <div class="info-box">Carga los tanques en <b>Datos de Origen → Ullage de Origen</b> y en <b>Ullage al Arribo</b> (altura y temperatura) para ver la comparación térmica automática.</div>
+    </div>`;
+  }
+
+  const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const tOriAvg = avg(rows.map(r => r.tOri).filter(v => v != null));
+  const tArrAvg = avg(rows.map(r => r.tArr).filter(v => v != null));
+  const dTAvg = (tOriAvg != null && tArrAvg != null) ? tArrAvg - tOriAvg : null;
+  const contrAvg = avg(rows.map(r => r.contr).filter(v => v != null));
+  const usedBL = rows.some(r => r.oriFromBL);
+
+  const dTColor = d => d == null ? '' : (d < 0 ? 'color:#e57373' : 'color:#66bb6a');
+  const sign = d => d > 0 ? '+' : '';
+
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td style="font-weight:700;color:var(--amber);text-align:center">${r.name}</td>
+      <td style="text-align:right">${r.tOri == null ? '—' : r.tOri.toFixed(1) + (r.oriFromBL ? '*' : '')}</td>
+      <td style="text-align:right">${r.tArr == null ? '—' : r.tArr.toFixed(1)}</td>
+      <td style="text-align:right;font-weight:700;${dTColor(r.dT)}">${r.dT == null ? '—' : sign(r.dT) + r.dT.toFixed(1)}</td>
+      <td style="text-align:right">${r.hOri == null ? '—' : r.hOri.toFixed(3)}</td>
+      <td style="text-align:right">${r.hArr == null ? '—' : r.hArr.toFixed(3)}</td>
+      <td style="text-align:right;${dTColor(r.dH)}">${r.dH == null ? '—' : sign(r.dH) + r.dH.toFixed(3)}</td>
+      <td style="text-align:right">${r.contr == null ? '—' : r.contr.toFixed(3) + '%'}</td>
+      <td style="text-align:center;color:${r.plaus.color};background:${r.plaus.bg};font-size:11px;font-weight:600">${r.plaus.txt}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="card">
+      <div class="card-title">🌡️ Análisis Térmico — Alturas y Temperaturas (Origen vs Arribo)</div>
+      <div class="form-row form-row-2" style="margin-bottom:12px">
+        <div class="field"><label class="field-label">Temp. del mar en arribo (°C)</label>
+          <input class="field-input" type="number" step="0.1" value="${re.seaTemp || ''}" placeholder="ej. 13.0"
+            data-action="save-field" data-ctx="${ctx}" data-field="seaTemp"></div>
+        <div class="field"><label class="field-label">Temp. ambiente en arribo (°C)</label>
+          <input class="field-input" type="number" step="0.1" value="${re.ambTemp || ''}" placeholder="ej. 16.0"
+            data-action="save-field" data-ctx="${ctx}" data-field="ambTemp"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:760px;font-size:12px">
+          <thead><tr>
+            <th style="text-align:center">Tanque</th>
+            <th style="text-align:right">T° Origen<br><span style="font-weight:400;font-size:10px">(°C)</span></th>
+            <th style="text-align:right">T° Arribo<br><span style="font-weight:400;font-size:10px">(°C)</span></th>
+            <th style="text-align:right">ΔT°</th>
+            <th style="text-align:right">Alt. Origen<br><span style="font-weight:400;font-size:10px">(m)</span></th>
+            <th style="text-align:right">Alt. Arribo<br><span style="font-weight:400;font-size:10px">(m)</span></th>
+            <th style="text-align:right">Δ Altura</th>
+            <th style="text-align:right">Contracción<br><span style="font-weight:400;font-size:10px">esperada (VCF)</span></th>
+            <th style="text-align:center">Plausib.<br><span style="font-weight:400;font-size:10px">vs mar/amb</span></th>
+          </tr></thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="total-row" style="border-top:2px solid var(--line)">
+              <td style="font-weight:700">PROMEDIO</td>
+              <td style="text-align:right;font-weight:700">${tOriAvg == null ? '—' : tOriAvg.toFixed(1)}</td>
+              <td style="text-align:right;font-weight:700">${tArrAvg == null ? '—' : tArrAvg.toFixed(1)}</td>
+              <td style="text-align:right;font-weight:700;${dTColor(dTAvg)}">${dTAvg == null ? '—' : sign(dTAvg) + dTAvg.toFixed(1)}</td>
+              <td></td><td></td><td></td>
+              <td style="text-align:right;font-weight:700">${contrAvg == null ? '—' : contrAvg.toFixed(3) + '%'}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:10px">
+        ${usedBL ? '<b>*</b> Temp. de origen tomada del B/L (no había temperatura por tanque en Ullage de Origen).<br>' : ''}
+        <b>Contracción esperada (VCF):</b> caída de volumen observado que el enfriamiento ΔT° justifica por sí solo — el VCF ya la corrige, por lo que <b>no es pérdida</b>. La pérdida real es el residual del balance GSV @60°F (arriba).<br>
+        <b>Plausibilidad:</b> ✓ el cargo está entre la temperatura del mar y el ambiente (enfriamiento coherente); <span style="color:#e57373">⚠ menor que mar</span> = por debajo del agua, revisar termómetro; <span style="color:#d4a54a">⚠ muy sobre amb.</span> = &gt;8°C sobre ambiente sin calefacción declarada → posible calefacción no reportada o error de medición (Cap. 7).
+      </div>
+    </div>`;
+}
+
+// Versión estática (para PDF) del análisis térmico — mismas reglas que el panel.
+function thermalPdfSection(op) {
+  const mods = op.modules || {};
+  const origen = mods['datos-origen'] || {};
+  const bl = origen.bl || {};
+  const originTanks = (origen.ullageOrigen && origen.ullageOrigen.tanks) || [];
+  const arrKeys = (op.moduleOrder || []).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
+  const arrMod = arrKeys.map(k => mods[k]).find(m => m && Array.isArray(m.tanks) && m.tanks.some(t => t && (t.temp !== '' || t.measured !== ''))) || {};
+  const arrTanks = arrMod.tanks || [];
+  const re = mods['reporte-evolutivo'] || {};
+  const sea = parseFloat(re.seaTemp), amb = parseFloat(re.ambTemp), loadRef = parseFloat(bl.temp);
+  const norm = s => String(s || '').trim().toUpperCase();
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const oriByName = {};
+  originTanks.forEach(t => { if (t && t.name) oriByName[norm(t.name)] = t; });
+  const rows = arrTanks.filter(t => t && (norm(t.name) || t.temp !== '' || t.measured !== '')).map(t => {
+    const o = oriByName[norm(t.name)] || {};
+    const tArr = num(t.temp); let tOri = num(o.temp), oriBL = false;
+    if (tOri == null && !isNaN(loadRef)) { tOri = loadRef; oriBL = true; }
+    const dT = (tArr != null && tOri != null) ? tArr - tOri : null;
+    const hOri = num(o.measured), hArr = num(t.measured);
+    const dH = (hArr != null && hOri != null) ? hArr - hOri : null;
+    const vArr = num(t.vcf), vOri = num(o.vcf);
+    const contr = (vArr && vOri) ? (1 - vOri / vArr) * 100 : null;
+    let pl = '—';
+    if (tArr != null && !isNaN(sea) && !isNaN(amb)) pl = tArr < sea - 1.5 ? '⚠ < mar' : (tArr > amb + 8 ? '⚠ >> amb' : '✓ plausible');
+    return { name: t.name || '—', tOri, tArr, dT, oriBL, hOri, hArr, dH, contr, pl };
+  });
+  if (!rows.length) return '';
+  const s = d => d > 0 ? '+' : '';
+  const body = rows.map(r => `<tr${r.pl.startsWith('⚠') ? ' class="warning"' : ''}>
+    <td>${r.name}</td><td>${r.tOri == null ? '—' : r.tOri.toFixed(1) + (r.oriBL ? '*' : '')}</td>
+    <td>${r.tArr == null ? '—' : r.tArr.toFixed(1)}</td><td>${r.dT == null ? '—' : s(r.dT) + r.dT.toFixed(1)}</td>
+    <td>${r.hOri == null ? '—' : r.hOri.toFixed(3)}</td><td>${r.hArr == null ? '—' : r.hArr.toFixed(3)}</td>
+    <td>${r.dH == null ? '—' : s(r.dH) + r.dH.toFixed(3)}</td><td>${r.contr == null ? '—' : r.contr.toFixed(3) + '%'}</td>
+    <td>${r.pl}</td></tr>`).join('');
+  return `<div class="page-break"></div><h3>Análisis Térmico — Alturas y Temperaturas (Origen vs Arribo)</h3>
+    <p style="font-size:11px">Temp. mar arribo: <b>${isNaN(sea) ? '—' : sea.toFixed(1) + '°C'}</b> · Temp. ambiente arribo: <b>${isNaN(amb) ? '—' : amb.toFixed(1) + '°C'}</b></p>
+    <table>
+      <thead><tr><th>Tanque</th><th>T° Origen</th><th>T° Arribo</th><th>ΔT°</th><th>Alt. Origen (m)</th><th>Alt. Arribo (m)</th><th>Δ Altura</th><th>Contracción esp. (VCF)</th><th>Plausib.</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p style="font-size:10px;color:#555">La contracción esperada es la caída de volumen que el enfriamiento justifica (ya corregida por el VCF, no es pérdida). Plausibilidad térmica del cargo frente a mar/ambiente según API MPMS Cap. 7.</p>`;
+}
+
 function buildReporteEvolutivo(op, ctx) {
   const mods = op.modules || {};
   const re = mods['reporte-evolutivo'] || {};
@@ -4596,6 +4762,8 @@ function buildReporteEvolutivo(op, ctx) {
         </div>
       </div>
     </div>` : ''}
+
+    ${buildThermalAnalysis(op, ctx)}
 
     ${analyses.length ? `
     <div class="card">
@@ -5046,6 +5214,7 @@ function printFullReport(opId, selectedMods) {
       ${kv('VEF Arribo', vefAStats?vefAStats.vef.toFixed(4):'—')}
       ${vefOStats&&vefAStats?kv('Δ VEF',(vefAStats.vef-vefOStats.vef>0?'+':'')+(vefAStats.vef-vefOStats.vef).toFixed(5)):''}
     </table>`:''}
+    ${thermalPdfSection(op)}
     ${allAnalyses.length?`<div class="page-break"></div><h3>Análisis del Consultor IA</h3>${allAnalyses.map(a=>`
       <h4>${a.label}${a.date?' — '+fmtD(a.date):''}</h4>
       <div class="ia-block">${a.content.replace(/\n/g,'<br>')}</div>`).join('')}`:''}
