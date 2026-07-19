@@ -2837,7 +2837,7 @@ function buildVEFTableSection(vefData, ctx, sub) {
     return `
       <tr>
         <td style="font-weight:600;font-size:11px;color:var(--muted);text-align:center;min-width:40px">${seq}</td>
-        <td style="min-width:95px"><input class="tbl-input" type="date" value="${v.date||''}"
+        <td style="min-width:95px"><input class="tbl-input" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" value="${v.date||''}"
           data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="date"></td>
         <td style="min-width:70px"><input class="tbl-input" value="${v.voyageNum||''}" placeholder="N° viaje"
           data-action="vef-save-voyage" ${ds} data-ctx="${ctx}" data-idx="${i}" data-field="voyageNum"></td>
