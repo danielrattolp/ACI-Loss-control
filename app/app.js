@@ -2799,6 +2799,16 @@ function computeVEFStats(voyages) {
 }
 
 function buildVEFTableSection(vefData, ctx, sub) {
+  // VEF al Arribo (sub=null): precargar 20 filas vacías una sola vez para
+  // agilizar la carga. El usuario luego elimina las que sobren (_seeded evita
+  // que se vuelvan a agregar tras borrarlas).
+  if (!sub && !vefData._seeded) {
+    vefData._seeded = true;
+    if (!Array.isArray(vefData.voyages)) vefData.voyages = [];
+    while (vefData.voyages.length < 20) vefData.voyages.push(emptyVEFVoyage());
+    const _r = ctx ? getModuleRef(decodeCtx(ctx)) : null;
+    if (_r) _r.save();
+  }
   const voyages = vefData.voyages || [];
   const stats = computeVEFStats(voyages);
   const ds = sub ? `data-sub="${sub}"` : '';
@@ -6929,7 +6939,7 @@ function handleClick(e) {
     const _tgt = _sub ? (_ref.data[_sub] || (_ref.data[_sub] = {voyages:[],notes:''})) : _ref.data;
     if (!_tgt.voyages) _tgt.voyages = [];
     _tgt.voyages.push(emptyVEFVoyage());
-    _ref.save(); render();
+    _ref.save(); renderKeepScroll();
   }
   else if (a === 'vef-del-voyage') {
     const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
@@ -6938,7 +6948,7 @@ function handleClick(e) {
     const _tgt = _sub ? _ref.data[_sub] : _ref.data;
     if (!_tgt?.voyages) return;
     _tgt.voyages.splice(parseInt(el.dataset.idx), 1);
-    _ref.save(); render();
+    _ref.save(); renderKeepScroll();
   }
   else if (a === 'vef-rm-voyage') {
     const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
@@ -7309,7 +7319,7 @@ function handleChange(e) {
     if (!target.voyages[idx]) target.voyages[idx] = emptyVEFVoyage();
     target.voyages[idx][el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
     ref.save();
-    render();
+    renderKeepScroll();
   }
   else if (a === 'vef-save-notes') {
     const c = decodeCtx(el.dataset.ctx); const ref = getModuleRef(c);
