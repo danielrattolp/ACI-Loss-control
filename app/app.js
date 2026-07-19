@@ -1551,6 +1551,13 @@ function renderKeepScroll() {
   const mcY = mc ? mc.scrollTop : 0;
   const mnY = mn ? mn.scrollTop : 0;
   const wY = window.scrollY;
+  // Capturar el campo enfocado (p. ej. el siguiente al pulsar Tab) para
+  // reponer el foco tras el re-render y no romper la navegación con Tab.
+  const focusSel = buildFocusSelector(document.activeElement);
+  let selStart = null, selEnd = null;
+  if (focusSel && document.activeElement && 'selectionStart' in document.activeElement) {
+    try { selStart = document.activeElement.selectionStart; selEnd = document.activeElement.selectionEnd; } catch (_) {}
+  }
   render();
   const restore = () => {
     const mc2 = document.querySelector('.module-content');
@@ -1561,6 +1568,25 @@ function renderKeepScroll() {
   };
   restore();
   requestAnimationFrame(restore);
+  if (focusSel) {
+    const el = document.querySelector(focusSel);
+    if (el && el !== document.activeElement) {
+      el.focus({ preventScroll: true });
+      if (selStart !== null && 'setSelectionRange' in el) { try { el.setSelectionRange(selStart, selEnd); } catch (_) {} }
+      restore();
+    }
+  }
+}
+// Construye un selector CSS estable a partir de los data-attrs del campo,
+// para reencontrarlo tras re-renderizar (usado por renderKeepScroll → Tab).
+function buildFocusSelector(el) {
+  if (!el || !el.tagName) return null;
+  const tag = el.tagName.toLowerCase();
+  if (!['input', 'select', 'textarea'].includes(tag)) return null;
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  const attrs = ['data-action', 'data-ctx', 'data-idx', 'data-field', 'data-sub', 'data-obj', 'data-tank', 'data-block', 'data-phase', 'data-col', 'data-path', 'data-id'];
+  const parts = attrs.filter(a => el.hasAttribute(a)).map(a => `[${a}="${CSS.escape(el.getAttribute(a))}"]`);
+  return parts.length ? tag + parts.join('') : null;
 }
 // photoBase64: base64 de una foto (embebida o traída desde Blob) para el análisis IA.
 async function photoBase64(p) {
