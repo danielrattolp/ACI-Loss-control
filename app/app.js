@@ -7154,7 +7154,7 @@ Asignación por causa: evaporación=${n(parseFloat(c.evaporation)||0)}, a bordo=
 Total explicado: ${n(s.explained)} · Residual sin explicar: ${n(s.residual)} · Estado: ${s.reconciled?'RECONCILIADO':'SIN RECONCILIAR'}`;
       prompt = `Eres un QPIC certificado experto en API MPMS Cap. 17.5 (VSRR). Evalúa la reconciliación de pérdida por causa.\n\n${opCtx}\n\n${vsrrData}\n\nEstructura tu respuesta:\n1. VALIDEZ DE LA ASIGNACIÓN: ¿las causas asignadas son físicamente razonables para este crudo/operación y su magnitud?\n2. RESIDUAL: si hay residual sin explicar, qué causa adicional podría explicarlo; si está reconciliado, confírmalo.\n3. COHERENCIA con los componentes del VAR (tránsito, OBQ/ROB, teóricas por VEF).\n4. DICTAMEN: ¿la pérdida queda satisfactoriamente explicada o se requiere investigación / Letter of Protest?\nSé técnico y conciso. No inventes cifras.`;
     } else {
-      const modSummary = JSON.stringify(modData, null, 2).slice(0, 6000);
+      const modSummary = JSON.stringify(modData, null, 2).slice(0, 45000);
       prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
     }
 

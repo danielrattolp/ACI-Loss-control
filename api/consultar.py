@@ -105,26 +105,40 @@ class handler(BaseHTTPRequestHandler):
             return
 
         messages = body.get("messages", [])
-        valid = [
-            {"role": m["role"], "content": str(m["content"])[:8000]}
-            for m in messages
-            if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")
-        ]
+        # Contenido: si es lista (multimodal: imágenes + texto) se conserva tal
+        # cual; si es texto se limita a un tope amplio (los checklists/JSON de
+        # módulo son grandes y antes se truncaban a 8000 → análisis incompleto).
+        valid = []
+        for m in messages:
+            if not (isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")):
+                continue
+            c = m["content"]
+            if isinstance(c, list):
+                valid.append({"role": m["role"], "content": c})
+            else:
+                valid.append({"role": m["role"], "content": str(c)[:120000]})
         if not valid:
             self._json(400, {"error": "Sin mensajes válidos."})
             return
 
         # Anthropic exige: contenido no vacío, empezar con 'user' y alternar roles.
+        # El contenido puede ser texto (str) o multimodal (lista de bloques).
         seq = []
         for m in valid:
-            content = m["content"].strip()
-            if not content:
-                continue
+            content = m["content"]
+            is_list = isinstance(content, list)
+            if is_list:
+                if not content:
+                    continue
+            else:
+                content = content.strip()
+                if not content:
+                    continue
             role = m["role"]
             if not seq and role != "user":
                 continue  # descartar mensajes 'assistant' iniciales
-            if seq and seq[-1]["role"] == role:
-                seq[-1]["content"] += "\n\n" + content  # fusionar consecutivos del mismo rol
+            if seq and seq[-1]["role"] == role and not is_list and not isinstance(seq[-1]["content"], list):
+                seq[-1]["content"] += "\n\n" + content  # fusionar consecutivos de texto
             else:
                 seq.append({"role": role, "content": content})
         if not seq or seq[-1]["role"] != "user":
