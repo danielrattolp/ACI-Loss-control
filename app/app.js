@@ -831,18 +831,36 @@ function buildSidebar(ops, currentOp) {
           <span class="icon">📈</span> Inteligencia de Flota
         </div>
       </div>
-      <div class="sidebar-section" style="margin-top:8px">Recientes</div>
-      <div class="sidebar-ops">
-        ${ops.length === 0 ? '<div style="padding:16px;font-size:12px;color:var(--muted);text-align:center">Sin operaciones</div>' : ''}
-        ${ops.map(op => `
-          <div class="sidebar-op-item ${currentOp && currentOp.id === op.id ? 'active' : ''}" data-action="open-op" data-id="${op.id}">
-            <div class="sidebar-op-code">${op.code}</div>
-            <div class="sidebar-op-vessel">${op.vessel.name || '—'}</div>
-            <div class="sidebar-op-type">${OP_TYPES[op.type]?.label || ''}</div>
-          </div>
-        `).join('')}
+      <div class="sidebar-section" style="margin-top:8px">Operaciones</div>
+      <div style="padding:0 12px 8px">
+        <input id="sidebar-search" class="field-input" style="width:100%;padding:7px 10px;font-size:12px" placeholder="🔍 Buscar código, buque, cliente…"
+          value="${(state.opSearch||'').replace(/"/g,'&quot;')}" oninput="state.opSearch=this.value;renderSidebarOps()">
+      </div>
+      <div class="sidebar-ops" id="sidebar-ops">
+        ${sidebarOpsHTML(ops, currentOp)}
       </div>
     </div>`;
+}
+
+// Lista de operaciones del sidebar (filtrable) — separada para refrescar sin re-render completo.
+function sidebarOpsHTML(ops, currentOp) {
+  const q = (state.opSearch || '').toLowerCase().trim();
+  const list = q ? ops.filter(op => {
+    const hay = [op.code, op.vessel && op.vessel.name, op.vessel && op.vessel.imo, getClient(op)].join(' ').toLowerCase();
+    return hay.includes(q);
+  }) : ops;
+  if (!ops.length) return '<div style="padding:16px;font-size:12px;color:var(--muted);text-align:center">Sin operaciones</div>';
+  if (!list.length) return '<div style="padding:16px;font-size:12px;color:var(--muted);text-align:center">Sin coincidencias</div>';
+  return list.map(op => `
+    <div class="sidebar-op-item ${currentOp && currentOp.id === op.id ? 'active' : ''}" data-action="open-op" data-id="${op.id}">
+      <div class="sidebar-op-code">${op.code}</div>
+      <div class="sidebar-op-vessel">${op.vessel.name || '—'}</div>
+      <div class="sidebar-op-type">${(getClient(op) || (OP_TYPES[op.type] && OP_TYPES[op.type].label) || '')}</div>
+    </div>`).join('');
+}
+function renderSidebarOps() {
+  const el = document.getElementById('sidebar-ops');
+  if (el) el.innerHTML = sidebarOpsHTML(loadOps(), getOp(state.currentOpId));
 }
 
 // ===== BASE DE CONOCIMIENTO NORMATIVA =====
@@ -3009,22 +3027,26 @@ function buildDatosOrigen(d, ctx) {
           ${row('GSV @60°F','gsv','0.001','BBL')}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">TCV (GSV+FW)</td>
-            <td><span class="tbl-input" data-auto="tcv" data-ctx="${ctx}" data-obj="bl" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blTcvDisplay}</span></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(bl.tcv!==''&&bl.tcv!=null)?parseFloat(bl.tcv).toFixed(2):(blTcvCalc>0?blTcvCalc.toFixed(2):'')}" placeholder="auto"
+                data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="tcv"
+                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
           ${row('Free Water','fw','0.001','BBL')}
           ${row('API Gravity @60°F','api','0.1','°API',1)}
           ${row('BS&W','bsw','0.01','%',3)}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">NSV @60°F</td>
-            <td><span class="tbl-input" data-auto="nsv" data-ctx="${ctx}" data-obj="bl" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${blNsvDisplay}</span></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(bl.nsv!==''&&bl.nsv!=null)?parseFloat(bl.nsv).toFixed(2):(blNsvCalc>0?blNsvCalc.toFixed(2):'')}" placeholder="auto"
+                data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="nsv"
+                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
           ${row('Densidad @15°C','densityAt15','0.0001','kg/m³')}
           ${row('Densidad @60°F','densityAt60','0.0001','kg/m³')}
           ${row('GSV m³ @15°C','m3At15','0.001','m³')}
-          ${row('Toneladas largas','longTons','0.001','LT')}
-          ${row('Toneladas métricas','metricTons','0.001','MT')}
+          ${row('Toneladas largas','longTons','0.001','LT',3)}
+          ${row('Toneladas métricas','metricTons','0.001','MT',3)}
         </tbody>
       </table>
     </div>
@@ -3155,21 +3177,25 @@ function buildUllageArribo(d, mod, ctx) {
           ${totRow('GSV @60°F','gsv','BBL')}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink)">TCV (GSV+FW)</td>
-            <td><span class="tbl-input" data-auto="tcv" data-ctx="${ctx}" data-obj="totals" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${tcvDisplay}</span></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(totals.tcv!==''&&totals.tcv!=null)?parseFloat(totals.tcv).toFixed(2):(tcvCalc>0?tcvCalc.toFixed(2):'')}" placeholder="auto"
+                data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="tcv"
+                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
           ${totRow('Free Water','fw','BBL')}
           ${totRow('API Gravity @60°F','api','°API',1)}
           ${totRow('BS&W','bsw','%',3)}
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink)">NSV @60°F</td>
-            <td><span class="tbl-input" data-auto="nsv" data-ctx="${ctx}" data-obj="totals" style="display:block;background:var(--bg2);color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--line2)">${nsvDisplay}</span></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto</span></td>
+            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(totals.nsv!==''&&totals.nsv!=null)?parseFloat(totals.nsv).toFixed(2):(nsvCalc>0?nsvCalc.toFixed(2):'')}" placeholder="auto"
+                data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="nsv"
+                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
+            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
           ${totRow('Densidad @15°C','densityAt15','kg/m³')}
           ${totRow('GSV m³ @15°C','m3At15','m³')}
-          ${totRow('Toneladas largas','longTons','LT')}
-          ${totRow('Toneladas métricas','metricTons','MT')}
+          ${totRow('Toneladas largas','longTons','LT',3)}
+          ${totRow('Toneladas métricas','metricTons','MT',3)}
         </tbody>
       </table>
     </div>
@@ -6548,21 +6574,21 @@ function saveNested(ctxStr, obj, field, value) {
   if (!ref) return;
   if (!ref.data[obj]) ref.data[obj] = {};
   ref.data[obj][field] = value;
-  // Auto-recalculate TCV = GSV + FW, NSV = GSV × (1 - BSW/100), update DOM spans live
+  // TCV/NSV: auto por defecto, pero si el usuario los edita a mano (para que
+  // coincidan con el B/L) se marca override y no se sobrescriben.
+  if (field === 'tcv') ref.data[obj]._tcvManual = (value !== '' && value != null);
+  if (field === 'nsv') ref.data[obj]._nsvManual = (value !== '' && value != null);
   if (obj === 'totals' || obj === 'bl') {
     const gsv = parseFloat(ref.data[obj].gsv) || 0;
     const fw  = parseFloat(ref.data[obj].fw)  || 0;
     const bsw = parseFloat(ref.data[obj].bsw) || 0;
     if (gsv > 0) {
       let newTcv = null, newNsv = null;
-      if (field === 'gsv' || field === 'fw')  { newTcv = (gsv + fw).toFixed(2); ref.data[obj].tcv = newTcv; }
-      if (field === 'gsv' || field === 'bsw') { newNsv = (gsv * (1 - bsw / 100)).toFixed(2); ref.data[obj].nsv = newNsv; }
-      // Update DOM spans immediately without full re-render
-      document.querySelectorAll(`[data-auto][data-obj="${obj}"]`).forEach(span => {
-        const autoType = span.dataset.auto;
-        if (autoType === 'tcv' && newTcv !== null) span.textContent = newTcv;
-        if (autoType === 'nsv' && newNsv !== null) span.textContent = newNsv;
-      });
+      if ((field === 'gsv' || field === 'fw')  && !ref.data[obj]._tcvManual) { newTcv = (gsv + fw).toFixed(2); ref.data[obj].tcv = newTcv; }
+      if ((field === 'gsv' || field === 'bsw') && !ref.data[obj]._nsvManual) { newNsv = (gsv * (1 - bsw / 100)).toFixed(2); ref.data[obj].nsv = newNsv; }
+      // Refrescar en vivo inputs (nuevos) y spans (legacy) sin re-render completo
+      if (newTcv !== null) document.querySelectorAll(`[data-obj="${obj}"][data-field="tcv"], [data-auto="tcv"][data-obj="${obj}"]`).forEach(el => { if (el.tagName === 'INPUT') el.value = newTcv; else el.textContent = newTcv; });
+      if (newNsv !== null) document.querySelectorAll(`[data-obj="${obj}"][data-field="nsv"], [data-auto="nsv"][data-obj="${obj}"]`).forEach(el => { if (el.tagName === 'INPUT') el.value = newNsv; else el.textContent = newNsv; });
     }
   }
   ref.save();
@@ -6886,7 +6912,7 @@ function handleClick(e) {
     const qid = el.dataset.qid;
     ref.data.kmDisabled[qid] = !ref.data.kmDisabled[qid];
     if (!ref.data.kmDisabled[qid]) delete ref.data.kmDisabled[qid];
-    ref.save(); render();
+    ref.save(); renderKeepScroll();
   }
   else if (a === 'tl-add-event' || a === 'tl-add-row') tlAddRow(el.dataset.ctx);
   else if (a === 'tl-rm-event' || a === 'tl-del-row') tlDelRow(el.dataset.ctx, parseInt(el.dataset.idx));
