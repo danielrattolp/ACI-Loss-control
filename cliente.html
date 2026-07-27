@@ -155,6 +155,7 @@
   <div style="font-size:11px;color:var(--muted);background:#2f81f715;border:1px solid #2f81f730;padding:3px 10px;border-radius:20px">Portal Cliente</div>
   <div class="nav-client">Bienvenido, <strong id="nav-name"></strong></div>
   <button class="btn-logout" id="install-btn" onclick="installApp()" style="border-color:var(--accent);color:var(--accent)">📲 Instalar app</button>
+  <button class="btn-logout" id="push-btn" onclick="enablePush()" style="border-color:var(--warn);color:var(--warn)">🔔 Activar notificaciones</button>
   <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
 </nav>
 
@@ -225,6 +226,34 @@ async function installApp(){
   } else {
     alert('Para instalar: abrí el menú del navegador (⋮) y elegí "Instalar aplicación" o "Agregar a pantalla de inicio".');
   }
+}
+
+// ── Web Push ───────────────────────────────────────────────────────────
+function urlB64ToUint8(base64){
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b); const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+async function subscribePush(interactive){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (interactive) alert('Este navegador no soporta notificaciones push.'); return; }
+  const reg = await navigator.serviceWorker.ready;
+  const r = await fetch('/api/push?action=pubkey'); const d = await r.json();
+  if (!d.publicKey) { if (interactive) alert('El servidor aún no tiene configuradas las notificaciones.'); return; }
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(d.publicKey) });
+  await fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'subscribe', subscription: sub }) });
+  _setPushBtnActive();
+}
+function _setPushBtnActive(){ const b = document.getElementById('push-btn'); if (b) { b.textContent = '🔔 Notificaciones activas'; b.disabled = true; b.style.opacity = '.6'; } }
+async function enablePush(){
+  try {
+    if (_isIOS() && !_isStandalone()) { alert('Para recibir notificaciones en iPhone primero instalá la app:\n\nCompartir ↑ → "Agregar a inicio". Luego abrila desde el ícono y volvé a tocar este botón.'); return; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { alert('No se activaron las notificaciones. Podés habilitarlas en los ajustes del navegador/teléfono.'); return; }
+    await subscribePush(true);
+  } catch(e){ alert('No se pudieron activar las notificaciones.'); }
 }
 
 // ── State ──────────────────────────────────────────────────────────────
@@ -472,6 +501,8 @@ async function showApp(name, org, email) {
   document.getElementById('app-main').style.display = 'block';
   document.getElementById('nav-name').textContent = name;
   if (_isStandalone()) { const ib = document.getElementById('install-btn'); if (ib) ib.style.display = 'none'; }
+  // Si ya concedió permiso, re-suscribir en silencio para mantener la suscripción viva.
+  if ('Notification' in window && Notification.permission === 'granted') { subscribePush(false).catch(() => {}); }
   document.getElementById('client-title').textContent = clientOrg;
   document.getElementById('client-subtitle').textContent = `Tendencias volumétricas · ${name} · ${email}`;
   startIdleTimer();

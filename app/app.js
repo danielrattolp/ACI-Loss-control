@@ -7264,10 +7264,17 @@ function handleClick(e) {
     op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
     if (!op.tracking.hitos) op.tracking.hitos = {};
     const id = el.dataset.hito; const cur = op.tracking.hitos[id] || {};
-    op.tracking.hitos[id] = cur.done
-      ? { done:false, ts: cur.ts || '', note: cur.note }
-      : { done:true, ts: cur.ts || _nowLocalDT(), markedAt: Date.now(), note: cur.note };
+    const nowDone = !cur.done;
+    op.tracking.hitos[id] = nowDone
+      ? { done:true, ts: cur.ts || _nowLocalDT(), markedAt: Date.now(), note: cur.note }
+      : { done:false, ts: cur.ts || '', note: cur.note };
     saveOp(op); renderKeepScroll();
+    // Notificar al teléfono del cliente (solo al marcar y si las alertas están activas)
+    if (nowDone && op.tracking.alertsActive) {
+      const label = (HITOS.find(h => h.id === id) || {}).label || 'Actualización';
+      fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
+        body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación', body: '✓ ' + label, url:'/cliente' }) }).catch(() => {});
+    }
   }
   else if (a === 'toggle-alerts') {
     const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
