@@ -109,8 +109,11 @@ class handler(BaseHTTPRequestHandler):
             title = body.get('title') or 'ACI Loss Control'
             msg   = body.get('body') or ''
             url   = body.get('url') or '/cliente'
+            tag   = body.get('tag')
+            payload = {'title': title, 'body': msg, 'url': url}
+            if tag: payload['tag'] = tag
             emails = self._emails_for_op(op_id)
-            sent, removed, errors = self._send_to_emails(emails, {'title': title, 'body': msg, 'url': url})
+            sent, removed, errors = self._send_to_emails(emails, payload)
             self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'recipients': len(emails), 'errors': errors[:3]})
             return
 

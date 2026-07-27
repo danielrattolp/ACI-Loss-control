@@ -7272,8 +7272,13 @@ function handleClick(e) {
     // Notificar al teléfono del cliente (solo al marcar y si las alertas están activas)
     if (nowDone && op.tracking.alertsActive) {
       const label = (HITOS.find(h => h.id === id) || {}).label || 'Actualización';
+      const doneN = HITOS.filter(h => op.tracking.hitos[h.id] && op.tracking.hitos[h.id].done).length;
+      const idx = HITOS.findIndex(h => h.id === id);
+      const next = HITOS.slice(idx + 1).find(h => !(op.tracking.hitos[h.id] && op.tracking.hitos[h.id].done));
+      const body = `✓ ${label}  ·  ${doneN}/${HITOS.length}` + (next ? `\nSigue: ${next.label}` : '\n¡Operación finalizada!');
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
-        body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación', body: '✓ ' + label, url:'/cliente' }) }).catch(() => {});
+        body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
+          body, url:'/cliente', tag: 'aci-op-' + op.id }) }).catch(() => {});
     }
   }
   else if (a === 'toggle-alerts') {
