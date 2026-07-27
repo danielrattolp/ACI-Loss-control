@@ -245,6 +245,12 @@ async function subscribePush(interactive){
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(d.publicKey) });
   await fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'subscribe', subscription: sub }) });
   _setPushBtnActive();
+  if (interactive) {
+    try {
+      const t = await (await fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'test' }) })).json();
+      alert('Notificaciones activadas.\n\nSuscripciones registradas: ' + (t.subs || 0) + '\nPrueba enviada: ' + (t.sent || 0) + '\n\nDeberías ver una notificación de prueba en unos segundos. Si no aparece, avisá con estos números.');
+    } catch(_) {}
+  }
 }
 function _setPushBtnActive(){ const b = document.getElementById('push-btn'); if (b) { b.textContent = '🔔 Notificaciones activas'; b.disabled = true; b.style.opacity = '.6'; } }
 async function enablePush(){

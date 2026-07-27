@@ -89,6 +89,15 @@ class handler(BaseHTTPRequestHandler):
             self._json(200, {'ok': True})
             return
 
+        if action == 'test':
+            email = self._client_email()
+            if not email:
+                self._json(401, {'error': 'No autorizado'}); return
+            subs = kv_get('push_subs', {}) or {}
+            sent, removed = self._send_to_emails([email], {'title': 'ACI Loss Control', 'body': 'Notificación de prueba ✓', 'url': '/cliente'})
+            self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'subs': len(subs.get(email, [])), 'email': email})
+            return
+
         if action == 'send':
             if not self._is_employee():
                 self._json(401, {'error': 'No autorizado'}); return
