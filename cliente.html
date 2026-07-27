@@ -248,7 +248,12 @@ async function subscribePush(interactive){
   if (interactive) {
     try {
       const t = await (await fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'test' }) })).json();
-      alert('Notificaciones activadas.\n\nSuscripciones registradas: ' + (t.subs || 0) + '\nPrueba enviada: ' + (t.sent || 0) + '\n\nDeberías ver una notificación de prueba en unos segundos. Si no aparece, avisá con estos números.');
+      let extra = '';
+      if ((t.sent || 0) === 0) {
+        extra = '\n\nDetalle técnico:\nVAPID priv: ' + (t.vapid_priv_set ? 'sí' : 'NO') + ' · pub: ' + (t.vapid_pub_set ? 'sí' : 'NO');
+        if (t.errors && t.errors.length) extra += '\nError: ' + t.errors[0];
+      }
+      alert('Suscripciones registradas: ' + (t.subs || 0) + '\nPrueba enviada: ' + (t.sent || 0) + extra);
     } catch(_) {}
   }
 }

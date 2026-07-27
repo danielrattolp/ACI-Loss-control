@@ -94,8 +94,10 @@ class handler(BaseHTTPRequestHandler):
             if not email:
                 self._json(401, {'error': 'No autorizado'}); return
             subs = kv_get('push_subs', {}) or {}
-            sent, removed = self._send_to_emails([email], {'title': 'ACI Loss Control', 'body': 'Notificación de prueba ✓', 'url': '/cliente'})
-            self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'subs': len(subs.get(email, [])), 'email': email})
+            sent, removed, errors = self._send_to_emails([email], {'title': 'ACI Loss Control', 'body': 'Notificación de prueba ✓', 'url': '/cliente'})
+            self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'subs': len(subs.get(email, [])),
+                             'email': email, 'errors': errors[:3],
+                             'vapid_priv_set': bool(VAPID_PRIVATE), 'vapid_pub_set': bool(VAPID_PUBLIC)})
             return
 
         if action == 'send':
@@ -106,8 +108,8 @@ class handler(BaseHTTPRequestHandler):
             msg   = body.get('body') or ''
             url   = body.get('url') or '/cliente'
             emails = self._emails_for_op(op_id)
-            sent, removed = self._send_to_emails(emails, {'title': title, 'body': msg, 'url': url})
-            self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'recipients': len(emails)})
+            sent, removed, errors = self._send_to_emails(emails, {'title': title, 'body': msg, 'url': url})
+            self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'recipients': len(emails), 'errors': errors[:3]})
             return
 
         self._json(400, {'error': 'Acción desconocida'})
@@ -127,12 +129,13 @@ class handler(BaseHTTPRequestHandler):
         return list(dict.fromkeys(emails))  # únicos, preserva orden
 
     def _send_to_emails(self, emails, payload):
+        errors = []
         try:
             from pywebpush import webpush, WebPushException
-        except ImportError:
-            return 0, 0
+        except ImportError as ex:
+            return 0, 0, ['pywebpush no instalado: ' + str(ex)]
         if not VAPID_PRIVATE:
-            return 0, 0
+            return 0, 0, ['VAPID_PRIVATE_KEY no configurada']
         subs = kv_get('push_subs', {}) or {}
         sent, expired = 0, []
         changed = False
@@ -151,13 +154,15 @@ class handler(BaseHTTPRequestHandler):
                         expired.append(s.get('endpoint')); changed = True  # suscripción muerta → descartar
                     else:
                         keep.append(s)
-                except Exception:
+                        errors.append('WebPush ' + str(code) + ': ' + str(ex)[:180])
+                except Exception as ex:
                     keep.append(s)
+                    errors.append(type(ex).__name__ + ': ' + str(ex)[:180])
             if len(keep) != len(arr):
                 subs[em] = keep; changed = True
         if changed:
             kv_set('push_subs', subs)
-        return sent, len(expired)
+        return sent, len(expired), errors
 
     def _cookie_val(self, name):
         raw = self.headers.get('cookie', '') or self.headers.get('Cookie', '')
