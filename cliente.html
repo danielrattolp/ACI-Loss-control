@@ -252,7 +252,7 @@ async function subscribePush(interactive){
     } catch(_) {}
   }
 }
-function _setPushBtnActive(){ const b = document.getElementById('push-btn'); if (b) { b.textContent = '🔔 Notificaciones activas'; b.disabled = true; b.style.opacity = '.6'; } }
+function _setPushBtnActive(){ const b = document.getElementById('push-btn'); if (b) { b.textContent = '🔔 Probar notificación'; } }
 async function enablePush(){
   try {
     if (_isIOS() && !_isStandalone()) { alert('Para recibir notificaciones en iPhone primero instalá la app:\n\nCompartir ↑ → "Agregar a inicio". Luego abrila desde el ícono y volvé a tocar este botón.'); return; }
