@@ -7737,7 +7737,7 @@ function handleChange(e) {
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
   else if (a === 'alertas-select-op') { state.alertasOpId = el.value; render(); }
   else if (a === 'alertas-tolerance') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; op.tracking.tolerance = el.value; saveOp(op); renderKeepScroll(); } }
-  else if (a === 'hito-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.ts = el.value; op.tracking.hitos[id] = h; saveOp(op); renderKeepScroll(); } }
+  else if (a === 'hito-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.ts = el.value; op.tracking.hitos[id] = h; saveOp(op); /* sin re-render: no interrumpe la escritura de la fecha/hora */ } }
   else if (a === 'hito-note') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.note = el.value; op.tracking.hitos[id] = h; saveOp(op); } }
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
