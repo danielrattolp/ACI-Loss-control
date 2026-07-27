@@ -1582,9 +1582,22 @@ function loadEmpresasList() {
       if (!emps.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Sin empresas registradas aún.</div>'; return; }
       el.innerHTML = emps.map(e => `<div style="border-bottom:1px solid var(--line);padding:10px 0">
         <div style="font-size:13px;font-weight:700;color:var(--ink)">🏢 ${e.razon_social} <span style="color:var(--muted);font-weight:400;font-size:11px">· ${e.rut}</span></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">${(e.contactos || []).map(c => `${c.name} &lt;${c.email}&gt;${c.active ? '' : ' (inactivo)'}`).join(' · ') || 'sin contactos'}</div>
+        ${(e.contactos || []).length ? (e.contactos).map(c => `
+          <div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span>${c.name} &lt;${c.email}&gt;${c.active ? '' : ' (inactivo)'}</span>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px" onclick="resetContactPass('${c.email}')">🔑 Restablecer clave</button>
+          </div>`).join('') : '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin contactos</div>'}
       </div>`).join('');
     }).catch(() => { el.innerHTML = '<div style="color:#e57373;font-size:12px">Error al cargar.</div>'; });
+}
+function resetContactPass(email) {
+  const p = prompt('Nueva contraseña para ' + email + ' (mín. 6 caracteres):');
+  if (p === null) return;
+  if (p.trim().length < 6) { alert('La contraseña debe tener al menos 6 caracteres.'); return; }
+  const tok = _aciSessionToken();
+  fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify({ action: 'reset_password', email: email.toLowerCase(), password: p.trim() }) })
+    .then(r => r.json()).then(d => { alert(d.ok ? '✓ Contraseña actualizada. El cliente ya puede entrar con ella.' : (d.error || 'Error')); })
+    .catch(() => alert('Error de conexión.'));
 }
 
 function _aciSessionToken() {

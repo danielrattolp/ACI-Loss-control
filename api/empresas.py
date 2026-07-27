@@ -168,6 +168,21 @@ class handler(BaseHTTPRequestHandler):
             self._json(200, {'ok': True, 'empresa_id': eid, 'email': email})
             return
 
+        if action == 'reset_password':
+            email = (body.get('email') or '').strip().lower()
+            pw    = (body.get('password') or '').strip()
+            if len(pw) < 6:
+                self._json(400, {'error': 'La contraseña debe tener al menos 6 caracteres'}); return
+            clients = kv_get('aci_clients', {}) or {}
+            if email not in clients:
+                self._json(404, {'error': 'Contacto no encontrado'}); return
+            clients[email]['password_hash'] = _hash(pw)
+            clients[email]['force_change'] = False
+            clients[email]['active'] = True
+            kv_set('aci_clients', clients)
+            self._json(200, {'ok': True})
+            return
+
         if action == 'reset_all':
             # "Empezar limpio": borra empresas y clientes de prueba.
             kv_set('aci_empresas', {})
