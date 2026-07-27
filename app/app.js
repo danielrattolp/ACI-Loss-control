@@ -41,8 +41,8 @@ const HITOS = [
   { id: 'fecha_estimada_op',   label: 'Fecha estimada de operación' },
   { id: 'a_bordo',             label: 'A bordo' },
   { id: 'inicio_op',           label: 'Inicio de operación' },
-  { id: 'medicion_completada', label: 'Medición completada' },
-  { id: 'buque_zarpe',         label: 'Buque al zarpe' },
+  { id: 'med_muestreo_calc',   label: 'Medición, Muestreo y cálculo finalizado' },
+  { id: 'atestiguamiento',     label: 'Atestiguamiento de análisis' },
   { id: 'lc_finalizado',       label: 'Loss control finalizado' },
 ];
 
