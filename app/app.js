@@ -1686,13 +1686,17 @@ function buildAlertasPanel(op) {
     const isDone = !!st.done;
     const isCurrent = firstPending && firstPending.id === h.id;
     const ring = isDone ? '#66bb6a' : (isCurrent ? 'var(--amber)' : 'var(--muted)');
+    const isEntend = h.id === 'nom_entendimientos';
+    const inputField = isEntend
+      ? `<textarea class="field-input" style="width:280px;height:54px;resize:vertical" placeholder="¿Qué entendemos que hay que hacer?" data-action="hito-note" data-ctx="${ctx}" data-hito="${h.id}">${st.note || ''}</textarea>`
+      : `<input class="field-input" type="datetime-local" style="width:200px" value="${st.ts || ''}" data-action="hito-time" data-ctx="${ctx}" data-hito="${h.id}">`;
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <span style="width:14px;height:14px;border-radius:50%;background:${isDone ? '#66bb6a' : 'transparent'};border:2px solid ${ring};flex:0 0 auto"></span>
       <div style="flex:1;min-width:150px">
         <div style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${isDone ? 'var(--ink)' : (isCurrent ? 'var(--amber)' : 'var(--muted)')}">${h.label}${isCurrent ? ' · actual' : ''}</div>
         ${isDone ? '<div style="font-size:11px;color:#66bb6a">✓ enviado al cliente</div>' : ''}
       </div>
-      <input class="field-input" type="datetime-local" style="width:200px" value="${st.ts || ''}" data-action="hito-time" data-ctx="${ctx}" data-hito="${h.id}">
+      ${inputField}
       <button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="hito-toggle" data-ctx="${ctx}" data-hito="${h.id}">${isDone ? 'Deshacer' : 'Marcar y enviar'}</button>
     </div>`;
   }).join('');
@@ -7707,6 +7711,7 @@ function handleChange(e) {
   else if (a === 'alertas-select-op') { state.alertasOpId = el.value; render(); }
   else if (a === 'alertas-tolerance') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; op.tracking.tolerance = el.value; saveOp(op); renderKeepScroll(); } }
   else if (a === 'hito-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.ts = el.value; op.tracking.hitos[id] = h; saveOp(op); renderKeepScroll(); } }
+  else if (a === 'hito-note') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.note = el.value; op.tracking.hitos[id] = h; saveOp(op); } }
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);

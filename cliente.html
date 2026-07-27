@@ -142,6 +142,9 @@
   <h1 id="client-title">Dashboard</h1>
   <div class="subtitle" id="client-subtitle"></div>
 
+  <!-- Seguimiento en vivo (operaciones con alertas activas) -->
+  <section id="tracking-section" style="display:none;margin-bottom:32px"></section>
+
   <!-- Stats -->
   <div class="stats" id="stat-cards"></div>
 
@@ -194,6 +197,135 @@ let clientEmail = '';
 let allOps = [];
 let filteredOps = [];
 let charts = {};
+let _liveTimer = null;
+
+// ── Seguimiento en vivo (hitos + volúmenes) ────────────────────────────
+const HITOS_CLIENT = [
+  { id: 'nom_recibida',        label: 'Nominación recibida' },
+  { id: 'nom_aceptada',        label: 'Nominación aceptada' },
+  { id: 'nom_entendimientos',  label: 'Entendimientos de la nominación' },
+  { id: 'eta_buque',           label: 'ETA del buque' },
+  { id: 'buque_arribado',      label: 'Buque arribado' },
+  { id: 'medicion_arribo',     label: 'Medición al arribo' },
+  { id: 'buque_atracado',      label: 'Buque recibido / atracado' },
+  { id: 'fecha_estimada_op',   label: 'Fecha estimada de operación' },
+  { id: 'a_bordo',             label: 'A bordo' },
+  { id: 'inicio_op',           label: 'Inicio de operación' },
+  { id: 'medicion_completada', label: 'Medición completada' },
+  { id: 'buque_zarpe',         label: 'Buque al zarpe' },
+  { id: 'lc_finalizado',       label: 'Loss control finalizado' },
+];
+
+function _num(v){ const n = parseFloat(v); return isNaN(n) ? null : n; }
+function _nsvOf(q){ if (_num(q.nsv) != null) return _num(q.nsv); const g = _num(q.gsv), b = _num(q.bsw); return g != null ? g * (1 - (b || 0) / 100) : null; }
+function opVolMetrics(op){
+  const mods = op.modules || {};
+  const bl = (mods['datos-origen'] || {}).bl || {};
+  const arrKeys = (op.moduleOrder || []).filter(k => k === 'ullage-arribo' || k.indexOf('ullage-ini') === 0 || k.indexOf('ullage-fin') === 0);
+  const arr = arrKeys.map(k => mods[k]).find(m => m && m.totals && m.totals.gsv) || (mods['ullage-arribo'] || {});
+  const tot = arr.totals || {};
+  return { blGsv:_num(bl.gsv), chGsv:_num(tot.gsv), blNsv:_nsvOf(bl), chNsv:_nsvOf(tot), blFw:_num(bl.fw), chFw:_num(tot.fw) };
+}
+function fmtDT(v){ if (!v) return ''; const d = new Date(v); return isNaN(d) ? v : d.toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+
+function renderTracking(){
+  const sec = document.getElementById('tracking-section');
+  if (!sec) return;
+  const active = (allOps || []).filter(op => op.tracking && op.tracking.alertsActive);
+  if (!active.length){ sec.style.display = 'none'; sec.innerHTML = ''; return; }
+  sec.style.display = 'block';
+  sec.innerHTML = '<h2 style="font-size:15px;font-weight:700;margin-bottom:14px">📍 Seguimiento en vivo</h2>' + active.map(trackingCard).join('');
+}
+
+function trackingCard(op){
+  const tr = op.tracking || {}; const hitos = tr.hitos || {};
+  const tol = parseFloat((tr.tolerance != null && tr.tolerance !== '') ? tr.tolerance : 0.5);
+  const m = opVolMetrics(op);
+  const ref = (op.clients && op.clients[0] && op.clients[0].ref) || '';
+  const firstPending = HITOS_CLIENT.find(h => !(hitos[h.id] && hitos[h.id].done));
+  const reportReady = !!(hitos['lc_finalizado'] && hitos['lc_finalizado'].done);
+  const doneN = HITOS_CLIENT.filter(h => hitos[h.id] && hitos[h.id].done).length;
+
+  const merma = (bl, ch) => (bl != null && ch != null && bl !== 0) ? ((bl - ch) / bl * 100) : null;
+  const mg = merma(m.blGsv, m.chGsv), mn = merma(m.blNsv, m.chNsv);
+  const dcell = (bl, ch) => (bl != null && ch != null) ? fmt(bl - ch) : '—';
+  const mermaCell = v => {
+    if (v == null) return '<td style="text-align:right;padding:6px 10px">—</td>';
+    const over = Math.abs(v) > tol;
+    return `<td style="text-align:right;padding:6px 10px;font-weight:700;color:${over ? 'var(--danger)' : 'var(--accent2)'}">${v.toFixed(3)}%</td>`;
+  };
+  const numCell = v => `<td style="text-align:right;padding:6px 10px">${v == null ? '—' : fmt(v)}</td>`;
+
+  const timeline = HITOS_CLIENT.map(h => {
+    const st = hitos[h.id] || {};
+    const isDone = !!st.done;
+    const isCurrent = firstPending && firstPending.id === h.id;
+    const ring = isDone ? 'var(--accent2)' : (isCurrent ? 'var(--warn)' : 'var(--border)');
+    const txtColor = isDone ? 'var(--text)' : (isCurrent ? 'var(--warn)' : 'var(--muted)');
+    const noteHtml = (h.id === 'nom_entendimientos' && st.note)
+      ? `<div style="font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-top:5px;white-space:pre-wrap">${st.note.replace(/</g, '&lt;')}</div>`
+      : (isDone && st.ts ? `<div style="font-size:11px;color:var(--muted)">🕓 ${fmtDT(st.ts)}</div>` : '');
+    return `<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="width:13px;height:13px;border-radius:50%;margin-top:3px;background:${isDone ? 'var(--accent2)' : 'transparent'};border:2px solid ${ring};flex:0 0 auto"></span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${txtColor}">${h.label}${isCurrent ? ' · en curso' : ''}</div>
+        ${noteHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <div>
+        <div style="font-size:16px;font-weight:700">${op.vessel?.name || 'Operación'} <span style="font-size:12px;color:var(--muted);font-weight:400">· ${op.code || ''}</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${op.product?.crudeName || op.product?.type || ''}${op.port ? ' · ' + op.port : ''}${ref ? ' · Ref: ' + ref : ''}</div>
+      </div>
+      <span style="font-size:11px;color:var(--accent2);background:#3fb95015;border:1px solid #3fb95040;padding:3px 10px;border-radius:20px">● En curso · ${doneN}/${HITOS_CLIENT.length}</span>
+    </div>
+
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
+          <th style="text-align:left;padding:6px 10px">Parámetro</th>
+          <th style="text-align:right;padding:6px 10px">B/L</th>
+          <th style="text-align:right;padding:6px 10px">Chile</th>
+          <th style="text-align:right;padding:6px 10px">Δ (BL−Chile)</th>
+          <th style="text-align:right;padding:6px 10px">Merma %</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">GSV @60°F</td>${numCell(m.blGsv)}${numCell(m.chGsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(m.blGsv, m.chGsv)}</td>${mermaCell(mg)}</tr>
+          <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">NSV @60°F</td>${numCell(m.blNsv)}${numCell(m.chNsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(m.blNsv, m.chNsv)}</td>${mermaCell(mn)}</tr>
+          <tr style="border-top:1px solid var(--border);color:var(--muted)"><td style="padding:6px 10px">Free Water (info)</td>${numCell(m.blFw)}${numCell(m.chFw)}<td style="text-align:right;padding:6px 10px">${dcell(m.blFw, m.chFw)}</td><td style="text-align:right;padding:6px 10px">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Línea de tiempo</div>
+    ${timeline}
+
+    <div style="margin-top:16px">
+      ${reportReady
+        ? `<div style="background:#3fb95012;border:1px solid #3fb95040;border-radius:8px;padding:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+             <div><div style="font-weight:700;color:var(--accent2)">✓ Informe disponible</div><div style="font-size:12px;color:var(--muted)">Loss Control finalizado — ya puedes ver y descargar el reporte.</div></div>
+             <button class="btn-pdf" onclick="downloadPDF('${op.id}')">⬇ Descargar informe</button>
+           </div>`
+        : `<div style="font-size:12px;color:var(--muted)">El informe estará disponible al finalizar el Loss Control.</div>`}
+    </div>
+  </div>`;
+}
+
+function startLivePolling(){
+  if (_liveTimer) clearInterval(_liveTimer);
+  _liveTimer = setInterval(pollLive, 20000); // refresco "en vivo" cada 20 s
+}
+async function pollLive(){
+  try {
+    const res = await fetch('/api/ops');
+    if (res.status === 401) { logout(); return; }
+    const ops = await res.json();
+    if (Array.isArray(ops)) { allOps = ops; renderTracking(); }
+  } catch(e) {}
+}
 
 // ── Auth ───────────────────────────────────────────────────────────────
 async function init() {
@@ -294,6 +426,7 @@ async function showApp(name, org, email) {
   document.getElementById('client-subtitle').textContent = `Tendencias volumétricas · ${name} · ${email}`;
   startIdleTimer();
   await loadData();
+  startLivePolling();
 }
 
 // ── Cierre de sesión por inactividad ───────────────────────────────────
@@ -334,6 +467,7 @@ async function loadData() {
     });
     populateFilters();
     applyFilters();
+    renderTracking();
   } catch(e) {
     document.getElementById('ops-table-wrap').innerHTML =
       '<div class="empty"><div class="empty-icon">⚠️</div><div>Error al cargar datos</div></div>';
