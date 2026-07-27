@@ -42,7 +42,6 @@ const HITOS = [
   { id: 'a_bordo',             label: 'A bordo' },
   { id: 'inicio_op',           label: 'Inicio de operación' },
   { id: 'medicion_completada', label: 'Medición completada' },
-  { id: 'volumenes_bl',        label: 'Volúmenes BL' },
   { id: 'buque_zarpe',         label: 'Buque al zarpe' },
   { id: 'lc_finalizado',       label: 'Loss control finalizado' },
 ];
@@ -1631,7 +1630,16 @@ function _opVolMetrics(op) {
   const tot = arr.totals || {};
   const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const nsv = q => { if (num(q.nsv) != null) return num(q.nsv); const g = num(q.gsv), b = num(q.bsw); return g != null ? g * (1 - (b || 0) / 100) : null; };
-  return { blGsv: num(bl.gsv), chGsv: num(tot.gsv), blNsv: nsv(bl), chNsv: nsv(tot) };
+  return { blGsv: num(bl.gsv), chGsv: num(tot.gsv), blNsv: nsv(bl), chNsv: nsv(tot), blFw: num(bl.fw), chFw: num(tot.fw) };
+}
+function _nowLocalDT() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function _fmtDT(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? v : d.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function buildAlertasView(ops) {
@@ -1670,24 +1678,36 @@ function buildAlertasPanel(op) {
   };
   const firstPending = HITOS.find(h => !(hitos[h.id] && hitos[h.id].done));
   const done = HITOS.filter(h => hitos[h.id] && hitos[h.id].done).length;
+  const active = !!(op.tracking && op.tracking.alertsActive);
+  const reportReady = !!(hitos['lc_finalizado'] && hitos['lc_finalizado'].done);
 
   const timeline = HITOS.map(h => {
     const st = hitos[h.id] || {};
     const isDone = !!st.done;
     const isCurrent = firstPending && firstPending.id === h.id;
     const ring = isDone ? '#66bb6a' : (isCurrent ? 'var(--amber)' : 'var(--muted)');
-    const tsTxt = (isDone && st.ts) ? new Date(st.ts).toLocaleString('es-CL') : '';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <span style="width:14px;height:14px;border-radius:50%;background:${isDone ? '#66bb6a' : 'transparent'};border:2px solid ${ring};flex:0 0 auto"></span>
-      <div style="flex:1">
+      <div style="flex:1;min-width:150px">
         <div style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${isDone ? 'var(--ink)' : (isCurrent ? 'var(--amber)' : 'var(--muted)')}">${h.label}${isCurrent ? ' · actual' : ''}</div>
-        ${tsTxt ? `<div style="font-size:11px;color:var(--muted)">🕓 ${tsTxt}</div>` : ''}
+        ${isDone ? '<div style="font-size:11px;color:#66bb6a">✓ enviado al cliente</div>' : ''}
       </div>
-      <button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="hito-toggle" data-ctx="${ctx}" data-hito="${h.id}">${isDone ? 'Deshacer' : 'Marcar'}</button>
+      <input class="field-input" type="datetime-local" style="width:200px" value="${st.ts || ''}" data-action="hito-time" data-ctx="${ctx}" data-hito="${h.id}">
+      <button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="hito-toggle" data-ctx="${ctx}" data-hito="${h.id}">${isDone ? 'Deshacer' : 'Marcar y enviar'}</button>
     </div>`;
   }).join('');
 
+  const fwRow = (label, bl, ch) => `<tr><td style="font-weight:600;color:var(--muted)">${label}</td><td style="text-align:right">${fmt(bl)}</td><td style="text-align:right">${fmt(ch)}</td><td style="text-align:right">${dCell(bl, ch)}</td><td style="text-align:right">—</td></tr>`;
+
   return `
+    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink)">${active ? '📲 Alertas activas para el cliente' : 'Alertas desactivadas'}</div>
+        <div style="font-size:11px;color:var(--muted)">${active ? 'El cliente ve esta operación en su teléfono.' : 'Actívalas para que el cliente vea esta operación en curso.'}</div>
+      </div>
+      <button class="btn ${active ? 'btn-ghost' : 'btn-primary'}" data-action="toggle-alerts" data-ctx="${ctx}">${active ? 'Desactivar alertas' : '📲 Activar alertas al teléfono'}</button>
+    </div>
+
     <div class="card" style="margin-bottom:16px">
       <div class="card-title">Volúmenes — B/L vs medido en Chile</div>
       <div style="overflow-x:auto">
@@ -1702,6 +1722,7 @@ function buildAlertasPanel(op) {
           <tbody>
             <tr><td style="font-weight:600">GSV @60°F</td><td style="text-align:right">${fmt(m.blGsv)}</td><td style="text-align:right">${fmt(m.chGsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blGsv, m.chGsv)}</td>${mermaCell(mg)}</tr>
             <tr><td style="font-weight:600">NSV @60°F</td><td style="text-align:right">${fmt(m.blNsv)}</td><td style="text-align:right">${fmt(m.chNsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blNsv, m.chNsv)}</td>${mermaCell(mn)}</tr>
+            ${fwRow('Free Water (info)', m.blFw, m.chFw)}
           </tbody>
         </table>
       </div>
@@ -1714,7 +1735,11 @@ function buildAlertasPanel(op) {
 
     <div class="card">
       <div class="card-title">Línea de tiempo de hitos <span style="font-size:12px;font-weight:400;color:var(--muted)">(${done}/${HITOS.length})</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Ajustá la fecha/hora de cada hito y presioná <b>Marcar y enviar</b>: se registra y se notifica al cliente.</div>
       ${timeline}
+      <div style="margin-top:14px;padding:12px;border-radius:8px;background:${reportReady ? 'rgba(79,191,122,.12)' : 'var(--line2)'};font-size:12px;color:${reportReady ? '#66bb6a' : 'var(--muted)'}">
+        ${reportReady ? '✓ <b>Loss Control finalizado</b> — el reporte quedó habilitado para que el cliente lo vea y descargue.' : 'Al marcar <b>Loss Control finalizado</b> se habilita el reporte para el cliente.'}
+      </div>
     </div>`;
 }
 
@@ -2315,7 +2340,8 @@ function buildOpDetail(op) {
               <span class="op-type-badge ${typeCls}">${typeLabel}</span>
             </div>
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="btn ${op.tracking&&op.tracking.alertsActive?'btn-ghost':'btn-primary'} btn-sm" data-action="toggle-alerts" data-ctx="${encodeCtx({opId:op.id})}">${op.tracking&&op.tracking.alertsActive?'📲 Alertas activas ✓':'📲 Activar alertas al teléfono'}</button>
             <button class="btn btn-secondary btn-sm" data-action="edit-op" data-id="${op.id}">Editar</button>
             <button class="btn btn-danger btn-sm" data-action="delete-op" data-id="${op.id}">Eliminar</button>
           </div>
@@ -7226,8 +7252,17 @@ function handleClick(e) {
     if (!op) return;
     op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
     if (!op.tracking.hitos) op.tracking.hitos = {};
-    const id = el.dataset.hito; const cur = op.tracking.hitos[id];
-    op.tracking.hitos[id] = (cur && cur.done) ? { done:false, ts:null } : { done:true, ts:new Date().toISOString() };
+    const id = el.dataset.hito; const cur = op.tracking.hitos[id] || {};
+    op.tracking.hitos[id] = cur.done
+      ? { done:false, ts: cur.ts || '' }
+      : { done:true, ts: cur.ts || _nowLocalDT() };
+    saveOp(op); renderKeepScroll();
+  }
+  else if (a === 'toggle-alerts') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (!op) return;
+    op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
+    op.tracking.alertsActive = !op.tracking.alertsActive;
     saveOp(op); renderKeepScroll();
   }
   else if (a === 'open-fleet') { state.view='fleet'; state.currentOpId=null; render(); }
@@ -7671,6 +7706,7 @@ function handleChange(e) {
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
   else if (a === 'alertas-select-op') { state.alertasOpId = el.value; render(); }
   else if (a === 'alertas-tolerance') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; op.tracking.tolerance = el.value; saveOp(op); renderKeepScroll(); } }
+  else if (a === 'hito-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.ts = el.value; op.tracking.hitos[id] = h; saveOp(op); renderKeepScroll(); } }
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
