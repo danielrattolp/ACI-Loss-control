@@ -95,9 +95,11 @@ class handler(BaseHTTPRequestHandler):
                 self._json(401, {'error': 'No autorizado'}); return
             subs = kv_get('push_subs', {}) or {}
             sent, removed, errors = self._send_to_emails([email], {'title': 'ACI Loss Control', 'body': 'Notificación de prueba ✓', 'url': '/cliente'})
+            env_vapid = sorted([repr(k) for k in os.environ.keys() if 'VAPID' in k.upper()])
             self._json(200, {'ok': True, 'sent': sent, 'expired': removed, 'subs': len(subs.get(email, [])),
                              'email': email, 'errors': errors[:3],
-                             'vapid_priv_set': bool(VAPID_PRIVATE), 'vapid_pub_set': bool(VAPID_PUBLIC)})
+                             'vapid_priv_set': bool(VAPID_PRIVATE), 'vapid_pub_set': bool(VAPID_PUBLIC),
+                             'priv_len': len(VAPID_PRIVATE), 'env_vapid_keys': env_vapid})
             return
 
         if action == 'send':
