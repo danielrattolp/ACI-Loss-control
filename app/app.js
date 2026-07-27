@@ -1679,6 +1679,7 @@ function buildAlertasPanel(op) {
   const firstPending = HITOS.find(h => !(hitos[h.id] && hitos[h.id].done));
   const done = HITOS.filter(h => hitos[h.id] && hitos[h.id].done).length;
   const active = !!(op.tracking && op.tracking.alertsActive);
+  const pub = (op.tracking && op.tracking.volsSnapshot) || null;
   const reportReady = !!(hitos['lc_finalizado'] && hitos['lc_finalizado'].done);
 
   const timeline = HITOS.map(h => {
@@ -1734,6 +1735,12 @@ function buildAlertasPanel(op) {
         <label class="field-label" style="margin:0">Tolerancia de merma (%)</label>
         <input class="field-input" type="number" step="0.01" style="width:100px" value="${tol}" data-action="alertas-tolerance" data-ctx="${ctx}">
         <span style="font-size:11px;color:var(--muted)">La merma se marca en rojo si supera este valor.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px">
+        <button class="btn btn-primary btn-sm" data-action="publish-vols" data-ctx="${ctx}">${pub ? '↻ Actualizar publicación' : '📤 Publicar volúmenes al cliente'}</button>
+        ${pub
+          ? `<span style="font-size:11px;color:#66bb6a">✓ Publicado ${_fmtDT(pub.publishedAt)}</span><button class="btn btn-ghost btn-sm" data-action="unpublish-vols" data-ctx="${ctx}">Ocultar al cliente</button>`
+          : '<span style="font-size:11px;color:var(--muted)">El cliente NO ve los volúmenes hasta que publiques. Los de arriba son en vivo (tu referencia).</span>'}
       </div>
     </div>
 
@@ -7267,6 +7274,19 @@ function handleClick(e) {
     if (!op) return;
     op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
     op.tracking.alertsActive = !op.tracking.alertsActive;
+    saveOp(op); renderKeepScroll();
+  }
+  else if (a === 'publish-vols') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (!op) return;
+    op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
+    op.tracking.volsSnapshot = Object.assign({}, _opVolMetrics(op), { publishedAt: new Date().toISOString() });
+    saveOp(op); renderKeepScroll();
+  }
+  else if (a === 'unpublish-vols') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (!op || !op.tracking) return;
+    delete op.tracking.volsSnapshot;
     saveOp(op); renderKeepScroll();
   }
   else if (a === 'open-fleet') { state.view='fleet'; state.currentOpId=null; render(); }
