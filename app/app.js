@@ -1959,15 +1959,14 @@ function buildModalNewOp1() {
 }
 
 function buildClientBlock(c, i) {
-  const orgs = state.modalData?.clientOrgs || [];
-  const isNew = c.name === '__new__';
-  const selectHtml = orgs.length > 0 ? `
+  const empresas = state.modalData?.empresas || [];
+  const isNew = c.empresa_id === '__new__';
+  const selectHtml = `
     <select class="field-select client-name" data-idx="${i}" onchange="onClientOrgChange(this,${i})">
       <option value="">— Seleccionar empresa —</option>
-      ${orgs.map(o => `<option value="${o}" ${c.name===o?'selected':''}>${o}</option>`).join('')}
-      <option value="__new__" ${isNew?'selected':''}>＋ Nuevo cliente...</option>
-    </select>` : `
-    <input class="field-input client-name" data-idx="${i}" placeholder="Nombre de la empresa cliente" value="${c.name||''}">`;
+      ${empresas.map(e => `<option value="${e.id}" data-razon="${(e.razon_social||'').replace(/"/g,'&quot;')}" data-rut="${e.rut||''}" ${c.empresa_id===e.id?'selected':''}>${e.razon_social} · ${e.rut}</option>`).join('')}
+      <option value="__new__" ${isNew?'selected':''}>＋ Nueva empresa (por RUT)...</option>
+    </select>`;
 
   return `
     <div class="client-block" data-client-idx="${i}" id="client-block-${i}">
@@ -1985,19 +1984,27 @@ function buildClientBlock(c, i) {
           <input class="field-input client-ref" data-idx="${i}" placeholder="N° referencia / contrato" value="${c.ref||''}">
         </div>
       </div>
-      ${isNew ? buildNewClientInline(i) : ''}
+      ${isNew ? buildNewEmpresaInline(i) : ''}
     </div>`;
 }
 
-function buildNewClientInline(idx) {
+function buildNewEmpresaInline(idx) {
   return `
     <div class="new-client-inline" id="new-client-inline-${idx}" style="background:var(--line2);border:1px dashed var(--accent2);border-radius:8px;padding:14px 16px;margin-top:10px">
-      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Crear nueva cuenta de cliente</div>
-      <div class="form-row form-row-3">
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Nueva empresa — conexión por RUT</div>
+      <div class="form-row form-row-2">
         <div class="field">
-          <label class="field-label">Empresa (org) <span class="req">*</span></label>
-          <input class="field-input" id="nc-org-${idx}" placeholder="Ej: ENAP, Petronas...">
+          <label class="field-label">RUT de la empresa <span class="req">*</span></label>
+          <input class="field-input" id="nc-rut-${idx}" placeholder="76.123.456-7" autocomplete="off"
+            oninput="const fb=document.getElementById('nc-rut-fb-'+${idx});if(fb)fb.innerHTML=this.value.trim()===''?'':(rutValid(this.value)?'<span style=&quot;color:#66bb6a&quot;>✓ válido</span>':'<span style=&quot;color:#e57373&quot;>✗ DV no coincide</span>');">
+          <div id="nc-rut-fb-${idx}" style="font-size:11px;margin-top:4px;min-height:14px"></div>
         </div>
+        <div class="field">
+          <label class="field-label">Razón social <span class="req">*</span></label>
+          <input class="field-input" id="nc-org-${idx}" placeholder="Ej: Petrolera ACI S.A.">
+        </div>
+      </div>
+      <div class="form-row form-row-3" style="margin-top:6px">
         <div class="field">
           <label class="field-label">Nombre contacto <span class="req">*</span></label>
           <input class="field-input" id="nc-name-${idx}" placeholder="Ej: Juan Pérez">
@@ -2006,16 +2013,14 @@ function buildNewClientInline(idx) {
           <label class="field-label">Email <span class="req">*</span></label>
           <input class="field-input" id="nc-email-${idx}" type="email" placeholder="juan@empresa.com">
         </div>
-      </div>
-      <div class="form-row" style="margin-top:6px">
         <div class="field">
           <label class="field-label">Contraseña temporal <span class="req">*</span></label>
           <input class="field-input" id="nc-pass-${idx}" type="password" placeholder="Mínimo 6 caracteres">
         </div>
-        <div class="field" style="display:flex;align-items:flex-end;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="createClientInline(${idx})" style="margin-bottom:0">Crear y vincular</button>
-          <button class="btn btn-ghost btn-sm" onclick="cancelClientInline(${idx})" style="margin-bottom:0">Cancelar</button>
-        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <button class="btn btn-primary btn-sm" onclick="createEmpresaInline(${idx})" style="margin-bottom:0">Crear y vincular</button>
+        <button class="btn btn-ghost btn-sm" onclick="cancelClientInline(${idx})" style="margin-bottom:0">Cancelar</button>
       </div>
       <div id="nc-msg-${idx}" style="font-size:11px;margin-top:6px"></div>
     </div>`;
@@ -2025,52 +2030,53 @@ function onClientOrgChange(sel, idx) {
   const block = document.getElementById('client-block-' + idx);
   const existing = block.querySelector('.new-client-inline');
   if (sel.value === '__new__') {
-    if (!existing) block.insertAdjacentHTML('beforeend', buildNewClientInline(idx));
+    if (!existing) block.insertAdjacentHTML('beforeend', buildNewEmpresaInline(idx));
   } else {
     if (existing) existing.remove();
   }
 }
 
-async function createClientInline(idx) {
-  const org   = document.getElementById('nc-org-'+idx)?.value.trim();
+async function createEmpresaInline(idx) {
+  const rut   = document.getElementById('nc-rut-'+idx)?.value.trim();
+  const razon = document.getElementById('nc-org-'+idx)?.value.trim();
   const name  = document.getElementById('nc-name-'+idx)?.value.trim();
   const email = document.getElementById('nc-email-'+idx)?.value.trim();
   const pass  = document.getElementById('nc-pass-'+idx)?.value.trim();
   const msg   = document.getElementById('nc-msg-'+idx);
 
-  if (!org || !name || !email || !pass) { msg.style.color='#c0392b'; msg.textContent='Completa todos los campos.'; return; }
-  if (pass.length < 6) { msg.style.color='#c0392b'; msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
+  if (!rut || !razon || !name || !email || !pass) { msg.style.color='#e57373'; msg.textContent='Completa todos los campos.'; return; }
+  if (!rutValid(rut)) { msg.style.color='#e57373'; msg.textContent='RUT inválido (revisá el dígito verificador).'; return; }
+  if (pass.length < 6) { msg.style.color='#e57373'; msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
 
-  msg.style.color='#555'; msg.textContent='Creando cuenta...';
+  msg.style.color='var(--muted)'; msg.textContent='Creando empresa…';
   const tok = _aciSessionToken();
   try {
-    const res = await fetch('/api/clients' + (tok ? '?_t='+encodeURIComponent(tok) : ''), {
+    const res = await fetch('/api/empresas' + (tok ? '?_t='+encodeURIComponent(tok) : ''), {
       method: 'POST',
       headers: {'Content-Type':'application/json', ...(tok ? {'X-ACI-Session': tok} : {})},
-      body: JSON.stringify({action:'create', org, name, email, password: pass})
+      body: JSON.stringify({ action:'create', razon_social: razon, rut, contact:{ name, email, password: pass } })
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) { msg.style.color='#c0392b'; msg.textContent = data.error || 'Error al crear cliente.'; return; }
+    if (!res.ok || !data.ok) { msg.style.color='#e57373'; msg.textContent = data.error || 'Error al crear la empresa.'; return; }
 
-    // Add org to selector and select it
-    if (!state.modalData.clientOrgs) state.modalData.clientOrgs = [];
-    if (!state.modalData.clientOrgs.includes(org)) state.modalData.clientOrgs.push(org);
-    state.modalData.clientOrgs.sort();
+    const empresa = { id: data.empresa_id, razon_social: razon, rut: data.rut || rutFormat(rut) };
+    if (!state.modalData.empresas) state.modalData.empresas = [];
+    state.modalData.empresas.push(empresa);
+    state.modalData.empresas.sort((a,b) => a.razon_social.localeCompare(b.razon_social));
 
     const sel = document.querySelector(`#client-block-${idx} .client-name`);
     if (sel && sel.tagName === 'SELECT') {
-      // Add option and select it
       const opt = document.createElement('option');
-      opt.value = org; opt.textContent = org; opt.selected = true;
+      opt.value = empresa.id; opt.textContent = `${empresa.razon_social} · ${empresa.rut}`;
+      opt.dataset.razon = empresa.razon_social; opt.dataset.rut = empresa.rut; opt.selected = true;
       sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
-      sel.value = org;
+      sel.value = empresa.id;
     }
-    // Remove inline form
     const inline = document.getElementById('new-client-inline-'+idx);
     if (inline) inline.remove();
     msg.textContent = '';
   } catch(e) {
-    msg.style.color='#c0392b'; msg.textContent='Error de red. Intenta nuevamente.';
+    msg.style.color='#e57373'; msg.textContent='Error de red. Intenta nuevamente.';
   }
 }
 
@@ -7140,23 +7146,7 @@ function handleClick(e) {
   else if (a === 'chat-suggest') { const q=el.dataset.q; if(q){ if(!state.chatHistory)state.chatHistory=[]; const inp=document.getElementById('chat-input'); if(inp){inp.value=q;} else {state.chatHistory.push({role:'user',content:q});state.chatLoading=true;render();scrollChatToBottom();chatSend.call({_preset:q});} } }
   else if (a === 'open-new-op') {
     state.modal='new-op-1'; state.modalData={}; render();
-    // Load registered client orgs for the selector
-    const tok = _aciSessionToken();
-    fetch('/api/clients' + (tok ? '?_t='+encodeURIComponent(tok) : ''), {
-      headers: tok ? {'X-ACI-Session': tok} : {}
-    }).then(r => r.ok ? r.json() : {}).then(data => {
-      const orgs = [...new Set(Object.values(data).map(c => c.org || c.name).filter(Boolean))].sort();
-      state.modalData.clientOrgs = orgs;
-      // Re-render client blocks only if modal still open
-      if (state.modal === 'new-op-1') {
-        const container = document.getElementById('clients-container');
-        if (container) {
-          const d = state.modalData;
-          const clients = d.clients || [{ name: '', ref: '' }];
-          container.innerHTML = clients.map((c, i) => buildClientBlock(c, i)).join('');
-        }
-      }
-    }).catch(() => {});
+    loadModalEmpresas();
   }
   else if (a === 'open-op') { state.view='op'; state.currentOpId=el.dataset.id; state.currentModule=null; state.currentAlijoIdx=0; render(); }
   else if (a === 'close-modal') { state.modal=null; render(); }
@@ -7794,10 +7784,16 @@ function handleModalNext() {
   d.terminal = document.getElementById('f-terminal')?.value;
   d.inspectionCompany = document.getElementById('f-inscomp')?.value;
 
-  // Collect clients
+  // Collect clients — cada uno referencia una empresa por empresa_id + RUT
   const names = document.querySelectorAll('.client-name');
   const refs = document.querySelectorAll('.client-ref');
-  d.clients = Array.from(names).map((n, i) => ({ name: n.value, ref: refs[i]?.value || '' })).filter(c => c.name && c.name !== '__new__');
+  d.clients = Array.from(names).map((n, i) => {
+    const opt = n.selectedOptions ? n.selectedOptions[0] : null;
+    const empresa_id = n.value;
+    const razon = (opt && opt.dataset.razon) || '';
+    const rut = (opt && opt.dataset.rut) || '';
+    return { empresa_id, name: razon, rut, ref: refs[i]?.value || '' };
+  }).filter(c => c.empresa_id && c.empresa_id !== '__new__');
 
   if (!d.country || !d.vesselName || !d.product || !d.port) {
     alert('Por favor complete los campos obligatorios: País, Buque, Producto y Puerto.');
@@ -8203,6 +8199,28 @@ function editOp(id) {
     opType: op.type,
   };
   render();
+  loadModalEmpresas();
+}
+
+// Carga las empresas (por RUT) para el selector de clientes del wizard y
+// re-renderiza los bloques de cliente. Usado por "Nueva operación" y "Editar".
+function loadModalEmpresas() {
+  const tok = _aciSessionToken();
+  fetch('/api/empresas' + (tok ? '?_t='+encodeURIComponent(tok) : ''), { headers: tok ? {'X-ACI-Session': tok} : {} })
+    .then(r => r.ok ? r.json() : {}).then(data => {
+      if (!state.modalData) return;
+      state.modalData.empresas = Object.values(data.empresas || {})
+        .map(e => ({ id: e.id, razon_social: e.razon_social || '', rut: e.rut || '' }))
+        .sort((a,b) => a.razon_social.localeCompare(b.razon_social));
+      if (state.modal === 'new-op-1') {
+        const container = document.getElementById('clients-container');
+        if (container) {
+          const d = state.modalData;
+          const clients = (d.clients && d.clients.length) ? d.clients : [{ name:'', ref:'', empresa_id:'' }];
+          container.innerHTML = clients.map((c, i) => buildClientBlock(c, i)).join('');
+        }
+      }
+    }).catch(() => {});
 }
 
 // ===== CIERRE DE SESIÓN POR INACTIVIDAD =====
