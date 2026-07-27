@@ -93,6 +93,22 @@
     .hito-dot-active{animation:hitoPulse 1.4s ease-out infinite}
     @keyframes hitoLabelPulse{0%,100%{opacity:1}50%{opacity:.55}}
     .hito-label-active{animation:hitoLabelPulse 1.4s ease-in-out infinite}
+
+    /* ── Línea de tiempo conectada estilo tracking ── */
+    .tl-row{display:flex;gap:14px}
+    .tl-rail{width:20px;display:flex;flex-direction:column;align-items:center;flex:0 0 auto}
+    .tl-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto;margin-top:1px;box-sizing:border-box}
+    .tl-dot.done{background:var(--accent2);color:#07120b}
+    .tl-dot.current{background:var(--warn);color:#1a1206}
+    .tl-dot.pending{background:transparent;border:2px solid var(--border)}
+    .tl-seg{width:3px;flex:1;min-height:16px;border-radius:2px;margin:3px 0}
+    .tl-row:last-child .tl-seg{display:none}
+    .tl-content{flex:1;min-width:0;padding-bottom:18px}
+    .tl-row:last-child .tl-content{padding-bottom:0}
+    .tl-label{font-size:13px}
+    .tl-time{font-size:11px;color:var(--muted);margin-top:3px}
+    .tl-note{font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-top:6px;white-space:pre-wrap}
+    .tl-row.is-current .tl-content{background:#d2992212;border:1px solid #d2992233;border-radius:8px;padding:8px 10px;margin-bottom:6px}
   </style>
 </head>
 <body>
@@ -350,16 +366,23 @@ function trackingCard(op){
     const st = hitos[h.id] || {};
     const isDone = !!st.done;
     const isCurrent = firstPending && firstPending.id === h.id;
-    const ring = isDone ? 'var(--accent2)' : (isCurrent ? 'var(--warn)' : 'var(--border)');
-    const txtColor = isDone ? 'var(--text)' : (isCurrent ? 'var(--warn)' : 'var(--muted)');
-    const noteHtml = (h.id === 'nom_entendimientos' && st.note)
-      ? `<div style="font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-top:5px;white-space:pre-wrap">${st.note.replace(/</g, '&lt;')}</div>`
-      : (isDone && st.ts ? `<div style="font-size:11px;color:var(--muted)">🕓 ${fmtDT(st.ts)}</div>` : '');
-    return `<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span class="${isCurrent ? 'hito-dot-active' : ''}" style="width:13px;height:13px;border-radius:50%;margin-top:3px;background:${isDone ? 'var(--accent2)' : (isCurrent ? 'var(--warn)' : 'transparent')};border:2px solid ${ring};flex:0 0 auto"></span>
-      <div style="flex:1">
-        <div class="${isCurrent ? 'hito-label-active' : ''}" style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${txtColor}">${h.label}${isCurrent ? ' · en curso' : ''}</div>
-        ${noteHtml}
+    const dotCls = isDone ? 'done' : (isCurrent ? 'current hito-dot-active' : 'pending');
+    const dotInner = isDone ? '✓' : '';
+    const segColor = isDone ? 'var(--accent2)' : 'var(--border)';
+    const labelColor = isDone ? 'var(--text)' : (isCurrent ? 'var(--warn)' : 'var(--muted)');
+    let sub = '';
+    if (h.id === 'nom_entendimientos' && st.note) sub = `<div class="tl-note">${st.note.replace(/</g, '&lt;')}</div>`;
+    else if (isDone && st.ts) sub = `<div class="tl-time">🕓 ${fmtDT(st.ts)}</div>`;
+    else if (isCurrent && st.ts) sub = `<div class="tl-time" style="color:var(--warn)">🕓 estimado: ${fmtDT(st.ts)}</div>`;
+    else if (isCurrent) sub = `<div class="tl-time" style="color:var(--warn)">en progreso…</div>`;
+    return `<div class="tl-row ${isCurrent ? 'is-current' : ''}">
+      <div class="tl-rail">
+        <div class="tl-dot ${dotCls}">${dotInner}</div>
+        <div class="tl-seg" style="background:${segColor}"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-label ${isCurrent ? 'hito-label-active' : ''}" style="font-weight:${isDone || isCurrent ? '700' : '400'};color:${labelColor}">${h.label}${isCurrent ? ' · en curso' : ''}</div>
+        ${sub}
       </div>
     </div>`;
   }).join('');
