@@ -29,6 +29,24 @@ const OP_TYPES = {
   'terminal': { label: 'Terminal (legacy)',        icon: '🏭', desc: '', modules: ['origen','key-meeting','ullage-inicial','ullage-final','time-log','vef','discharge-record','slops','checklist-buque','checklist-terminal','summary'] },
 };
 
+// Hitos de seguimiento en vivo (tracking del cliente). Orden fijo.
+const HITOS = [
+  { id: 'nom_recibida',        label: 'Nominación recibida' },
+  { id: 'nom_aceptada',        label: 'Nominación aceptada' },
+  { id: 'nom_entendimientos',  label: 'Entendimientos de la nominación' },
+  { id: 'eta_buque',           label: 'ETA del buque' },
+  { id: 'buque_arribado',      label: 'Buque arribado' },
+  { id: 'medicion_arribo',     label: 'Medición al arribo' },
+  { id: 'buque_atracado',      label: 'Buque recibido / atracado' },
+  { id: 'fecha_estimada_op',   label: 'Fecha estimada de operación' },
+  { id: 'a_bordo',             label: 'A bordo' },
+  { id: 'inicio_op',           label: 'Inicio de operación' },
+  { id: 'medicion_completada', label: 'Medición completada' },
+  { id: 'volumenes_bl',        label: 'Volúmenes BL' },
+  { id: 'buque_zarpe',         label: 'Buque al zarpe' },
+  { id: 'lc_finalizado',       label: 'Loss control finalizado' },
+];
+
 const MODULE_META = {
   // Nuevos módulos
   'datos-origen':        { label: 'Datos de Origen',      icon: '📦' },
@@ -804,7 +822,7 @@ function buildLayout() {
     <div class="layout">
       ${buildSidebar(ops, op)}
       <div class="main">
-        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'kb' ? buildKnowledgeBase() : state.view === 'fleet' ? buildFleetIntelligence(ops) : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
+        ${state.view === 'consultor' ? buildConsultorView() : state.view === 'clientes' ? buildClientesView() : state.view === 'alertas' ? buildAlertasView(ops) : state.view === 'kb' ? buildKnowledgeBase() : state.view === 'fleet' ? buildFleetIntelligence(ops) : state.view === 'home' ? buildHome(ops) : op ? buildOpDetail(op) : buildHome(ops)}
       </div>
     </div>
     ${state.modal ? buildModal() : ''}
@@ -823,6 +841,9 @@ function buildSidebar(ops, currentOp) {
         </div>
         <div class="sidebar-item ${state.view==='clientes'?'active':''}" data-action="open-clientes">
           <span class="icon">👥</span> Acceso Clientes
+        </div>
+        <div class="sidebar-item ${state.view==='alertas'?'active':''}" data-action="open-alertas">
+          <span class="icon">📲</span> Alertas Teléfono
         </div>
         <div class="sidebar-item ${state.view==='kb'?'active':''}" data-action="open-kb">
           <span class="icon">📚</span> Base de Conocimiento
@@ -1598,6 +1619,103 @@ function resetContactPass(email) {
   fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify({ action: 'reset_password', email: email.toLowerCase(), password: p.trim() }) })
     .then(r => r.json()).then(d => { alert(d.ok ? '✓ Contraseña actualizada. El cliente ya puede entrar con ella.' : (d.error || 'Error')); })
     .catch(() => alert('Error de conexión.'));
+}
+
+// ===== ALERTAS TELÉFONO (hitos de seguimiento del cliente) =====
+// Métricas de volumen: GSV/NSV del B/L vs medido en Chile (Ullage al arribo).
+function _opVolMetrics(op) {
+  const mods = op.modules || {};
+  const bl = (mods['datos-origen'] || {}).bl || {};
+  const arrKeys = (op.moduleOrder || []).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
+  const arr = arrKeys.map(k => mods[k]).find(m => m && m.totals && m.totals.gsv) || (mods['ullage-arribo'] || {});
+  const tot = arr.totals || {};
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const nsv = q => { if (num(q.nsv) != null) return num(q.nsv); const g = num(q.gsv), b = num(q.bsw); return g != null ? g * (1 - (b || 0) / 100) : null; };
+  return { blGsv: num(bl.gsv), chGsv: num(tot.gsv), blNsv: nsv(bl), chNsv: nsv(tot) };
+}
+
+function buildAlertasView(ops) {
+  const sel = state.alertasOpId || '';
+  const op = sel ? getOp(sel) : null;
+  const optList = ops.map(o => `<option value="${o.id}" ${o.id === sel ? 'selected' : ''}>${o.code} · ${o.vessel?.name || ''}${getClient(o) ? ' · ' + getClient(o) : ''}</option>`).join('');
+  return `
+  <div style="max-width:820px;margin:0 auto;padding:32px 16px">
+    <div class="card-title" style="font-size:18px;margin-bottom:4px">📲 Alertas Teléfono</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Marcá los hitos de la operación. Cada hito queda con fecha/hora y (próximamente) notifica al teléfono del cliente y actualiza su seguimiento en vivo.</div>
+    <div class="card" style="margin-bottom:20px">
+      <label class="field-label">Operación</label>
+      <select class="field-select" data-action="alertas-select-op">
+        <option value="">— Seleccioná una operación —</option>
+        ${optList}
+      </select>
+    </div>
+    ${op ? buildAlertasPanel(op) : '<div class="info-box">Elegí una operación para ver y marcar sus hitos.</div>'}
+  </div>`;
+}
+
+function buildAlertasPanel(op) {
+  const ctx = encodeCtx({ opId: op.id });
+  const tr = op.tracking || { hitos: {}, tolerance: 0.5 };
+  const hitos = tr.hitos || {};
+  const tol = (tr.tolerance != null && tr.tolerance !== '') ? tr.tolerance : 0.5;
+  const m = _opVolMetrics(op);
+  const fmt = v => v == null ? '—' : Math.round(v).toLocaleString('en-US');
+  const merma = (bl, ch) => (bl != null && ch != null && bl !== 0) ? ((bl - ch) / bl * 100) : null;
+  const mg = merma(m.blGsv, m.chGsv), mn = merma(m.blNsv, m.chNsv);
+  const dCell = (bl, ch) => (bl != null && ch != null) ? fmt(bl - ch) : '—';
+  const mermaCell = v => {
+    if (v == null) return '<td style="text-align:right">—</td>';
+    const over = Math.abs(v) > parseFloat(tol);
+    return `<td style="text-align:right;font-weight:700;color:${over ? '#e57373' : '#66bb6a'}">${v.toFixed(3)}%</td>`;
+  };
+  const firstPending = HITOS.find(h => !(hitos[h.id] && hitos[h.id].done));
+  const done = HITOS.filter(h => hitos[h.id] && hitos[h.id].done).length;
+
+  const timeline = HITOS.map(h => {
+    const st = hitos[h.id] || {};
+    const isDone = !!st.done;
+    const isCurrent = firstPending && firstPending.id === h.id;
+    const ring = isDone ? '#66bb6a' : (isCurrent ? 'var(--amber)' : 'var(--muted)');
+    const tsTxt = (isDone && st.ts) ? new Date(st.ts).toLocaleString('es-CL') : '';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <span style="width:14px;height:14px;border-radius:50%;background:${isDone ? '#66bb6a' : 'transparent'};border:2px solid ${ring};flex:0 0 auto"></span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${isDone ? 'var(--ink)' : (isCurrent ? 'var(--amber)' : 'var(--muted)')}">${h.label}${isCurrent ? ' · actual' : ''}</div>
+        ${tsTxt ? `<div style="font-size:11px;color:var(--muted)">🕓 ${tsTxt}</div>` : ''}
+      </div>
+      <button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="hito-toggle" data-ctx="${ctx}" data-hito="${h.id}">${isDone ? 'Deshacer' : 'Marcar'}</button>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Volúmenes — B/L vs medido en Chile</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%">
+          <thead><tr>
+            <th>Parámetro</th>
+            <th style="text-align:right">B/L</th>
+            <th style="text-align:right">Chile (medido)</th>
+            <th style="text-align:right">Δ (BL − Chile)</th>
+            <th style="text-align:right">Merma %</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="font-weight:600">GSV @60°F</td><td style="text-align:right">${fmt(m.blGsv)}</td><td style="text-align:right">${fmt(m.chGsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blGsv, m.chGsv)}</td>${mermaCell(mg)}</tr>
+            <tr><td style="font-weight:600">NSV @60°F</td><td style="text-align:right">${fmt(m.blNsv)}</td><td style="text-align:right">${fmt(m.chNsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blNsv, m.chNsv)}</td>${mermaCell(mn)}</tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <label class="field-label" style="margin:0">Tolerancia de merma (%)</label>
+        <input class="field-input" type="number" step="0.01" style="width:100px" value="${tol}" data-action="alertas-tolerance" data-ctx="${ctx}">
+        <span style="font-size:11px;color:var(--muted)">La merma se marca en rojo si supera este valor.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Línea de tiempo de hitos <span style="font-size:12px;font-weight:400;color:var(--muted)">(${done}/${HITOS.length})</span></div>
+      ${timeline}
+    </div>`;
 }
 
 function _aciSessionToken() {
@@ -7102,6 +7220,16 @@ function handleClick(e) {
       contact:{ name:_empVal('emp-c-name'), email:_empVal('emp-c-email'), password:_empVal('emp-c-pass') } }, 'emp-onboard-result');
   }
   else if (a === 'open-kb') { state.view='kb'; state.currentOpId=null; render(); }
+  else if (a === 'open-alertas') { state.view='alertas'; state.currentOpId=null; render(); }
+  else if (a === 'hito-toggle') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (!op) return;
+    op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
+    if (!op.tracking.hitos) op.tracking.hitos = {};
+    const id = el.dataset.hito; const cur = op.tracking.hitos[id];
+    op.tracking.hitos[id] = (cur && cur.done) ? { done:false, ts:null } : { done:true, ts:new Date().toISOString() };
+    saveOp(op); renderKeepScroll();
+  }
   else if (a === 'open-fleet') { state.view='fleet'; state.currentOpId=null; render(); }
   else if (a === 'fleet-filter-clear') { state.fleetClient=''; render(); }
   else if (a === 'fleet-pdf') printFleetIntel();
@@ -7541,6 +7669,8 @@ function handleChange(e) {
   const a = el.dataset.action;
   if (!a) return;
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
+  else if (a === 'alertas-select-op') { state.alertasOpId = el.value; render(); }
+  else if (a === 'alertas-tolerance') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; op.tracking.tolerance = el.value; saveOp(op); renderKeepScroll(); } }
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
