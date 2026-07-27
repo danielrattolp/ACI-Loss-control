@@ -1480,41 +1480,111 @@ function scrollChatToBottom() {
 // ===== CLIENTES VIEW =====
 function buildClientesView() {
   return `
-  <div style="max-width:720px;margin:0 auto;padding:32px 16px">
-    <div class="card-title" style="font-size:18px;margin-bottom:4px">👥 Acceso Clientes</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Crea cuentas y genera links de acceso para que tus clientes vean su dashboard en <strong>acilatam.cl/cliente</strong>.</div>
+  <div style="max-width:760px;margin:0 auto;padding:32px 16px">
+    <div class="card-title" style="font-size:18px;margin-bottom:4px">🏢 Empresas Cliente</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Alta de empresas por <strong>RUT</strong> y sus contactos. El acceso del cliente es en <strong>acilatam.cl/cliente</strong>.</div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="card-title">Agregar nuevo cliente</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:12px">
+      <div class="card-title">Nuevo cliente — conexión por RUT</div>
+      <div style="display:grid;grid-template-columns:2fr auto;gap:12px;margin-top:12px;align-items:end">
         <div>
-          <label class="field-label">Empresa (cliente en ops)</label>
-          <input class="field-input" id="new-client-org" placeholder="ENAP" type="text">
+          <label class="field-label">RUT de la empresa</label>
+          <input class="field-input" id="emp-rut" placeholder="76.123.456-7" type="text" autocomplete="off" oninput="rutFeedback(this)">
+          <div id="emp-rut-fb" style="font-size:11px;margin-top:4px;min-height:14px"></div>
         </div>
-        <div>
-          <label class="field-label">Nombre del contacto</label>
-          <input class="field-input" id="new-client-name" placeholder="Juan Pérez" type="text">
-        </div>
-        <div>
-          <label class="field-label">Email corporativo</label>
-          <input class="field-input" id="new-client-email" placeholder="juan@enap.cl" type="email">
-        </div>
-        <div>
-          <label class="field-label">Contraseña de acceso</label>
-          <input class="field-input" id="new-client-pass" placeholder="••••••••" type="text" autocomplete="off">
-        </div>
+        <div><button class="btn btn-primary btn-sm" data-action="empresa-lookup" style="width:100%">🔍 Buscar RUT</button></div>
       </div>
-      <div style="margin-top:12px">
-        <button class="btn btn-primary btn-sm" data-action="client-create">＋ Crear acceso</button>
-      </div>
-      <div id="client-create-result" style="margin-top:12px;font-size:12px"></div>
+      <div id="empresa-onboard" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Clientes activos</div>
-      <div id="clients-list"><div style="color:var(--muted);font-size:12px">Cargando…</div></div>
+      <div class="card-title" style="margin-bottom:12px">Empresas registradas</div>
+      <div id="empresas-list"><div style="color:var(--muted);font-size:12px">Cargando…</div></div>
     </div>
   </div>`;
+}
+
+// ── RUT chileno (validación en el navegador; el servidor revalida) ──
+function rutClean(r) { return String(r || '').trim().toUpperCase().replace(/[.\-\s]/g, ''); }
+function rutDV(cuerpo) {
+  let s = 0, m = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) { s += parseInt(cuerpo[i], 10) * m; m = m === 7 ? 2 : m + 1; }
+  const r = 11 - (s % 11);
+  return r === 11 ? '0' : r === 10 ? 'K' : String(r);
+}
+function rutValid(r) {
+  const s = rutClean(r);
+  if (s.length < 2 || !/^\d+$/.test(s.slice(0, -1))) return false;
+  return rutDV(s.slice(0, -1)) === s.slice(-1);
+}
+function rutFormat(r) { const s = rutClean(r); return s.length < 2 ? s : s.slice(0, -1) + '-' + s.slice(-1); }
+function rutFeedback(el) {
+  const fb = document.getElementById('emp-rut-fb'); if (!fb) return;
+  const v = el.value.trim();
+  fb.innerHTML = v === '' ? '' : (rutValid(v)
+    ? '<span style="color:#66bb6a">✓ RUT válido</span>'
+    : '<span style="color:#e57373">✗ dígito verificador no coincide</span>');
+}
+function _empVal(id) { return (document.getElementById(id)?.value || '').trim(); }
+function _empContactFields() {
+  return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <div><label class="field-label">Nombre del contacto</label><input class="field-input" id="emp-c-name" placeholder="Juan Pérez"></div>
+    <div><label class="field-label">Email del contacto</label><input class="field-input" id="emp-c-email" type="email" placeholder="juan@empresa.cl"></div>
+    <div><label class="field-label">Contraseña inicial</label><input class="field-input" id="emp-c-pass" type="text" autocomplete="off" placeholder="mín. 6 caracteres"></div>
+  </div>`;
+}
+function renderExistingEmpresa(e) {
+  return `<div style="background:var(--line2);border:1px solid var(--accent2);border-radius:8px;padding:14px;margin-top:8px">
+    <div style="font-size:13px;font-weight:700;color:var(--ink)">🏢 ${e.razon_social} <span style="color:var(--muted);font-weight:400">· ${e.rut}</span></div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0">Contactos actuales: ${(e.contactos || []).map(c => c.name).join(', ') || '—'}</div>
+    <div style="font-size:12px;color:var(--accent);margin:10px 0 6px">Agregar un nuevo contacto a esta empresa:</div>
+    ${_empContactFields()}
+    <input type="hidden" id="emp-existing-id" value="${e.id}">
+    <button class="btn btn-primary btn-sm" data-action="empresa-add-contact" style="margin-top:10px">＋ Agregar contacto</button>
+    <div id="emp-onboard-result" style="font-size:12px;margin-top:8px"></div>
+  </div>`;
+}
+function renderNewEmpresa(rut) {
+  return `<div style="background:var(--line2);border:1px dashed var(--accent2);border-radius:8px;padding:14px;margin-top:8px">
+    <div style="font-size:12px;color:#66bb6a;margin-bottom:10px">✓ RUT nuevo (${rut}). Creá la empresa y su primer contacto:</div>
+    <label class="field-label">Razón social</label>
+    <input class="field-input" id="emp-razon" placeholder="Petrolera ACI S.A." type="text" style="margin-bottom:10px">
+    <input type="hidden" id="emp-new-rut" value="${rut}">
+    ${_empContactFields()}
+    <button class="btn btn-primary btn-sm" data-action="empresa-create" style="margin-top:10px">＋ Crear empresa + contacto</button>
+    <div id="emp-onboard-result" style="font-size:12px;margin-top:8px"></div>
+  </div>`;
+}
+function _empPost(payload, resultId) {
+  const box = document.getElementById(resultId);
+  const tok = _aciSessionToken();
+  if (box) box.innerHTML = '<span style="color:var(--muted)">Guardando…</span>';
+  fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify(payload) })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (ok && d.ok) {
+        if (box) box.innerHTML = '<span style="color:#66bb6a">✓ Guardado.</span>';
+        const ob = document.getElementById('empresa-onboard'); if (ob) ob.innerHTML = '';
+        const rf = document.getElementById('emp-rut'); if (rf) rf.value = '';
+        const fb = document.getElementById('emp-rut-fb'); if (fb) fb.innerHTML = '';
+        loadEmpresasList();
+      } else if (box) {
+        box.innerHTML = '<span style="color:#e57373">' + (d.error || 'Error') + '</span>';
+      }
+    }).catch(() => { if (box) box.innerHTML = '<span style="color:#e57373">Error de conexión.</span>'; });
+}
+function loadEmpresasList() {
+  const el = document.getElementById('empresas-list'); if (!el) return;
+  const tok = _aciSessionToken();
+  fetch('/api/empresas?_t=' + encodeURIComponent(tok), { headers: { 'X-ACI-Session': tok } })
+    .then(r => r.json()).then(d => {
+      const emps = Object.values(d.empresas || {});
+      if (!emps.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Sin empresas registradas aún.</div>'; return; }
+      el.innerHTML = emps.map(e => `<div style="border-bottom:1px solid var(--line);padding:10px 0">
+        <div style="font-size:13px;font-weight:700;color:var(--ink)">🏢 ${e.razon_social} <span style="color:var(--muted);font-weight:400;font-size:11px">· ${e.rut}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${(e.contactos || []).map(c => `${c.name} &lt;${c.email}&gt;${c.active ? '' : ' (inactivo)'}`).join(' · ') || 'sin contactos'}</div>
+      </div>`).join('');
+    }).catch(() => { el.innerHTML = '<div style="color:#e57373;font-size:12px">Error al cargar.</div>'; });
 }
 
 function _aciSessionToken() {
@@ -6990,7 +7060,28 @@ function handleClick(e) {
 
   if (a === 'go-home') { state.view='home'; state.currentOpId=null; render(); }
   else if (a === 'open-consultor') { state.view='consultor'; state.currentOpId=null; render(); }
-  else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadClientsList, 50); }
+  else if (a === 'open-clientes') { state.view='clientes'; state.currentOpId=null; render(); setTimeout(loadEmpresasList, 50); }
+  else if (a === 'empresa-lookup') {
+    const box = document.getElementById('empresa-onboard');
+    const rut = _empVal('emp-rut');
+    if (!box) return;
+    if (!rutValid(rut)) { box.innerHTML = '<div style="color:#e57373;font-size:12px;margin-top:8px">RUT inválido. Revisá el dígito verificador.</div>'; return; }
+    box.innerHTML = '<div style="color:var(--muted);font-size:12px;margin-top:8px">Buscando…</div>';
+    const tok = _aciSessionToken();
+    fetch('/api/empresas', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':tok}, body: JSON.stringify({ action:'lookup', rut }) })
+      .then(r => r.json()).then(d => {
+        if (!d.valid) { box.innerHTML = '<div style="color:#e57373;font-size:12px;margin-top:8px">RUT inválido.</div>'; return; }
+        box.innerHTML = d.exists ? renderExistingEmpresa(d.empresa) : renderNewEmpresa(d.rut);
+      }).catch(() => { box.innerHTML = '<div style="color:#e57373;font-size:12px;margin-top:8px">Error de conexión.</div>'; });
+  }
+  else if (a === 'empresa-create') {
+    _empPost({ action:'create', razon_social:_empVal('emp-razon'), rut:_empVal('emp-new-rut'),
+      contact:{ name:_empVal('emp-c-name'), email:_empVal('emp-c-email'), password:_empVal('emp-c-pass') } }, 'emp-onboard-result');
+  }
+  else if (a === 'empresa-add-contact') {
+    _empPost({ action:'add_contact', empresa_id:_empVal('emp-existing-id'),
+      contact:{ name:_empVal('emp-c-name'), email:_empVal('emp-c-email'), password:_empVal('emp-c-pass') } }, 'emp-onboard-result');
+  }
   else if (a === 'open-kb') { state.view='kb'; state.currentOpId=null; render(); }
   else if (a === 'open-fleet') { state.view='fleet'; state.currentOpId=null; render(); }
   else if (a === 'fleet-filter-clear') { state.fleetClient=''; render(); }
