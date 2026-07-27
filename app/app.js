@@ -7265,8 +7265,8 @@ function handleClick(e) {
     if (!op.tracking.hitos) op.tracking.hitos = {};
     const id = el.dataset.hito; const cur = op.tracking.hitos[id] || {};
     op.tracking.hitos[id] = cur.done
-      ? { done:false, ts: cur.ts || '' }
-      : { done:true, ts: cur.ts || _nowLocalDT() };
+      ? { done:false, ts: cur.ts || '', note: cur.note }
+      : { done:true, ts: cur.ts || _nowLocalDT(), markedAt: Date.now(), note: cur.note };
     saveOp(op); renderKeepScroll();
   }
   else if (a === 'toggle-alerts') {

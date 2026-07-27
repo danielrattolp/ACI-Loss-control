@@ -265,10 +265,21 @@ function opVolMetrics(op){
 }
 function fmtDT(v){ if (!v) return ''; const d = new Date(v); return isNaN(d) ? v : d.toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
 
+const FINALIZED_HIDE_MS = 12 * 60 * 60 * 1000; // ocultar 12 h tras "Loss control finalizado"
+function _trackingVisible(op){
+  const tr = op.tracking || {};
+  if (!tr.alertsActive) return false;
+  const lc = (tr.hitos || {})['lc_finalizado'];
+  if (lc && lc.done) {
+    const t = lc.markedAt || (lc.ts ? new Date(lc.ts).getTime() : 0);
+    if (t && (Date.now() - t) > FINALIZED_HIDE_MS) return false;
+  }
+  return true;
+}
 function renderTracking(){
   const sec = document.getElementById('tracking-section');
   if (!sec) return;
-  const active = (allOps || []).filter(op => op.tracking && op.tracking.alertsActive);
+  const active = (allOps || []).filter(_trackingVisible);
   if (!active.length){ sec.style.display = 'none'; sec.innerHTML = ''; return; }
   sec.style.display = 'block';
   sec.innerHTML = '<h2 style="font-size:15px;font-weight:700;margin-bottom:14px">📍 Seguimiento en vivo</h2>' + active.map(trackingCard).join('');
