@@ -1,0 +1,16 @@
+{
+  "name": "ACI Loss Control",
+  "short_name": "ACI",
+  "description": "Seguimiento en vivo de operaciones de Loss Control",
+  "start_url": "/cliente",
+  "scope": "/cliente",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0B0D",
+  "theme_color": "#0B0B0D",
+  "lang": "es",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

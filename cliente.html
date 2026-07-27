@@ -2,8 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ACI Loss Control — Portal Cliente</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0B0D">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ACI">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -145,6 +154,7 @@
   <div class="nav-logo">ACI <span>Loss Control</span></div>
   <div style="font-size:11px;color:var(--muted);background:#2f81f715;border:1px solid #2f81f730;padding:3px 10px;border-radius:20px">Portal Cliente</div>
   <div class="nav-client">Bienvenido, <strong id="nav-name"></strong></div>
+  <button class="btn-logout" id="install-btn" onclick="installApp()" style="border-color:var(--accent);color:var(--accent)">📲 Instalar app</button>
   <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
 </nav>
 
@@ -200,6 +210,23 @@
 </main>
 
 <script>
+// ── PWA: service worker + instalación ──────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+let _deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); _deferredPrompt = e; });
+function _isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function _isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+async function installApp(){
+  if (_deferredPrompt) { _deferredPrompt.prompt(); try { await _deferredPrompt.userChoice; } catch(_){} _deferredPrompt = null; return; }
+  if (_isIOS()) {
+    alert('Para instalar en iPhone:\n\n1) Tocá el botón Compartir (el cuadrado con la flecha ↑) abajo en Safari.\n2) Deslizá y elegí "Agregar a inicio".\n3) Confirmá con "Agregar".\n\nQuedará como una app con su ícono en tu pantalla.');
+  } else {
+    alert('Para instalar: abrí el menú del navegador (⋮) y elegí "Instalar aplicación" o "Agregar a pantalla de inicio".');
+  }
+}
+
 // ── State ──────────────────────────────────────────────────────────────
 let clientName  = '';  // contact name
 let clientOrg   = '';  // company/org — used to filter ops
@@ -433,6 +460,7 @@ async function showApp(name, org, email) {
   document.getElementById('app-nav').style.display = 'flex';
   document.getElementById('app-main').style.display = 'block';
   document.getElementById('nav-name').textContent = name;
+  if (_isStandalone()) { const ib = document.getElementById('install-btn'); if (ib) ib.style.display = 'none'; }
   document.getElementById('client-title').textContent = clientOrg;
   document.getElementById('client-subtitle').textContent = `Tendencias volumétricas · ${name} · ${email}`;
   startIdleTimer();
