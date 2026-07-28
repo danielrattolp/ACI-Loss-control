@@ -46,6 +46,29 @@ const HITOS = [
   { id: 'lc_finalizado',       label: 'Loss control finalizado' },
 ];
 
+// Catálogo ampliado de eventos para los hitos por lista desplegable.
+const HITO_EXTRA = [
+  'End of sea passage', 'Drop anchor Concepción Bay', 'Pilot off', 'Notice of Readiness Tendered',
+  'Authorities on board', 'Free pratique granted', 'Surveyor on board', 'Key Meeting', 'H2S measurements',
+  'Sampling on board', 'Surveyor off', 'Vessel waiting of Terminal request',
+  'Key meeting and UTI equipment inspection', 'Measurement on board', 'Mooring operations to MT CABO TAMAR',
+  'Calculation on board', 'NOR accepted for Terminal representative', 'Cargo hoses connected (2x 10")',
+  'Vessel awaiting Green Light from maritime authorities', 'Green light for maritime authorities',
+  'Alignment ship to ship', 'Discharge operation commenced Iracema Crude Oil', 'Completed discharge Iracema Crude Oil',
+  'Discharge operation commenced Sapinhoa Crude Oil', 'Completed discharge Sapinhoa Crude Oil',
+  'Final measurements on board', 'Drained', 'Final calculations on board', 'Cargo hoses disconnected',
+  'Signed Final documents', 'Vessel dispatched for terminal',
+];
+function _slug(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
+const HITO_CATALOG = (() => {
+  const seen = new Set(); const out = [];
+  HITOS.forEach(h => { if (!seen.has(h.label)) { seen.add(h.label); out.push({ id: h.id, label: h.label }); } });
+  HITO_EXTRA.forEach(l => { if (!seen.has(l)) { seen.add(l); out.push({ id: 'x_' + _slug(l), label: l }); } });
+  return out;
+})();
+const HITO_LABEL = Object.fromEntries(HITO_CATALOG.map(h => [h.id, h.label]));
+const SLOT_COUNT = 20;
+
 const MODULE_META = {
   // Nuevos módulos
   'datos-origen':        { label: 'Datos de Origen',      icon: '📦' },
@@ -1636,6 +1659,14 @@ function _nowLocalDT() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+// Devuelve (creando si hace falta) el slot de hito i de una operación.
+function _slot(op, idx) {
+  op.tracking = op.tracking || { slots: [], tolerance: 0.5 };
+  if (!Array.isArray(op.tracking.slots)) op.tracking.slots = [];
+  while (op.tracking.slots.length <= idx) op.tracking.slots.push({ event: '', ts: '', done: false, note: '' });
+  if (!op.tracking.slots[idx]) op.tracking.slots[idx] = { event: '', ts: '', done: false, note: '' };
+  return op.tracking.slots[idx];
+}
 function _fmtDT(v) {
   if (!v) return '';
   const d = new Date(v);
@@ -1676,29 +1707,34 @@ function buildAlertasPanel(op) {
     const over = Math.abs(v) > parseFloat(tol);
     return `<td style="text-align:right;font-weight:700;color:${over ? '#e57373' : '#66bb6a'}">${v.toFixed(3)}%</td>`;
   };
-  const firstPending = HITOS.find(h => !(hitos[h.id] && hitos[h.id].done));
-  const done = HITOS.filter(h => hitos[h.id] && hitos[h.id].done).length;
   const active = !!(op.tracking && op.tracking.alertsActive);
   const pub = (op.tracking && op.tracking.volsSnapshot) || null;
-  const reportReady = !!(hitos['lc_finalizado'] && hitos['lc_finalizado'].done);
+  const slots = (op.tracking && Array.isArray(op.tracking.slots)) ? op.tracking.slots : [];
+  const rowCount = Math.max(SLOT_COUNT, slots.length);
+  const eventSlots = slots.filter(s => s && s.event);
+  const done = eventSlots.filter(s => s.done).length;
+  const firstPendingIdx = slots.findIndex(s => s && s.event && !s.done);
+  const reportReady = eventSlots.length > 0 && done === eventSlots.length;
 
-  const timeline = HITOS.map(h => {
-    const st = hitos[h.id] || {};
+  const timeline = Array.from({ length: rowCount }, (_, i) => {
+    const st = slots[i] || {};
+    const hasEvent = !!st.event;
     const isDone = !!st.done;
-    const isCurrent = firstPending && firstPending.id === h.id;
+    const isCurrent = firstPendingIdx === i;
     const ring = isDone ? '#66bb6a' : (isCurrent ? 'var(--amber)' : 'var(--muted)');
-    const isEntend = h.id === 'nom_entendimientos';
-    const inputField = isEntend
-      ? `<textarea class="field-input" style="width:280px;height:54px;resize:vertical" placeholder="¿Qué entendemos que hay que hacer?" data-action="hito-note" data-ctx="${ctx}" data-hito="${h.id}">${st.note || ''}</textarea>`
-      : `<input class="field-input" type="datetime-local" style="width:200px" value="${st.ts || ''}" data-action="hito-time" data-ctx="${ctx}" data-hito="${h.id}">`;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+    const isEntend = st.event === 'nom_entendimientos';
+    const options = `<option value="">— hito ${i + 1} —</option>` +
+      HITO_CATALOG.map(h => `<option value="${h.id}" ${st.event === h.id ? 'selected' : ''}>${h.label}</option>`).join('');
+    const inputField = !hasEvent ? '' : (isEntend
+      ? `<textarea class="field-input" style="width:250px;height:52px;resize:vertical" placeholder="¿Qué entendemos que hay que hacer?" data-action="slot-note" data-ctx="${ctx}" data-idx="${i}">${st.note || ''}</textarea>`
+      : `<input class="field-input" type="datetime-local" style="width:190px" value="${st.ts || ''}" data-action="slot-time" data-ctx="${ctx}" data-idx="${i}">`);
+    const markBtn = !hasEvent ? '' :
+      `<button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="slot-toggle" data-ctx="${ctx}" data-idx="${i}">${isDone ? 'Deshacer' : 'Marcar y enviar'}</button>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <span style="width:14px;height:14px;border-radius:50%;background:${isDone ? '#66bb6a' : 'transparent'};border:2px solid ${ring};flex:0 0 auto"></span>
-      <div style="flex:1;min-width:150px">
-        <div style="font-size:13px;font-weight:${isDone || isCurrent ? '700' : '400'};color:${isDone ? 'var(--ink)' : (isCurrent ? 'var(--amber)' : 'var(--muted)')}">${h.label}${isCurrent ? ' · actual' : ''}</div>
-        ${isDone ? '<div style="font-size:11px;color:#66bb6a">✓ enviado al cliente</div>' : ''}
-      </div>
+      <select class="field-select" style="flex:1;min-width:220px;font-size:12px" data-action="slot-event" data-ctx="${ctx}" data-idx="${i}">${options}</select>
       ${inputField}
-      <button class="btn ${isDone ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="hito-toggle" data-ctx="${ctx}" data-hito="${h.id}">${isDone ? 'Deshacer' : 'Marcar y enviar'}</button>
+      ${markBtn}
     </div>`;
   }).join('');
 
@@ -1745,11 +1781,11 @@ function buildAlertasPanel(op) {
     </div>
 
     <div class="card">
-      <div class="card-title">Línea de tiempo de hitos <span style="font-size:12px;font-weight:400;color:var(--muted)">(${done}/${HITOS.length})</span></div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Ajustá la fecha/hora de cada hito y presioná <b>Marcar y enviar</b>: se registra y se notifica al cliente.</div>
+      <div class="card-title">Línea de tiempo de hitos <span style="font-size:12px;font-weight:400;color:var(--muted)">(${done}/${eventSlots.length})</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Elegí el evento de cada hito en la <b>lista desplegable</b>, ajustá la fecha/hora y presioná <b>Marcar y enviar</b>: se registra y se notifica al cliente.</div>
       ${timeline}
       <div style="margin-top:14px;padding:12px;border-radius:8px;background:${reportReady ? 'rgba(79,191,122,.12)' : 'var(--line2)'};font-size:12px;color:${reportReady ? '#66bb6a' : 'var(--muted)'}">
-        ${reportReady ? '✓ <b>Loss Control finalizado</b> — el reporte quedó habilitado para que el cliente lo vea y descargue.' : 'Al marcar <b>Loss Control finalizado</b> se habilita el reporte para el cliente.'}
+        ${reportReady ? '✓ <b>Operación finalizada</b> — el reporte quedó habilitado para que el cliente lo vea y descargue.' : 'Cuando marques todos los hitos cargados, se habilita el reporte para el cliente.'}
       </div>
     </div>`;
 }
@@ -7258,24 +7294,23 @@ function handleClick(e) {
   }
   else if (a === 'open-kb') { state.view='kb'; state.currentOpId=null; render(); }
   else if (a === 'open-alertas') { state.view='alertas'; state.currentOpId=null; render(); }
-  else if (a === 'hito-toggle') {
+  else if (a === 'slot-toggle') {
     const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
     if (!op) return;
-    op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
-    if (!op.tracking.hitos) op.tracking.hitos = {};
-    const id = el.dataset.hito; const cur = op.tracking.hitos[id] || {};
-    const nowDone = !cur.done;
-    op.tracking.hitos[id] = nowDone
-      ? { done:true, ts: cur.ts || _nowLocalDT(), markedAt: Date.now(), note: cur.note }
-      : { done:false, ts: cur.ts || '', note: cur.note };
+    const idx = parseInt(el.dataset.idx);
+    const s = _slot(op, idx);
+    if (!s.event) return;
+    const nowDone = !s.done;
+    s.done = nowDone;
+    if (nowDone) { if (!s.ts) s.ts = _nowLocalDT(); s.markedAt = Date.now(); }
     saveOp(op); renderKeepScroll();
     // Notificar al teléfono del cliente (solo al marcar y si las alertas están activas)
     if (nowDone && op.tracking.alertsActive) {
-      const label = (HITOS.find(h => h.id === id) || {}).label || 'Actualización';
-      const idx = HITOS.findIndex(h => h.id === id);
-      const next = HITOS.slice(idx + 1).find(h => !(op.tracking.hitos[h.id] && op.tracking.hitos[h.id].done));
-      const when = _fmtDT(op.tracking.hitos[id].ts);
-      const body = `✓ ${label}` + (when ? `\n🕓 ${when}` : '') + (next ? `\nSigue: ${next.label}` : '\n¡Operación finalizada!');
+      const label = HITO_LABEL[s.event] || 'Actualización';
+      const slots = op.tracking.slots || [];
+      const next = slots.slice(idx + 1).find(x => x && x.event && !x.done);
+      const when = _fmtDT(s.ts);
+      const body = `✓ ${label}` + (when ? `\n🕓 ${when}` : '') + (next ? `\nSigue: ${HITO_LABEL[next.event] || ''}` : '\n¡Operación finalizada!');
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
         body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
           body, url:'/cliente', tag: 'aci-op-' + op.id }) }).catch(() => {});
@@ -7742,8 +7777,9 @@ function handleChange(e) {
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
   else if (a === 'alertas-select-op') { state.alertasOpId = el.value; render(); }
   else if (a === 'alertas-tolerance') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; op.tracking.tolerance = el.value; saveOp(op); renderKeepScroll(); } }
-  else if (a === 'hito-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.ts = el.value; op.tracking.hitos[id] = h; saveOp(op); /* sin re-render: no interrumpe la escritura de la fecha/hora */ } }
-  else if (a === 'hito-note') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { op.tracking = op.tracking || { hitos:{} }; if (!op.tracking.hitos) op.tracking.hitos = {}; const id = el.dataset.hito; const h = op.tracking.hitos[id] || { done:false, ts:'' }; h.note = el.value; op.tracking.hitos[id] = h; saveOp(op); } }
+  else if (a === 'slot-time') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { const s = _slot(op, parseInt(el.dataset.idx)); s.ts = el.value; saveOp(op); /* sin re-render: no interrumpe la escritura */ } }
+  else if (a === 'slot-note') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { const s = _slot(op, parseInt(el.dataset.idx)); s.note = el.value; saveOp(op); } }
+  else if (a === 'slot-event') { const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId); if (op) { const s = _slot(op, parseInt(el.dataset.idx)); s.event = el.value; if (!s.event) s.done = false; saveOp(op); renderKeepScroll(); } }
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);

@@ -231,9 +231,29 @@
 </main>
 
 <script>
-// ── PWA: service worker + instalación ──────────────────────────────────
+// ── PWA: service worker + auto-actualización ───────────────────────────
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloaded) return; _swReloaded = true; location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.update();
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          // Nueva versión instalada y ya hay un SW controlando → activar y recargar
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) nw.postMessage('skipWaiting');
+        });
+      });
+    }).catch(() => {});
+  });
+  // Chequear updates cada vez que la app vuelve a primer plano
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  });
 }
 let _deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); _deferredPrompt = e; });
@@ -314,6 +334,20 @@ const HITOS_CLIENT = [
   { id: 'atestiguamiento',     label: 'Atestiguamiento de análisis' },
   { id: 'lc_finalizado',       label: 'Loss control finalizado' },
 ];
+const HITO_EXTRA = [
+  'End of sea passage','Drop anchor Concepción Bay','Pilot off','Notice of Readiness Tendered',
+  'Authorities on board','Free pratique granted','Surveyor on board','Key Meeting','H2S measurements',
+  'Sampling on board','Surveyor off','Vessel waiting of Terminal request',
+  'Key meeting and UTI equipment inspection','Measurement on board','Mooring operations to MT CABO TAMAR',
+  'Calculation on board','NOR accepted for Terminal representative','Cargo hoses connected (2x 10")',
+  'Vessel awaiting Green Light from maritime authorities','Green light for maritime authorities',
+  'Alignment ship to ship','Discharge operation commenced Iracema Crude Oil','Completed discharge Iracema Crude Oil',
+  'Discharge operation commenced Sapinhoa Crude Oil','Completed discharge Sapinhoa Crude Oil',
+  'Final measurements on board','Drained','Final calculations on board','Cargo hoses disconnected',
+  'Signed Final documents','Vessel dispatched for terminal',
+];
+function _slug(s){ return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+const HITO_LABEL = (() => { const m = {}; HITOS_CLIENT.forEach(h => m[h.id] = h.label); HITO_EXTRA.forEach(l => m['x_'+_slug(l)] = l); return m; })();
 
 function _num(v){ const n = parseFloat(v); return isNaN(n) ? null : n; }
 function _nsvOf(q){ if (_num(q.nsv) != null) return _num(q.nsv); const g = _num(q.gsv), b = _num(q.bsw); return g != null ? g * (1 - (b || 0) / 100) : null; }
@@ -331,9 +365,9 @@ const FINALIZED_HIDE_MS = 12 * 60 * 60 * 1000; // ocultar 12 h tras "Loss contro
 function _trackingVisible(op){
   const tr = op.tracking || {};
   if (!tr.alertsActive) return false;
-  const lc = (tr.hitos || {})['lc_finalizado'];
-  if (lc && lc.done) {
-    const t = lc.markedAt || (lc.ts ? new Date(lc.ts).getTime() : 0);
+  const slots = (tr.slots || []).filter(s => s && s.event);
+  if (slots.length && slots.every(s => s.done)) {
+    const t = Math.max.apply(null, slots.map(s => s.markedAt || (s.ts ? new Date(s.ts).getTime() : 0)));
     if (t && (Date.now() - t) > FINALIZED_HIDE_MS) return false;
   }
   return true;
@@ -348,13 +382,14 @@ function renderTracking(){
 }
 
 function trackingCard(op){
-  const tr = op.tracking || {}; const hitos = tr.hitos || {};
+  const tr = op.tracking || {};
   const tol = parseFloat((tr.tolerance != null && tr.tolerance !== '') ? tr.tolerance : 0.5);
   const m = tr.volsSnapshot || null; // el cliente ve solo lo publicado por el operador
   const ref = (op.clients && op.clients[0] && op.clients[0].ref) || '';
-  const firstPending = HITOS_CLIENT.find(h => !(hitos[h.id] && hitos[h.id].done));
-  const reportReady = !!(hitos['lc_finalizado'] && hitos['lc_finalizado'].done);
-  const doneN = HITOS_CLIENT.filter(h => hitos[h.id] && hitos[h.id].done).length;
+  const slots = (tr.slots || []).filter(s => s && s.event);
+  const firstPendingIdx = slots.findIndex(s => !s.done);
+  const doneN = slots.filter(s => s.done).length;
+  const reportReady = slots.length > 0 && doneN === slots.length;
 
   const merma = (bl, ch) => (bl != null && ch != null && bl !== 0) ? ((bl - ch) / bl * 100) : null;
   const mg = m ? merma(m.blGsv, m.chGsv) : null, mn = m ? merma(m.blNsv, m.chNsv) : null;
@@ -366,16 +401,16 @@ function trackingCard(op){
   };
   const numCell = v => `<td style="text-align:right;padding:6px 10px">${v == null ? '—' : fmt(v)}</td>`;
 
-  const timeline = HITOS_CLIENT.map(h => {
-    const st = hitos[h.id] || {};
+  const timeline = slots.length ? slots.map((st, i) => {
     const isDone = !!st.done;
-    const isCurrent = firstPending && firstPending.id === h.id;
+    const isCurrent = firstPendingIdx === i;
+    const label = HITO_LABEL[st.event] || st.event;
     const dotCls = isDone ? 'done' : (isCurrent ? 'current hito-dot-active' : 'pending');
     const dotInner = isDone ? '✓' : '';
     const segColor = isDone ? 'var(--accent2)' : 'var(--border)';
     const labelColor = isDone ? 'var(--text)' : (isCurrent ? 'var(--warn)' : 'var(--muted)');
     let sub = '';
-    if (h.id === 'nom_entendimientos' && st.note) sub = `<div class="tl-note">${st.note.replace(/</g, '&lt;')}</div>`;
+    if (st.event === 'nom_entendimientos' && st.note) sub = `<div class="tl-note">${st.note.replace(/</g, '&lt;')}</div>`;
     else if (isDone && st.ts) sub = `<div class="tl-time">🕓 ${fmtDT(st.ts)}</div>`;
     else if (isCurrent && st.ts) sub = `<div class="tl-time" style="color:var(--warn)">🕓 estimado: ${fmtDT(st.ts)}</div>`;
     else if (isCurrent) sub = `<div class="tl-time" style="color:var(--warn)">en progreso…</div>`;
@@ -385,11 +420,11 @@ function trackingCard(op){
         <div class="tl-seg" style="background:${segColor}"></div>
       </div>
       <div class="tl-content">
-        <div class="tl-label ${isCurrent ? 'hito-label-active' : ''}" style="font-weight:${isDone || isCurrent ? '700' : '400'};color:${labelColor}">${h.label}${isCurrent ? ' · en curso' : ''}</div>
+        <div class="tl-label ${isCurrent ? 'hito-label-active' : ''}" style="font-weight:${isDone || isCurrent ? '700' : '400'};color:${labelColor}">${label}${isCurrent ? ' · en curso' : ''}</div>
         ${sub}
       </div>
     </div>`;
-  }).join('');
+  }).join('') : '<div style="font-size:12px;color:var(--muted);padding:6px 0">Aún no hay hitos cargados para esta operación.</div>';
 
   return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">
@@ -397,7 +432,7 @@ function trackingCard(op){
         <div style="font-size:16px;font-weight:700">${op.vessel?.name || 'Operación'} <span style="font-size:12px;color:var(--muted);font-weight:400">· ${op.code || ''}</span></div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">${op.product?.crudeName || op.product?.type || ''}${op.port ? ' · ' + op.port : ''}${ref ? ' · Ref: ' + ref : ''}</div>
       </div>
-      <span style="font-size:11px;color:var(--accent2);background:#3fb95015;border:1px solid #3fb95040;padding:3px 10px;border-radius:20px">● En curso · ${doneN}/${HITOS_CLIENT.length}</span>
+      <span style="font-size:11px;color:var(--accent2);background:#3fb95015;border:1px solid #3fb95040;padding:3px 10px;border-radius:20px">● En curso · ${doneN}/${slots.length}</span>
     </div>
 
     ${m ? `<div style="overflow-x:auto;margin-bottom:16px">

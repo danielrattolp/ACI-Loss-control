@@ -1,6 +1,8 @@
 // Service Worker — ACI Loss Control (Portal Cliente PWA)
 // Navegación network-first (evita quedar con versión vieja) y maneja Web Push.
-const CACHE = 'aci-cliente-v1';
+const CACHE = 'aci-cliente-v2';
+
+self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 
