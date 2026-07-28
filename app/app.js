@@ -7308,12 +7308,10 @@ function handleClick(e) {
     // Notificar al teléfono del cliente (solo al marcar y si las alertas están activas)
     if (nowDone && op.tracking.alertsActive) {
       const label = HITO_LABEL[s.event] || 'Actualización';
-      const slots = op.tracking.slots || [];
-      const next = slots.slice(idx + 1).find(x => x && x.event && !x.done);
       const when = _fmtDT(s.ts);
       const isFinal = s.event === 'lc_finalizado';
       const body = `✓ ${label}` + (when ? `\n🕓 ${when}` : '') +
-        (isFinal ? '\n✅ Operación finalizada · informe disponible' : (next ? `\nSigue: ${HITO_LABEL[next.event] || ''}` : ''));
+        (isFinal ? '\n✅ Operación finalizada · informe disponible' : '');
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
         body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
           body, url:'/cliente', tag: 'aci-op-' + op.id }) }).catch(() => {});
