@@ -365,9 +365,9 @@ const FINALIZED_HIDE_MS = 12 * 60 * 60 * 1000; // ocultar 12 h tras "Loss contro
 function _trackingVisible(op){
   const tr = op.tracking || {};
   if (!tr.alertsActive) return false;
-  const slots = (tr.slots || []).filter(s => s && s.event);
-  if (slots.length && slots.every(s => s.done)) {
-    const t = Math.max.apply(null, slots.map(s => s.markedAt || (s.ts ? new Date(s.ts).getTime() : 0)));
+  const finalSlot = (tr.slots || []).find(s => s && s.event === 'lc_finalizado' && s.done);
+  if (finalSlot) {
+    const t = finalSlot.markedAt || (finalSlot.ts ? new Date(finalSlot.ts).getTime() : 0);
     if (t && (Date.now() - t) > FINALIZED_HIDE_MS) return false;
   }
   return true;
@@ -389,7 +389,7 @@ function trackingCard(op){
   const slots = (tr.slots || []).filter(s => s && s.event);
   const firstPendingIdx = slots.findIndex(s => !s.done);
   const doneN = slots.filter(s => s.done).length;
-  const reportReady = slots.length > 0 && doneN === slots.length;
+  const reportReady = slots.some(s => s.event === 'lc_finalizado' && s.done);
 
   const merma = (bl, ch) => (bl != null && ch != null && bl !== 0) ? ((bl - ch) / bl * 100) : null;
   const mg = m ? merma(m.blGsv, m.chGsv) : null, mn = m ? merma(m.blNsv, m.chNsv) : null;

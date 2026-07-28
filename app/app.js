@@ -1714,7 +1714,8 @@ function buildAlertasPanel(op) {
   const eventSlots = slots.filter(s => s && s.event);
   const done = eventSlots.filter(s => s.done).length;
   const firstPendingIdx = slots.findIndex(s => s && s.event && !s.done);
-  const reportReady = eventSlots.length > 0 && done === eventSlots.length;
+  const finalSlot = eventSlots.find(s => s.event === 'lc_finalizado');
+  const reportReady = !!(finalSlot && finalSlot.done);
 
   const timeline = Array.from({ length: rowCount }, (_, i) => {
     const st = slots[i] || {};
@@ -1785,7 +1786,7 @@ function buildAlertasPanel(op) {
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Elegí el evento de cada hito en la <b>lista desplegable</b>, ajustá la fecha/hora y presioná <b>Marcar y enviar</b>: se registra y se notifica al cliente.</div>
       ${timeline}
       <div style="margin-top:14px;padding:12px;border-radius:8px;background:${reportReady ? 'rgba(79,191,122,.12)' : 'var(--line2)'};font-size:12px;color:${reportReady ? '#66bb6a' : 'var(--muted)'}">
-        ${reportReady ? '✓ <b>Operación finalizada</b> — el reporte quedó habilitado para que el cliente lo vea y descargue.' : 'Cuando marques todos los hitos cargados, se habilita el reporte para el cliente.'}
+        ${reportReady ? '✓ <b>Operación finalizada</b> — el informe (Reporte Evolutivo) quedó habilitado para que el cliente lo vea y descargue.' : 'Cargá el hito <b>“Loss control finalizado”</b> y marcalo para finalizar la operación y habilitar el informe (Reporte Evolutivo) al cliente.'}
       </div>
     </div>`;
 }
@@ -7310,7 +7311,9 @@ function handleClick(e) {
       const slots = op.tracking.slots || [];
       const next = slots.slice(idx + 1).find(x => x && x.event && !x.done);
       const when = _fmtDT(s.ts);
-      const body = `✓ ${label}` + (when ? `\n🕓 ${when}` : '') + (next ? `\nSigue: ${HITO_LABEL[next.event] || ''}` : '\n¡Operación finalizada!');
+      const isFinal = s.event === 'lc_finalizado';
+      const body = `✓ ${label}` + (when ? `\n🕓 ${when}` : '') +
+        (isFinal ? '\n✅ Operación finalizada · informe disponible' : (next ? `\nSigue: ${HITO_LABEL[next.event] || ''}` : ''));
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
         body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
           body, url:'/cliente', tag: 'aci-op-' + op.id }) }).catch(() => {});
