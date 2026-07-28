@@ -7330,8 +7330,17 @@ function handleClick(e) {
     const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
     if (!op) return;
     op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
-    op.tracking.volsSnapshot = Object.assign({}, _opVolMetrics(op), { publishedAt: new Date().toISOString() });
+    const snap = Object.assign({}, _opVolMetrics(op), { publishedAt: new Date().toISOString() });
+    op.tracking.volsSnapshot = snap;
     saveOp(op); renderKeepScroll();
+    // Notificar al cliente que hay volúmenes publicados
+    if (op.tracking.alertsActive) {
+      const merma = (snap.blGsv && snap.chGsv) ? ((snap.blGsv - snap.chGsv) / snap.blGsv * 100) : null;
+      const body = '📊 Volúmenes publicados' + (merma != null ? `\nMerma GSV: ${merma.toFixed(3)}%` : '');
+      fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
+        body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
+          body, url:'/cliente', tag: 'aci-vol-' + op.id }) }).catch(() => {});
+    }
   }
   else if (a === 'unpublish-vols') {
     const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
