@@ -7333,10 +7333,15 @@ function handleClick(e) {
     const snap = Object.assign({}, _opVolMetrics(op), { publishedAt: new Date().toISOString() });
     op.tracking.volsSnapshot = snap;
     saveOp(op); renderKeepScroll();
-    // Notificar al cliente que hay volúmenes publicados
+    // Notificar al cliente que hay volúmenes publicados (con todas las cifras)
     if (op.tracking.alertsActive) {
-      const merma = (snap.blGsv && snap.chGsv) ? ((snap.blGsv - snap.chGsv) / snap.blGsv * 100) : null;
-      const body = '📊 Volúmenes publicados' + (merma != null ? `\nMerma GSV: ${merma.toFixed(3)}%` : '');
+      const n = v => (v == null || isNaN(v)) ? '—' : Math.round(v).toLocaleString('en-US');
+      const pct = (bl, ch) => (bl && ch) ? ((ch - bl) / bl * 100).toFixed(3) + '%' : '—';
+      const line = (lbl, bl, ch) => `${lbl}: BL ${n(bl)} · CL ${n(ch)}` + ((bl && ch) ? ` (${pct(bl, ch)})` : '');
+      const body = '📊 Volúmenes publicados\n'
+        + line('GSV', snap.blGsv, snap.chGsv) + '\n'
+        + line('NSV', snap.blNsv, snap.chNsv) + '\n'
+        + line('FW', snap.blFw, snap.chFw);
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
         body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
           body, url:'/cliente', tag: 'aci-vol-' + op.id }) }).catch(() => {});
