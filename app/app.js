@@ -3211,6 +3211,18 @@ function buildVEFTableSection(vefData, ctx, sub) {
       <button class="btn btn-secondary btn-sm" data-action="vef-add-voyage" ${ds} data-ctx="${ctx}">＋ Agregar Viaje</button>
       <span style="font-size:11px;color:var(--muted);margin-left:10px">Registros rechazados (*) son automáticos por categoría o Gross Error &gt;2%. El ratio se calcula: TCV Descargado / TCV Shore.</span>
     </div>
+    <details style="margin-top:8px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--sea)">📋 Cargar VEF desde Excel</summary>
+      <div style="margin-top:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Copiá las filas desde tu Excel (con TAB entre columnas) en este orden y pegalas abajo — una fila por viaje:<br>
+          <b>Fecha&nbsp;⇥&nbsp;N° Viaje&nbsp;⇥&nbsp;Puerto/Terminal&nbsp;⇥&nbsp;Cargo&nbsp;⇥&nbsp;TCV Nave&nbsp;⇥&nbsp;OBQ/ROB&nbsp;⇥&nbsp;TCV Shore&nbsp;⇥&nbsp;Categoría</b></div>
+        <textarea id="vef-paste-${sub || 'main'}" class="field-input" style="height:90px;font-family:monospace;font-size:11px" placeholder="2024-03-15	V-102	Terminal Quintero	Crudo	998450	120	999100	TERMINAL"></textarea>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
+          <button class="btn btn-primary btn-sm" data-action="vef-paste" ${ds} data-ctx="${ctx}" data-target="vef-paste-${sub || 'main'}">Cargar viajes</button>
+          <span id="vef-paste-msg-${sub || 'main'}" style="font-size:11px"></span>
+        </div>
+      </div>
+    </details>
 
     ${voyages.length > 0 ? `
     <div style="margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px">
@@ -3292,8 +3304,11 @@ function buildDatosOrigen(d, ctx) {
           data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.gsv||''}"
           data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="gsv" placeholder="—"></td>
-      <td><input class="tbl-input" type="number" step="0.001" value="${t.tcv||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="tcv" placeholder="—"></td>
+      <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="fw" placeholder="0"></td>
+      <td><input class="tbl-input tbl-tcv-${i}" type="number" step="0.001" value="${(t.tcv!==''&&t.tcv!=null)?t.tcv:( (parseFloat(t.gsv)||0)+(parseFloat(t.fw)||0) ? ((parseFloat(t.gsv)||0)+(parseFloat(t.fw)||0)).toFixed(3):'')}"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="tcv" placeholder="auto"
+          title="Auto = GSV + FW (editable)"></td>
       <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="ullageOrigen" data-idx="${i}" title="Quitar tanque">✕</button></td>
     </tr>`;
 
@@ -3342,14 +3357,7 @@ function buildDatosOrigen(d, ctx) {
         </tr></thead>
         <tbody>
           ${row('GSV @60°F','gsv','0.001','BBL')}
-          <tr>
-            <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">TCV (GSV+FW)</td>
-            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(bl.tcv!==''&&bl.tcv!=null)?parseFloat(bl.tcv).toFixed(2):(blTcvCalc>0?blTcvCalc.toFixed(2):'')}" placeholder="auto"
-                data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="tcv"
-                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
-          </tr>
-          ${row('Free Water','fw','0.001','BBL')}
+          ${row('TCV','tcv','0.001','BBL')}
           ${row('API Gravity @60°F','api','0.1','°API',1)}
           ${row('BS&W','bsw','0.01','%',3)}
           <tr>
@@ -3359,7 +3367,6 @@ function buildDatosOrigen(d, ctx) {
                 onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
-          ${row('Densidad @15°C','densityAt15','0.0001','kg/m³')}
           ${row('Densidad @60°F','densityAt60','0.0001','kg/m³')}
           ${row('GSV m³ @15°C','m3At15','0.001','m³')}
           ${row('Toneladas largas','longTons','0.001','LT',3)}
@@ -3386,6 +3393,7 @@ function buildDatosOrigen(d, ctx) {
             <th>Temp (°C)</th>
             <th>VCF</th>
             <th>GSV (BBL)</th>
+            <th>FW (BBL)</th>
             <th>TCV (BBL)</th>
             <th></th>
           </tr></thead>
@@ -7070,7 +7078,7 @@ function saveNested(ctxStr, obj, field, value) {
     const bsw = parseFloat(ref.data[obj].bsw) || 0;
     if (gsv > 0) {
       let newTcv = null, newNsv = null;
-      if ((field === 'gsv' || field === 'fw')  && !ref.data[obj]._tcvManual) { newTcv = (gsv + fw).toFixed(2); ref.data[obj].tcv = newTcv; }
+      if ((field === 'gsv' || field === 'fw')  && obj === 'totals' && !ref.data[obj]._tcvManual) { newTcv = (gsv + fw).toFixed(2); ref.data[obj].tcv = newTcv; }
       if ((field === 'gsv' || field === 'bsw') && !ref.data[obj]._nsvManual) { newNsv = (gsv * (1 - bsw / 100)).toFixed(2); ref.data[obj].nsv = newNsv; }
       // Refrescar en vivo inputs (nuevos) y spans (legacy) sin re-render completo
       if (newTcv !== null) document.querySelectorAll(`[data-obj="${obj}"][data-field="tcv"], [data-auto="tcv"][data-obj="${obj}"]`).forEach(el => { if (el.tagName === 'INPUT') el.value = newTcv; else el.textContent = newTcv; });
@@ -7229,7 +7237,18 @@ function saveUllTank(ctxStr, subObj, idx, field, value) {
   const target = subObj ? (ref.data[subObj] || (ref.data[subObj] = {})) : ref.data;
   if (!target.tanks) target.tanks = TANK_NAMES.map(n => ({ name: n }));
   if (!target.tanks[idx]) target.tanks[idx] = {};
-  target.tanks[idx][field] = value;
+  const tk = target.tanks[idx];
+  tk[field] = value;
+  // TCV por tanque = GSV + FW (auto), salvo que el usuario lo edite a mano.
+  if (field === 'tcv') tk._tcvManual = (value !== '' && value != null);
+  if ((field === 'gsv' || field === 'fw') && !tk._tcvManual) {
+    const g = parseFloat(tk.gsv) || 0, f = parseFloat(tk.fw) || 0;
+    if (g || f) {
+      tk.tcv = (g + f).toFixed(3);
+      const elT = document.querySelector('.tbl-tcv-' + idx);
+      if (elT) elT.value = tk.tcv;
+    }
+  }
   ref.save();
 }
 // Agregar/quitar tanque en tablas de ullage (sub: '' = módulo directo, o 'ullageOrigen')
@@ -7238,7 +7257,7 @@ function ullAddTank(ctxStr, sub) {
   if (!ref) return;
   const target = sub ? (ref.data[sub] || (ref.data[sub] = {})) : ref.data;
   if (!target.tanks) target.tanks = [];
-  target.tanks.push({ name: '', refHeight: '', measured: '', api: '', temp: '', vcf: '', gsv: '', tcv: '' });
+  target.tanks.push({ name: '', refHeight: '', measured: '', api: '', temp: '', vcf: '', gsv: '', fw: '', tcv: '' });
   ref.save();
   renderKeepScroll();
 }
@@ -7479,6 +7498,34 @@ function handleClick(e) {
     _tgt.voyages.push(emptyVEFVoyage());
     _ref.save(); renderKeepScroll();
   }
+  else if (a === 'vef-paste') {
+    const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
+    if (!_ref) return;
+    const _sub = el.dataset.sub;
+    const ta = document.getElementById(el.dataset.target);
+    const msgEl = document.getElementById(el.dataset.target.replace('vef-paste-', 'vef-paste-msg-'));
+    if (!ta) return;
+    const text = (ta.value || '').trim();
+    if (!text) { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'Pegá al menos una fila.'; } return; }
+    const num = s => (s == null ? '' : String(s)).replace(/[,\s]/g, '').replace(/[^0-9.\-]/g, '');
+    const parsed = text.split(/\r?\n/).filter(l => l.trim()).map(line => {
+      const c = line.indexOf('\t') >= 0 ? line.split('\t') : line.split(/\s{2,}|;/);
+      const rawCat = (c[7] || '').trim().toUpperCase();
+      const category = (typeof VEF_CATS !== 'undefined' && VEF_CATS[rawCat]) ? rawCat : 'TERMINAL';
+      return { date: (c[0] || '').trim(), voyageNum: (c[1] || '').trim(), terminal: (c[2] || '').trim(),
+        product: (c[3] || '').trim(), vesselTCV: num(c[4]), obq: num(c[5]) || '0', shoreTCV: num(c[6]),
+        category, comment: '', manualReject: false };
+    }).filter(v => v.vesselTCV || v.shoreTCV || v.voyageNum || v.date);
+    if (!parsed.length) { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'No pude interpretar filas. Revisá que estén separadas por TAB.'; } return; }
+    const _tgt = _sub ? (_ref.data[_sub] || (_ref.data[_sub] = { voyages: [], notes: '' })) : _ref.data;
+    if (!Array.isArray(_tgt.voyages)) _tgt.voyages = [];
+    // Descartar filas vacías precargadas antes de insertar las importadas
+    _tgt.voyages = _tgt.voyages.filter(v => v && (v.vesselTCV || v.shoreTCV || v.voyageNum || v.date));
+    parsed.forEach(v => _tgt.voyages.push(v));
+    _ref.save();
+    if (msgEl) { msgEl.style.color = '#66bb6a'; msgEl.textContent = '✓ ' + parsed.length + ' viaje(s) cargados.'; }
+    renderKeepScroll();
+  }
   else if (a === 'vef-del-voyage') {
     const _c = decodeCtx(el.dataset.ctx); const _ref = getModuleRef(_c);
     if (!_ref) return;
@@ -7665,6 +7712,27 @@ Componentes del VAR: tránsito=${n(s.comp.transit)}, OBQ/ROB=${n(s.comp.obqRob)}
 Asignación por causa: evaporación=${n(parseFloat(c.evaporation)||0)}, a bordo=${n(parseFloat(c.onboard)||0)}, contracción=${n(parseFloat(c.contraction)||0)}, ROB no detectado=${n(parseFloat(c.robUndetected)||0)}, error línea=${n(parseFloat(c.lineFill)||0)}, error medición=${n(parseFloat(c.measurement)||0)}, otras=${n(s.other)}
 Total explicado: ${n(s.explained)} · Residual sin explicar: ${n(s.residual)} · Estado: ${s.reconciled?'RECONCILIADO':'SIN RECONCILIAR'}`;
       prompt = `Eres un QPIC certificado experto en API MPMS Cap. 17.5 (VSRR). Evalúa la reconciliación de pérdida por causa.\n\n${opCtx}\n\n${vsrrData}\n\nEstructura tu respuesta:\n1. VALIDEZ DE LA ASIGNACIÓN: ¿las causas asignadas son físicamente razonables para este crudo/operación y su magnitud?\n2. RESIDUAL: si hay residual sin explicar, qué causa adicional podría explicarlo; si está reconciliado, confírmalo.\n3. COHERENCIA con los componentes del VAR (tránsito, OBQ/ROB, teóricas por VEF).\n4. DICTAMEN: ¿la pérdida queda satisfactoriamente explicada o se requiere investigación / Letter of Protest?\nSé técnico y conciso. No inventes cifras.`;
+    } else if (modKey === 'datos-origen') {
+      const bl = modData.bl || {};
+      const vo = modData.vefOrigen || { voyages: [] };
+      const voyages = (vo.voyages || []).filter(v => v && (v.vesselTCV || v.shoreTCV || v.voyageNum || v.date));
+      const vs = voyages.length ? computeVEFStats(voyages) : null;
+      const ull = modData.ullageOrigen || { tanks: [] };
+      const tanks = (ull.tanks || []).filter(t => t && (t.gsv || t.temp || t.api || t.tcv));
+      const nn = v => (v == null || v === '') ? 'N/D' : v;
+      const voyLines = voyages.map((v, i) => `  ${i + 1}. ${nn(v.date)} | Viaje ${nn(v.voyageNum)} | ${nn(v.terminal)} | ${nn(v.product)} | TCV nave ${nn(v.vesselTCV)} | OBQ/ROB ${nn(v.obq)} | TCV shore ${nn(v.shoreTCV)} | cat ${nn(v.category)}`).join('\n');
+      const tankLines = tanks.map(t => `  ${nn(t.name)}: API ${nn(t.api)} | Temp ${nn(t.temp)}°C | VCF ${nn(t.vcf)} | GSV ${nn(t.gsv)} | FW ${nn(t.fw)} | TCV ${nn(t.tcv)}`).join('\n');
+      const originData = `DATOS DE ORIGEN
+Buque: ${op.vessel?.name || '—'} | Producto: ${op.product?.crudeName || op.product?.type || '—'}
+B/L N° ${nn(modData.blNumber)} | Fecha de carga: ${nn(modData.blDate)} | Puerto de carga: ${nn(modData.loadPort)} | Terminal: ${nn(modData.loadTerminal)}
+Cantidades B/L: GSV=${nn(bl.gsv)} BBL | TCV=${nn(bl.tcv)} | API@60=${nn(bl.api)} | BS&W=${nn(bl.bsw)}% | NSV=${nn(bl.nsv)}
+VEF de origen calculado: ${vs ? vs.vef.toFixed(5) : 'N/D'} (viajes calificantes: ${vs ? vs.qualCount : 0} de ${voyages.length})
+Historial de viajes del VEF:
+${voyLines || '  (sin viajes cargados)'}
+Ullage de origen por tanque (API/Temp/VCF/GSV/FW/TCV):
+${tankLines || '  (sin tanques cargados)'}
+Observaciones generales del operador: ${nn(modData.notes || ull.notes)}`;
+      prompt = `Actúa como QPIC / Inspector Senior de Loss Control con pensamiento cognitivo crítico y más de 25 años en custody transfer de crudo (API MPMS Cap. 7, 8, 9.1, 10, 11.1, 12, 17.1/17.9). Analizas los DATOS DE ORIGEN de esta carga en el puerto de embarque, ANTES del arribo a Chile.\n\n${opCtx}\n\n${originData}\n\nRazona paso a paso y entrega, en secciones:\n1. CALIDAD DE LA MEDICIÓN EN ORIGEN: a partir de la FECHA y el LUGAR de carga, la temperatura y condiciones registradas, evalúa si las mediciones de nivel y las tomas de temperatura por tanque fueron correctamente ejecutadas o si hay POSIBLE SESGO (p. ej. crudo recién cargado con estratificación térmica → medición superficial sobreestima; clima/oleaje; API o VCF incoherentes con la temperatura). Considera explícitamente las observaciones del operador.\n2. AUDITORÍA DEL VEF: revisa el historial viaje por viaje buscando errores de digitación, cifras inverosímiles o inconsistentes (ratio V/S fuera de banda ±0.3%, TCV nave ≫ TCV shore, OBQ/ROB atípicos), datos que parezcan alterados o mal ejecutados, y detecta si algún viaje es en realidad un ALIJE / operación STS (no calificante para VEF). Indica qué viajes deberían rechazarse y por qué, y si el VEF resultante es confiable.\n3. ERRORES SISTEMÁTICOS PROBABLES: nómbralos y da su DIRECCIÓN (sobre o subestimación de la figura de origen).\n4. ATENCIONES PARA EL ARRIBO A CHILE: qué vigilar al arribo — el cambio de temperatura esperado por el viaje (agua fría del Pacífico sur), su afectación volumétrica por contracción (VCF), y la DIFERENCIA esperada (magnitud y signo) que sería atribuible a esos errores sistemáticos versus una pérdida real. Da un rango orientativo si es posible.\n5. DICTAMEN Y RECOMENDACIONES concretas (re-verificar tanques específicos, exigir medición por zonas, LOP, nota al cliente).\nApóyate en el conocimiento estándar de la industria petrolera. No inventes cifras que no estén en los datos; si falta información, decláralo explícitamente.`;
     } else {
       const modSummary = JSON.stringify(modData, null, 2).slice(0, 45000);
       prompt = `Eres un Inspector Senior de Loss Control de hidrocarburos con expertise en API MPMS, ASTM y normativas MARPOL. Analiza los datos del módulo "${meta.label||modKey}" de la siguiente operación de control de pérdidas y proporciona comentarios técnicos detallados.\n\n${opCtx}\n\nDatos del módulo:\n${modSummary}\n\nProporciona:\n1. Evaluación técnica de los datos ingresados\n2. Puntos de atención o alertas según normas API/ASTM\n3. Observaciones sobre completitud de la información\n4. Recomendaciones específicas para el Loss Control\n\nSé conciso pero técnico. Usa terminología de la industria petrolera.`;
