@@ -5941,6 +5941,8 @@ const KM_BLOCKS = [
     { id:'k_lineas_ini', text:'Líneas antes de comenzar', type:'check', options:['Llenas','Vacías'] },
     { id:'k_lineas_fin', text:'Líneas al finalizar', type:'check', options:['Llenas','Vacías'] },
     { id:'k_equipo_med', text:'Equipo de medición a utilizar', type:'check', options:['UTI','ATG','Ullage manual','Metering / LACT'] },
+    { id:'k_temp_mar',   text:'Temperatura del agua de mar (°C)', type:'number' },
+    { id:'k_temp_amb',   text:'Temperatura ambiente (°C)', type:'number' },
   ]},
 ];
 
