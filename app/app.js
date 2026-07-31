@@ -3075,6 +3075,85 @@ function emptyVEFVoyage() {
   return { voyageNum:'', product:'', terminal:'', date:'', vesselTCV:'', obq:'0', shoreTCV:'', category:'TERMINAL', comment:'', manualReject:false };
 }
 
+// Lee un Excel/CSV de VEF y traspasa los viajes al módulo (detección de encabezados).
+async function vefUploadExcel(input, ctxStr, sub, msgId) {
+  const file = input.files && input.files[0];
+  const msgEl = msgId ? document.getElementById(msgId) : null;
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'El lector de Excel aún no cargó, reintentá en unos segundos.'; } return; }
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+    const voyages = parseVefRows(rows);
+    if (!voyages.length) { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'No encontré filas de viajes en el Excel.'; } input.value = ''; return; }
+    const ref = getModuleRef(decodeCtx(ctxStr));
+    if (!ref) { input.value = ''; return; }
+    const tgt = sub ? (ref.data[sub] || (ref.data[sub] = { voyages: [], notes: '' })) : ref.data;
+    if (!Array.isArray(tgt.voyages)) tgt.voyages = [];
+    tgt.voyages = tgt.voyages.filter(v => v && (v.vesselTCV || v.shoreTCV || v.voyageNum || v.date));
+    voyages.forEach(v => tgt.voyages.push(v));
+    ref.save();
+    if (msgEl) { msgEl.style.color = '#66bb6a'; msgEl.textContent = '✓ ' + voyages.length + ' viaje(s) importados de ' + file.name; }
+    input.value = '';
+    renderKeepScroll();
+  } catch (e) {
+    if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'Error al leer el Excel: ' + (e.message || e); }
+    input.value = '';
+  }
+}
+function _vefFmtDate(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date && !isNaN(v)) { const p = n => String(n).padStart(2, '0'); return v.getFullYear() + '-' + p(v.getMonth() + 1) + '-' + p(v.getDate()); }
+  return String(v).trim();
+}
+function parseVefRows(rows) {
+  if (!rows || !rows.length) return [];
+  const num = s => (s == null ? '' : String(s)).replace(/[,\s]/g, '').replace(/[^0-9.\-]/g, '');
+  const keyMap = {
+    date: ['fecha', 'date'], voyageNum: ['viaje', 'voyage', 'n°', 'nº', 'num'],
+    terminal: ['terminal', 'puerto', 'port'], product: ['cargo', 'producto', 'product', 'grade'],
+    vesselTCV: ['tcv nave', 'nave', 'vessel', 'buque', 'ship'], obq: ['obq', 'rob'],
+    shoreTCV: ['tcv shore', 'shore', 'tierra', 'b/l', 'bl'], category: ['categor', 'category', 'tipo'],
+  };
+  let headerIdx = -1, colIdx = {};
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const cells = (rows[i] || []).map(c => String(c || '').toLowerCase().trim());
+    const map = {}; let hits = 0;
+    Object.keys(keyMap).forEach(field => {
+      const ci = cells.findIndex(cell => cell && keyMap[field].some(k => cell.includes(k)));
+      if (ci >= 0) { map[field] = ci; hits++; }
+    });
+    if (hits >= 3) { headerIdx = i; colIdx = map; break; }
+  }
+  const mk = (get) => {
+    const rawCat = String(get('category') || '').trim().toUpperCase();
+    const category = (typeof VEF_CATS !== 'undefined' && VEF_CATS[rawCat]) ? rawCat : 'TERMINAL';
+    return { date: _vefFmtDate(get('date')), voyageNum: String(get('voyageNum') || '').trim(),
+      terminal: String(get('terminal') || '').trim(), product: String(get('product') || '').trim(),
+      vesselTCV: num(get('vesselTCV')), obq: num(get('obq')) || '0', shoreTCV: num(get('shoreTCV')),
+      category, comment: '', manualReject: false };
+  };
+  const out = [];
+  if (headerIdx >= 0) {
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i]; if (!r) continue;
+      const v = mk(f => colIdx[f] != null ? r[colIdx[f]] : '');
+      if (v.vesselTCV || v.shoreTCV || v.voyageNum || v.date) out.push(v);
+    }
+  } else {
+    // Sin encabezados: orden posicional Fecha|Viaje|Terminal|Cargo|TCVnave|OBQ|TCVshore|Cat
+    const order = ['date', 'voyageNum', 'terminal', 'product', 'vesselTCV', 'obq', 'shoreTCV', 'category'];
+    rows.forEach(r => {
+      if (!r || !r.length) return;
+      const v = mk(f => r[order.indexOf(f)]);
+      if (v.vesselTCV || v.shoreTCV) out.push(v);
+    });
+  }
+  return out;
+}
+
 function computeVEFStats(voyages) {
   const GROSS_ERR = 0.02, BAND = 0.003;
   const rows = voyages.map(v => {
@@ -3212,13 +3291,15 @@ function buildVEFTableSection(vefData, ctx, sub) {
       <span style="font-size:11px;color:var(--muted);margin-left:10px">Registros rechazados (*) son automáticos por categoría o Gross Error &gt;2%. El ratio se calcula: TCV Descargado / TCV Shore.</span>
     </div>
     <details style="margin-top:8px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px">
-      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--sea)">📋 Cargar VEF desde Excel</summary>
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--sea)">📄 Cargar VEF desde Excel</summary>
       <div style="margin-top:10px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Copiá las filas desde tu Excel (con TAB entre columnas) en este orden y pegalas abajo — una fila por viaje:<br>
-          <b>Fecha&nbsp;⇥&nbsp;N° Viaje&nbsp;⇥&nbsp;Puerto/Terminal&nbsp;⇥&nbsp;Cargo&nbsp;⇥&nbsp;TCV Nave&nbsp;⇥&nbsp;OBQ/ROB&nbsp;⇥&nbsp;TCV Shore&nbsp;⇥&nbsp;Categoría</b></div>
-        <textarea id="vef-paste-${sub || 'main'}" class="field-input" style="height:90px;font-family:monospace;font-size:11px" placeholder="2024-03-15	V-102	Terminal Quintero	Crudo	998450	120	999100	TERMINAL"></textarea>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Subí el archivo <b>.xlsx / .csv</b> del VEF y lo leo automáticamente (detecta los encabezados: Fecha, Viaje, Puerto/Terminal, Cargo, TCV Nave, OBQ/ROB, TCV Shore, Categoría). Podés editar los viajes después.</div>
+        <input type="file" accept=".xlsx,.xls,.csv" style="font-size:12px;margin-bottom:8px"
+          onchange="vefUploadExcel(this, '${ctx}', '${sub || ''}', 'vef-paste-msg-${sub || 'main'}')">
+        <div style="font-size:11px;color:var(--muted);margin:6px 0 4px">O pegá las filas desde Excel (TAB entre columnas), una por viaje:</div>
+        <textarea id="vef-paste-${sub || 'main'}" class="field-input" style="height:70px;font-family:monospace;font-size:11px" placeholder="2024-03-15	V-102	Terminal Quintero	Crudo	998450	120	999100	TERMINAL"></textarea>
         <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
-          <button class="btn btn-primary btn-sm" data-action="vef-paste" ${ds} data-ctx="${ctx}" data-target="vef-paste-${sub || 'main'}">Cargar viajes</button>
+          <button class="btn btn-secondary btn-sm" data-action="vef-paste" ${ds} data-ctx="${ctx}" data-target="vef-paste-${sub || 'main'}">Cargar desde texto pegado</button>
           <span id="vef-paste-msg-${sub || 'main'}" style="font-size:11px"></span>
         </div>
       </div>
@@ -7721,7 +7802,7 @@ Total explicado: ${n(s.explained)} · Residual sin explicar: ${n(s.residual)} ·
       const tanks = (ull.tanks || []).filter(t => t && (t.gsv || t.temp || t.api || t.tcv));
       const nn = v => (v == null || v === '') ? 'N/D' : v;
       const voyLines = voyages.map((v, i) => `  ${i + 1}. ${nn(v.date)} | Viaje ${nn(v.voyageNum)} | ${nn(v.terminal)} | ${nn(v.product)} | TCV nave ${nn(v.vesselTCV)} | OBQ/ROB ${nn(v.obq)} | TCV shore ${nn(v.shoreTCV)} | cat ${nn(v.category)}`).join('\n');
-      const tankLines = tanks.map(t => `  ${nn(t.name)}: API ${nn(t.api)} | Temp ${nn(t.temp)}°C | VCF ${nn(t.vcf)} | GSV ${nn(t.gsv)} | FW ${nn(t.fw)} | TCV ${nn(t.tcv)}`).join('\n');
+      const tankLines = tanks.map(t => `  ${nn(t.name)}: API ${nn(t.api)} | Temp ${nn(t.temp)}°C | VCF ${nn(t.vcf)} | GSV ${nn(t.gsv)} BBL | FW ${nn(t.fw)} BBL | TCV ${nn(t.tcv)} BBL`).join('\n');
       const originData = `DATOS DE ORIGEN
 Buque: ${op.vessel?.name || '—'} | Producto: ${op.product?.crudeName || op.product?.type || '—'}
 B/L N° ${nn(modData.blNumber)} | Fecha de carga: ${nn(modData.blDate)} | Puerto de carga: ${nn(modData.loadPort)} | Terminal: ${nn(modData.loadTerminal)}
@@ -7729,7 +7810,7 @@ Cantidades B/L: GSV=${nn(bl.gsv)} BBL | TCV=${nn(bl.tcv)} | API@60=${nn(bl.api)}
 VEF de origen calculado: ${vs ? vs.vef.toFixed(5) : 'N/D'} (viajes calificantes: ${vs ? vs.qualCount : 0} de ${voyages.length})
 Historial de viajes del VEF:
 ${voyLines || '  (sin viajes cargados)'}
-Ullage de origen por tanque (API/Temp/VCF/GSV/FW/TCV):
+Ullage de origen por tanque (los volúmenes GSV, FW y TCV están SIEMPRE en barriles/BBL):
 ${tankLines || '  (sin tanques cargados)'}
 Observaciones generales del operador: ${nn(modData.notes || ull.notes)}`;
       prompt = `Actúa como QPIC / Inspector Senior de Loss Control con pensamiento cognitivo crítico y más de 25 años en custody transfer de crudo (API MPMS Cap. 7, 8, 9.1, 10, 11.1, 12, 17.1/17.9). Analizas los DATOS DE ORIGEN de esta carga en el puerto de embarque, ANTES del arribo a Chile.\n\n${opCtx}\n\n${originData}\n\nRazona paso a paso y entrega, en secciones:\n1. CALIDAD DE LA MEDICIÓN EN ORIGEN: a partir de la FECHA y el LUGAR de carga, la temperatura y condiciones registradas, evalúa si las mediciones de nivel y las tomas de temperatura por tanque fueron correctamente ejecutadas o si hay POSIBLE SESGO (p. ej. crudo recién cargado con estratificación térmica → medición superficial sobreestima; clima/oleaje; API o VCF incoherentes con la temperatura). Considera explícitamente las observaciones del operador.\n2. AUDITORÍA DEL VEF: revisa el historial viaje por viaje buscando errores de digitación, cifras inverosímiles o inconsistentes (ratio V/S fuera de banda ±0.3%, TCV nave ≫ TCV shore, OBQ/ROB atípicos), datos que parezcan alterados o mal ejecutados, y detecta si algún viaje es en realidad un ALIJE / operación STS (no calificante para VEF). Indica qué viajes deberían rechazarse y por qué, y si el VEF resultante es confiable.\n3. ERRORES SISTEMÁTICOS PROBABLES: nómbralos y da su DIRECCIÓN (sobre o subestimación de la figura de origen).\n4. ATENCIONES PARA EL ARRIBO A CHILE: qué vigilar al arribo — el cambio de temperatura esperado por el viaje (agua fría del Pacífico sur), su afectación volumétrica por contracción (VCF), y la DIFERENCIA esperada (magnitud y signo) que sería atribuible a esos errores sistemáticos versus una pérdida real. Da un rango orientativo si es posible.\n5. DICTAMEN Y RECOMENDACIONES concretas (re-verificar tanques específicos, exigir medición por zonas, LOP, nota al cliente).\nApóyate en el conocimiento estándar de la industria petrolera. No inventes cifras que no estén en los datos; si falta información, decláralo explícitamente.`;
@@ -8057,6 +8138,8 @@ function handleInput(e) {
   const a = el.dataset.action;
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
+  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
