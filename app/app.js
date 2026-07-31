@@ -3773,6 +3773,8 @@ function buildUllageArribo(d, mod, ctx) {
           </div>`;
         }).join('')}
       </div>
+      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="" style="margin-top:14px">＋ Agregar tanque</button>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px">Agrega un tanque (Slops, adicionales) a la medición y a las fotos.</span>
     </div>
 
     <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
