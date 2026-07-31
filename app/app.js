@@ -3111,6 +3111,24 @@ function _vefFmtDate(v) {
 function parseVefRows(rows) {
   if (!rows || !rows.length) return [];
   const num = s => (s == null ? '' : String(s)).replace(/[,\s]/g, '').replace(/[^0-9.\-]/g, '');
+  const isDateLike = v => (v instanceof Date && !isNaN(v)) || (typeof v === 'string' && /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/.test(v));
+  const isNumLike = v => v !== '' && v != null && !isNaN(parseFloat(String(v).replace(/[,\s]/g, '')));
+
+  // 1) Plantilla AMSPEC "NEW VEF": columnas fijas por posición
+  //    2=Fecha · 3=N°Viaje · 4=Puerto/Terminal · 5=Cargo · 6=TCV Nave(Arrival) · 7=OBQ/ROB · 9=TCV Shore(B/L) · 39=Categoría · 18=Comentario
+  const amspec = rows.filter(r => r && isDateLike(r[2]) && isNumLike(r[3]) && isNumLike(r[6]) && isNumLike(r[9]));
+  if (amspec.length >= 2) {
+    return amspec.map(r => {
+      const rawCat = String(r[39] || '').trim().toUpperCase().replace(/\s+/g, '_');
+      const category = (typeof VEF_CATS !== 'undefined' && VEF_CATS[rawCat]) ? rawCat : 'TERMINAL';
+      return { date: _vefFmtDate(r[2]), voyageNum: String(r[3] == null ? '' : r[3]).trim(),
+        terminal: String(r[4] || '').trim(), product: String(r[5] || '').trim(),
+        vesselTCV: num(r[6]), obq: num(r[7]) || '0', shoreTCV: num(r[9]),
+        category, comment: String(r[18] || '').trim(), manualReject: false };
+    });
+  }
+
+  // 2) Fallback genérico: detección por encabezados / posicional
   const keyMap = {
     date: ['fecha', 'date'], voyageNum: ['viaje', 'voyage', 'n°', 'nº', 'num'],
     terminal: ['terminal', 'puerto', 'port'], product: ['cargo', 'producto', 'product', 'grade'],
