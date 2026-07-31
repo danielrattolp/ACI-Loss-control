@@ -6044,14 +6044,16 @@ function buildKeyMeeting(d, ctx) {
     }).join('')}
 
     <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
-      <div class="card-title">🤖 Generar Acta Formal</div>
-      <div class="info-box" style="margin-bottom:12px">El Consultor IA analizará todas las respuestas, redactará el acta formal, identificará incumplimientos normativos y señalará si se requiere Letter of Protest (LOP).</div>
+      <div class="card-title">📄 Acta de Key Meeting</div>
+      <div class="info-box" style="margin-bottom:12px">Genera el <b>documento formal</b> del acta (encabezado, asistentes, tabla de acuerdos y firmas) listo para imprimir o guardar como PDF. Opcionalmente, la IA redacta observaciones de conformidad normativa que se incluyen en el documento.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" data-action="km-print-acta" data-ctx="${ctx}" style="flex:1;min-width:200px">🖨️ Descargar Acta (documento)</button>
+        <button class="btn btn-secondary" data-action="km-gen-acta" data-ctx="${ctx}" style="flex:1;min-width:200px">${d.acta ? '🔄 Regenerar observaciones IA' : '✍️ Redactar observaciones con IA'}</button>
+      </div>
       ${d.acta ? `
-        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13px;white-space:pre-wrap;line-height:1.7;margin-bottom:12px;max-height:500px;overflow-y:auto">${d.acta}</div>
-        <button class="btn btn-secondary" data-action="km-gen-acta" data-ctx="${ctx}" style="width:100%">🔄 Regenerar Acta</button>
-      ` : `
-        <button class="btn btn-primary" data-action="km-gen-acta" data-ctx="${ctx}" style="width:100%">✍️ Generar Acta con Consultor IA</button>
-      `}
+        <div style="font-size:11px;color:var(--muted);margin:12px 0 4px">Observaciones IA (se incluyen en el documento):</div>
+        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px;font-size:12px;white-space:pre-wrap;line-height:1.6;max-height:320px;overflow-y:auto">${d.acta}</div>
+      ` : ''}
     </div>
 
     <div class="card">
@@ -6059,6 +6061,52 @@ function buildKeyMeeting(d, ctx) {
       <textarea class="field-input" style="height:70px" placeholder="Observaciones…"
         data-action="save-field" data-ctx="${ctx}" data-field="notes">${d.notes||''}</textarea>
     </div>`;
+}
+
+// Genera el documento formal del Acta de Key Meeting (imprimible / PDF).
+function printKMActa(opId, mod) {
+  const op = getOp(opId); if (!op) return;
+  const d = op.modules[mod] || {};
+  const ans = d.answers || {}, dis = d.kmDisabled || {}, att = d.attendees || [];
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const rows = [];
+  KM_BLOCKS.forEach(b => b.questions.forEach(q => { if (dis[q.id]) return; rows.push(`<tr><td>${esc(q.text)}</td><td>${esc(ans[q.id] || '—')}</td></tr>`); }));
+  const attRows = att.length ? att.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.company || '')}</td><td>${esc(a.role || '')}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:#888">—</td></tr>';
+  const narr = d.acta ? `<h3>Observaciones y conformidad normativa</h3><div style="white-space:pre-wrap;font-size:12px;line-height:1.6">${esc(d.acta)}</div>` : '';
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Acta Key Meeting — ${esc(op.code || '')}</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;color:#111;max-width:820px;margin:0 auto;padding:32px}
+    h1{font-size:19px;text-align:center;margin:0 0 4px} .sub{text-align:center;color:#555;font-size:12px;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}
+    .meta td{padding:5px 8px;border:1px solid #ccc} .meta td:first-child{font-weight:700;background:#f4f4f4;width:150px}
+    table.data th,table.data td{border:1px solid #ccc;padding:6px 8px;text-align:left;vertical-align:top}
+    table.data th{background:#0B0B0D;color:#C68B3C}
+    h3{font-size:14px;margin:18px 0 8px;border-bottom:2px solid #C68B3C;padding-bottom:4px}
+    .sign{display:flex;justify-content:space-between;margin-top:56px}
+    .sign div{width:44%;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:12px}
+    @media print{body{padding:0}}
+  </style></head><body>
+    <h1>ACTA DE KEY MEETING / PRE-TRANSFER CONFERENCE</h1>
+    <div class="sub">ACI LATAM · API MPMS Cap. 17.1 (7ª Ed. 2022) / Cap. 17.11</div>
+    <table class="meta">
+      <tr><td>Operación</td><td>${esc(op.code || '')}</td></tr>
+      <tr><td>Buque</td><td>${esc(op.vessel && op.vessel.name || '')} — IMO ${esc(op.vessel && op.vessel.imo || '')}</td></tr>
+      <tr><td>Puerto / Terminal</td><td>${esc(op.port || '')}${op.terminal ? ' / ' + esc(op.terminal) : ''}</td></tr>
+      <tr><td>Producto</td><td>${esc(op.product && (op.product.crudeName || op.product.type) || '')}</td></tr>
+      <tr><td>Fecha / Hora</td><td>${esc(d.date || '—')} ${esc(d.time || '')}</td></tr>
+      <tr><td>Lugar</td><td>${esc(d.location || '—')}</td></tr>
+    </table>
+    <h3>Partes presentes</h3>
+    <table class="data"><thead><tr><th>Nombre</th><th>Empresa</th><th>Cargo / Rol</th></tr></thead><tbody>${attRows}</tbody></table>
+    <h3>Acuerdos alcanzados</h3>
+    <table class="data"><thead><tr><th style="width:55%">Punto</th><th>Acordado</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan="2">—</td></tr>'}</tbody></table>
+    ${narr}
+    <div class="sign"><div>Inspector ACI</div><div>Representante del Buque</div></div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},250);}</script>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permití las ventanas emergentes para descargar el acta.'); return; }
+  w.document.write(html); w.document.close();
 }
 
 // ===== MODULE: ULLAGE =====
@@ -7592,6 +7640,10 @@ function handleClick(e) {
       render();
     }
   }
+  else if (a === 'km-print-acta') {
+    const c = decodeCtx(el.dataset.ctx);
+    printKMActa(c.opId, c.mod);
+  }
   else if (a === 'km-gen-acta') {
     const c = decodeCtx(el.dataset.ctx);
     const op = getOp(c.opId);
@@ -7611,8 +7663,8 @@ function handleClick(e) {
       });
       filled += '\n';
     });
-    filled += `Con base en todas las respuestas anteriores:\n1. Redacta el acta formal de Key Meeting con encabezado, fecha, hora, lugar, partes presentes y todos los acuerdos alcanzados.\n2. Genera una tabla de resumen de parámetros de medición acordados.\n3. Señala en negrita cualquier punto donde detectes incumplimiento de API MPMS Cap. 17.1 o 17.11, condición que requiere LOP, o riesgo de error de medición.\n4. Lista los documentos que deben estar disponibles antes de iniciar la operación.`;
-    el.disabled = true; el.textContent = '⏳ Generando acta…';
+    filled += `El acta formal se genera aparte como documento. Redacta SOLO las OBSERVACIONES DE CONFORMIDAD que se anexarán al acta, en prosa breve:\n1. Señala cualquier punto donde detectes incumplimiento de API MPMS Cap. 17.1 o 17.11, condición que requiera Letter of Protest (LOP), o riesgo de error de medición.\n2. Coherencia de los rates (nave vs terminal) y del equipo de medición elegido.\n3. Documentos que deben estar disponibles antes de iniciar la operación.\nSé conciso y profesional; no repitas la tabla de acuerdos.`;
+    el.disabled = true; el.textContent = '⏳ Generando observaciones…';
     fetch('/api/consultar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() },
@@ -7621,8 +7673,8 @@ function handleClick(e) {
       if (res.reply) {
         op.modules[c.mod].acta = res.reply;
         saveOp(op); render();
-      } else { el.disabled=false; el.textContent='✍️ Generar Acta con Consultor IA'; alert(res.error||'Error al generar acta.'); }
-    }).catch(() => { el.disabled=false; el.textContent='✍️ Generar Acta con Consultor IA'; alert('No se pudo conectar con el servidor.'); });
+      } else { el.disabled=false; el.textContent='✍️ Redactar observaciones con IA'; alert(res.error||'Error al generar observaciones.'); }
+    }).catch(() => { el.disabled=false; el.textContent='✍️ Redactar observaciones con IA'; alert('No se pudo conectar con el servidor.'); });
   }
   else if (a === 'ia-analizar-arribo') {
     const c = decodeCtx(el.dataset.ctx);
