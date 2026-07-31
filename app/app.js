@@ -519,7 +519,9 @@ function initModuleInstance(type) {
     notes:'',
   };
   if (type === 'ullage-arribo') return {
-    tanks: ullTanks(), trim:'', list:'', date:'', time:'',
+    header: { vessel:'', voyage:'', terminal:'', date:'', port:'', product:'', ourRef:'', yourRef:'' },
+    tanks: TANK_NAMES.map(n => ({ name:n, measured:'', ullageInn:'', tov:'', fwInn:'', fw:'', gov:'', api:'', temp:'', vcf:'', gsv:'' })),
+    summary: {},
     totals: emptyQty(),
     docs: { vessel:[], surveyor:[], aci:[] },
     media: [],
@@ -3511,81 +3513,150 @@ function buildDatosOrigen(d, ctx) {
     </div>`;
 }
 
-// ===== MODULE: ULLAGE ARRIBO =====
-function buildUllageArribo(d, mod, ctx) {
-  const label = d._label || 'Ullage Arribo';
-  const totals = d.totals || {};
-  const tanks = d.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'' }));
+// Recalcula el objeto `totals` (compat con tracking/reporte/térmico) desde el summary.
+function _syncUllageTotals(d) {
+  const s = d.summary || {};
+  const n = v => { const x = parseFloat(v); return isNaN(x) ? '' : x; };
+  const gsv = n(s.gsv60), fw = n(s.lessFW);
+  d.totals = Object.assign({}, d.totals, {
+    gsv: s.gsv60, gov: s.gov, tov: s.tov, fw: s.lessFW, api: s.api,
+    densityAt15: s.density15, m3At15: s.m3_15, longTons: s.longTons, metricTons: s.mt,
+    tcv: (gsv !== '' && fw !== '') ? (gsv + fw) : (s.gov || ''),
+  });
+  if (d.totals.nsv == null) d.totals.nsv = '';
+}
 
+// Lee el Vessel Ullage Report (plantilla AMSPEC) y lo replica al módulo.
+async function ullageUploadExcel(input, ctxStr, msgId) {
+  const file = input.files && input.files[0];
+  const msgEl = msgId ? document.getElementById(msgId) : null;
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'El lector de Excel aún no cargó, reintentá.'; } return; }
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    // Preferir una hoja tipo "Ullage"; si no, la primera.
+    const sn = wb.SheetNames.find(n => /ullage/i.test(n)) || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false, defval: '' });
+    const parsed = parseUllageReport(rows);
+    if (!parsed || !parsed.tanks.length) { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'No reconocí la estructura del reporte (¿es la plantilla AMSPEC?).'; } input.value = ''; return; }
+    const ref = getModuleRef(decodeCtx(ctxStr));
+    if (!ref) { input.value = ''; return; }
+    ref.data.header = parsed.header;
+    ref.data.tanks = parsed.tanks;
+    ref.data.summary = parsed.summary;
+    _syncUllageTotals(ref.data);
+    ref.save();
+    if (msgEl) { msgEl.style.color = '#66bb6a'; msgEl.textContent = '✓ Reporte importado: ' + parsed.tanks.length + ' tanques + summary (' + file.name + ')'; }
+    input.value = '';
+    renderKeepScroll();
+  } catch (e) {
+    if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'Error al leer el Excel: ' + (e.message || e); }
+    input.value = '';
+  }
+}
+
+function parseUllageReport(rows) {
+  if (!rows || !rows.length) return null;
+  const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[,\s]/g, '')); return isNaN(n) ? '' : n; };
+  const cell = (r, c) => (rows[r] && rows[r][c] != null) ? rows[r][c] : '';
+  const findRow = lbl => rows.find(rr => String((rr && rr[0]) || '').toLowerCase().includes(lbl));
+  const byLbl0 = lbl => { const r = findRow(lbl); return r ? num(r[4]) : ''; };   // valor en col 4
+  const byLbl6 = lbl => { const r = rows.find(rr => String((rr && rr[6]) || '').toLowerCase().includes(lbl)); return r ? num(r[10]) : ''; }; // col 6 label → col 10 valor
+
+  const header = {
+    vessel: String(cell(2, 2)).trim(), voyage: String(cell(2, 10)).trim(),
+    terminal: String(cell(3, 2)).trim(), date: String(cell(3, 10)).trim(),
+    port: String(cell(4, 2)).trim(), ourRef: String(cell(4, 10)).trim(),
+    product: String(cell(5, 2)).trim(), yourRef: String(cell(5, 10)).trim(),
+  };
+  // Tanques: col0 tipo "1 Port" / "6 Stbd."
+  const tanks = rows.filter(r => r && /^\s*\d+\s*(port|stbd)/i.test(String(r[0]))).map(r => ({
+    name: String(r[0]).trim(), measured: num(r[2]), ullageInn: num(r[3]), tov: num(r[4]),
+    fwInn: num(r[5]), fw: num(r[7]), gov: num(r[8]), api: num(r[10]), temp: num(r[11]),
+    vcf: num(r[13]), gsv: num(r[14]),
+  }));
+  const summary = {
+    tov: byLbl0('total observed'), lessFW: byLbl0('less free water'), gov: byLbl0('gross observed'),
+    gsv60: byLbl0('gross standar'), before60: byLbl0('before, barrels'), m3_15: byLbl0('cubic meters @ 15'),
+    vef: byLbl0('vef api'), gsvVef: byLbl0('with vef'),
+    density15: byLbl6('density @ 15'), api: byLbl6('api gravity'), mtVacuum: byLbl6('metric tons in vacuum'),
+    longTons: byLbl6('long tons'), mt: (byLbl6('metric tons') || ''), usBbl60: byLbl6('us barrels'),
+    usGal60: byLbl6('us gallons'), m3_60: byLbl6('cubic meters @ 60'),
+    draftFwd: num(cell(30, 12)), draftAft: num(cell(31, 12)), trim: num(cell(32, 12)), list: num(cell(33, 12)),
+    sealPort: String(cell(30, 14)).trim(), sealStbd: String(cell(31, 14)).trim(),
+    sealObP: String(cell(32, 14)).trim(), sealObS: String(cell(33, 14)).trim(),
+    utiTapeId: String(cell(36, 13)).trim(), calibrationDate: (cell(37, 13) instanceof Date ? cell(37, 13).toISOString().slice(0, 10) : String(cell(37, 13)).trim()),
+  };
+  // "Metric Tons" sin VEF (fila 36 col10) puede colisionar con "in vacuum"; forzar la correcta
+  const mtRow = rows.find(rr => /(^|\s)metric tons(\s|$)/i.test(String((rr && rr[6]) || '')) && !/vacuum/i.test(String(rr[6])));
+  if (mtRow) summary.mt = num(mtRow[10]);
+  return { header, tanks, summary };
+}
+
+// ===== MODULE: ULLAGE ARRIBO (Vessel Ullage Report — Before Discharge) =====
+function buildUllageArribo(d, mod, ctx) {
+  const label = d._label || 'Ullage al Arribo';
+  const h = d.header || {};
+  const s = d.summary || {};
+  const tanks = d.tanks || TANK_NAMES.map(n => ({ name:n }));
+  const esc = v => (v == null ? '' : String(v)).replace(/"/g, '&quot;');
+
+  // Campos del encabezado (Vessel Ullage Report)
+  const hIn = (field, ph) => `<input class="field-input" value="${esc(h[field])}" placeholder="${ph||''}" data-action="save-ull-header" data-ctx="${ctx}" data-field="${field}">`;
+  // Campos del summary (numérico y texto)
+  const sNum = (field, dec=2) => { const v=s[field]; const disp=(v!==''&&v!=null&&!isNaN(parseFloat(v)))?parseFloat(v).toFixed(dec):(v||''); return `<input class="field-input" type="text" inputmode="decimal" value="${esc(disp)}" placeholder="—" data-action="save-ull-summary" data-ctx="${ctx}" data-field="${field}" onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value">`; };
+  const sTxt = (field, ph) => `<input class="field-input" value="${esc(s[field])}" placeholder="${ph||'—'}" data-action="save-ull-summary" data-ctx="${ctx}" data-field="${field}">`;
+  const sField = (labelTxt, inputHtml) => `<div class="field"><label class="field-label">${labelTxt}</label>${inputHtml}</div>`;
+
+  // Fila de tanque — columnas del reporte AMSPEC
+  const TCOLS = [
+    ['measured','Ullage Corr. (m)','0.001'], ['ullageInn','Ullage Inn. (m)','0.001'],
+    ['tov','T.O.V. (m³)','0.001'], ['fwInn','FW (m)','0.001'], ['fw','FW Vol (m³)','0.001'],
+    ['gov','G.O.V. (BBL)','0.001'], ['api','API@60','0.1'], ['temp','Temp °F','0.1'],
+    ['vcf','VCF','0.00001'], ['gsv','G.S.V. (BBL)','0.001'],
+  ];
   const tankRow = (t, i) => `
     <tr>
-      <td style="width:64px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${t.name||''}" placeholder="TK"
+      <td style="width:70px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${esc(t.name)}" placeholder="TK"
           data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="name"></td>
-      <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
-          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
-      <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
-          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="measured" placeholder="—"></td>
-      <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}"
-          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="api" placeholder="—"></td>
-      <td><input class="tbl-input" type="number" step="0.01" value="${t.temp||''}"
-          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="temp" placeholder="—"></td>
-      <td><input class="tbl-input" type="number" step="0.00001" value="${t.vcf||''}"
-          data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
+      ${TCOLS.map(([f,,step]) => `<td><input class="tbl-input" type="number" step="${step}" value="${t[f]!=null?t[f]:''}" data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="${f}" placeholder="—"></td>`).join('')}
       <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="" data-idx="${i}" title="Quitar tanque">✕</button></td>
     </tr>`;
 
-  const fmtTotVal = (v, dec=2) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
-  const totRow = (label, field, unit, dec=2) => `
-    <tr>
-      <td style="font-weight:600;font-size:12px;color:var(--ink)">${label}</td>
-      <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtTotVal(totals[field], dec)}"
-          data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="${field}" placeholder="—"
-          onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
-      <td style="color:var(--muted);font-size:11px">${unit}</td>
-    </tr>`;
-
-  const tcvCalc = (parseFloat(totals.gsv)||0) + (parseFloat(totals.fw)||0);
-  const tcvDisplay = tcvCalc > 0 ? tcvCalc.toFixed(2) : (totals.tcv || '—');
-  const nsvCalc = (parseFloat(totals.gsv)||0) * (1 - (parseFloat(totals.bsw)||0) / 100);
-  const nsvDisplay = nsvCalc > 0 ? nsvCalc.toFixed(2) : (totals.nsv || '—');
-
   return `
     <div class="module-title">📐 ${label}</div>
-    <div class="module-subtitle">Medición de arribo · API MPMS 17</div>
-
-    ${d._vesselName !== undefined ? `
-    <div class="card" style="padding:10px 14px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap">🚢 Buque</span>
-      <input class="field-input" style="flex:1;margin:0" value="${d._vesselName||''}" placeholder="Nombre del buque…"
-        data-action="save-field" data-ctx="${ctx}" data-field="_vesselName">
-    </div>` : ''}
+    <div class="module-subtitle">Vessel Ullage Report — Before Discharge · API MPMS 17 / 11.1</div>
 
     <div class="card">
-      <div class="card-title">Condiciones del Buque</div>
-      <div class="form-row form-row-4">
-        <div class="field"><label class="field-label">Fecha</label>
-          <input class="field-input" type="date" value="${d.date||''}" data-action="save-field" data-ctx="${ctx}" data-field="date"></div>
-        <div class="field"><label class="field-label">Hora</label>
-          <input class="field-input" type="time" value="${d.time||''}" data-action="save-field" data-ctx="${ctx}" data-field="time"></div>
-        <div class="field"><label class="field-label">Trim (m)</label>
-          <input class="field-input" type="number" step="0.01" value="${d.trim||''}" placeholder="0.00" data-action="save-field" data-ctx="${ctx}" data-field="trim"></div>
-        <div class="field"><label class="field-label">Lista (°)</label>
-          <input class="field-input" type="number" step="0.1" value="${d.list||''}" placeholder="0.0" data-action="save-field" data-ctx="${ctx}" data-field="list"></div>
+      <div class="card-title">📄 Cargar Ullage desde Excel (plantilla AMSPEC)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Subí el <b>.xlsx</b> del Vessel Ullage Report y replico exactamente el encabezado, los tanques y el summary a este módulo.</div>
+      <input type="file" accept=".xlsx,.xls" style="font-size:12px" onchange="ullageUploadExcel(this, '${ctx}', 'ull-upl-msg-${mod}')">
+      <span id="ull-upl-msg-${mod}" style="font-size:11px;margin-left:10px"></span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Encabezado del Reporte</div>
+      <div class="form-row form-row-4" style="margin-bottom:12px">
+        <div class="field"><label class="field-label">Buque (Vessel)</label>${hIn('vessel','NORDIC AQUARIUS')}</div>
+        <div class="field"><label class="field-label">Viaje (Voyage)</label>${hIn('voyage','NAT058')}</div>
+        <div class="field"><label class="field-label">Terminal</label>${hIn('terminal','STS / Terminal')}</div>
+        <div class="field"><label class="field-label">Fecha (Date)</label>${hIn('date','JUNE 10, 2026')}</div>
+      </div>
+      <div class="form-row form-row-4" style="margin-bottom:0">
+        <div class="field"><label class="field-label">Puerto (Port)</label>${hIn('port','CONCEPCION BAY; CHILE')}</div>
+        <div class="field"><label class="field-label">Producto</label>${hIn('product','SURURU CRUDE OIL')}</div>
+        <div class="field"><label class="field-label">Our Ref.</label>${hIn('ourRef','427-26-...')}</div>
+        <div class="field"><label class="field-label">Your Ref.</label>${hIn('yourRef','P-.../2026')}</div>
       </div>
     </div>
 
     <div class="card">
       <div class="card-title">Medición por Tanque</div>
       <div style="overflow-x:auto">
-        <table class="data-table" style="min-width:600px">
+        <table class="data-table" style="min-width:1000px;font-size:12px">
           <thead><tr>
-            <th>Tanque</th>
-            <th>Alt. Ref. (m)</th>
-            <th>Alt. Medida (m)</th>
-            <th>API @60°F</th>
-            <th>Temp (°C)</th>
-            <th>VCF</th>
-            <th></th>
+            <th>Tanque</th>${TCOLS.map(([,lbl]) => `<th>${lbl}</th>`).join('')}<th></th>
           </tr></thead>
           <tbody>${tanks.map((t,i) => tankRow(t,i)).join('')}</tbody>
         </table>
@@ -3594,34 +3665,44 @@ function buildUllageArribo(d, mod, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">Totales Calculados <span style="font-size:11px;font-weight:400;color:var(--muted)">(ingresar desde Excel)</span></div>
-      <table class="data-table" style="width:100%">
-        <thead><tr><th style="width:180px">Cantidad</th><th>Valor</th><th style="width:80px">Unidad</th></tr></thead>
-        <tbody>
-          ${totRow('GSV @60°F','gsv','BBL')}
-          <tr>
-            <td style="font-weight:600;font-size:12px;color:var(--ink)">TCV (GSV+FW)</td>
-            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(totals.tcv!==''&&totals.tcv!=null)?parseFloat(totals.tcv).toFixed(2):(tcvCalc>0?tcvCalc.toFixed(2):'')}" placeholder="auto"
-                data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="tcv"
-                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
-          </tr>
-          ${totRow('Free Water','fw','BBL')}
-          ${totRow('API Gravity @60°F','api','°API',1)}
-          ${totRow('BS&W','bsw','%',3)}
-          <tr>
-            <td style="font-weight:600;font-size:12px;color:var(--ink)">NSV @60°F</td>
-            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(totals.nsv!==''&&totals.nsv!=null)?parseFloat(totals.nsv).toFixed(2):(nsvCalc>0?nsvCalc.toFixed(2):'')}" placeholder="auto"
-                data-action="save-nested" data-ctx="${ctx}" data-obj="totals" data-field="nsv"
-                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
-          </tr>
-          ${totRow('Densidad @15°C','densityAt15','kg/m³')}
-          ${totRow('GSV m³ @15°C','m3At15','m³')}
-          ${totRow('Toneladas largas','longTons','LT',3)}
-          ${totRow('Toneladas métricas','metricTons','MT',3)}
-        </tbody>
-      </table>
+      <div class="card-title">Summary — Cantidades</div>
+      <div class="form-row form-row-3">
+        ${sField('Total Observed Volume (BBL)', sNum('tov'))}
+        ${sField('Less Free Water (BBL)', sNum('lessFW'))}
+        ${sField('Gross Observed Volume (BBL)', sNum('gov'))}
+        ${sField('Gross Standard Volume @60°F (BBL)', sNum('gsv60'))}
+        ${sField('Cubic Meters @15°C (m³)', sNum('m3_15'))}
+        ${sField('VEF (API 17.9)', sNum('vef',4))}
+        ${sField('G.S.V. @60°F con VEF (BBL)', sNum('gsvVef'))}
+        ${sField('Density @15°C', sNum('density15',5))}
+        ${sField('API Gravity @60°F', sNum('api',1))}
+        ${sField('Metric Tons in Vacuum', sNum('mtVacuum',3))}
+        ${sField('Long Tons', sNum('longTons',3))}
+        ${sField('Metric Tons', sNum('mt',3))}
+        ${sField('US Barrels @60°F', sNum('usBbl60'))}
+        ${sField('US Gallons @60°F', sNum('usGal60',0))}
+        ${sField('Cubic Meters @60°F (m³)', sNum('m3_60'))}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Condiciones del Buque y Sellos</div>
+      <div class="form-row form-row-4" style="margin-bottom:12px">
+        ${sField('Draft Fwd (m)', sNum('draftFwd'))}
+        ${sField('Draft Aft (m)', sNum('draftAft'))}
+        ${sField('Trim (m)', sNum('trim'))}
+        ${sField('List (°)', sNum('list',1))}
+      </div>
+      <div class="form-row form-row-4" style="margin-bottom:12px">
+        ${sField('Sea Valve Seal — Port', sTxt('sealPort','N°'))}
+        ${sField('Sea Valve Seal — Stbd', sTxt('sealStbd','N°'))}
+        ${sField('O/board Port', sTxt('sealObP','N°'))}
+        ${sField('O/board Stbd', sTxt('sealObS','N°'))}
+      </div>
+      <div class="form-row form-row-2" style="margin-bottom:0">
+        ${sField('UTI / MMC Tape ID', sTxt('utiTapeId','SN : ...'))}
+        ${sField('Calibration Date', sTxt('calibrationDate','2026-03-20'))}
+      </div>
     </div>
 
     <div class="card">
@@ -7918,6 +7999,8 @@ function handleChange(e) {
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
+  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; _syncUllageTotals(_r.data); _r.save(); } }
   else if (a === 'var-state') varState(el.dataset.ctx, el.dataset.block, el.value);
   else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
@@ -8109,6 +8192,8 @@ function handleInput(e) {
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
+  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; _syncUllageTotals(_r.data); _r.save(); } }
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
