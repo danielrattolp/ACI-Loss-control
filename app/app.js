@@ -3765,7 +3765,11 @@ function buildUllageArribo(d, mod, ctx) {
           };
           return `
           <div style="border:1px solid var(--line);border-radius:10px;padding:12px">
-            <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">Tanque ${t.name}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">
+              <span style="font-size:12px;font-weight:700;color:var(--muted)">Tanque</span>
+              <input class="field-input" style="flex:1;margin:0;font-weight:700;color:var(--amber)" value="${(t.name||'').replace(/"/g,'&quot;')}" placeholder="Ej: 7P / SLP"
+                data-action="save-ull-arribo" data-ctx="${ctx}" data-idx="${i}" data-field="name">
+            </div>
             <div style="display:flex;gap:12px">
               ${slotBlock('producto','🛢 Producto','#3b82f6')}
               ${slotBlock('agua','💧 Agua','#06b6d4')}
