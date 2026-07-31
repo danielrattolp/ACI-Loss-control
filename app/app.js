@@ -3091,9 +3091,9 @@ async function vefUploadExcel(input, ctxStr, sub, msgId) {
     const ref = getModuleRef(decodeCtx(ctxStr));
     if (!ref) { input.value = ''; return; }
     const tgt = sub ? (ref.data[sub] || (ref.data[sub] = { voyages: [], notes: '' })) : ref.data;
-    if (!Array.isArray(tgt.voyages)) tgt.voyages = [];
-    tgt.voyages = tgt.voyages.filter(v => v && (v.vesselTCV || v.shoreTCV || v.voyageNum || v.date));
-    voyages.forEach(v => tgt.voyages.push(v));
+    // El Excel del VEF es el historial completo → reemplaza lo que hubiera (limpia basura previa).
+    tgt.voyages = voyages;
+    tgt._seeded = true;
     ref.save();
     if (msgEl) { msgEl.style.color = '#66bb6a'; msgEl.textContent = '✓ ' + voyages.length + ' viaje(s) importados de ' + file.name; }
     input.value = '';
