@@ -3403,9 +3403,17 @@ function buildVEFTableSection(vefData, ctx, sub) {
 
 // ===== MODULE: DATOS DE ORIGEN =====
 function buildDatosOrigen(d, ctx) {
-  const bl = d.bl || {};
+  const _op = getOp(decodeCtx(ctx).opId) || {};
+  const products = (_op.products && _op.products.length) ? _op.products : [_op.product || { type: '', crudeName: '' }];
+  const multiP = products.length > 1;
+  let activeIdx = d._activeProdIdx || 0;
+  if (activeIdx >= products.length) activeIdx = 0;
+  const prodLabel = p => (p && (p.crudeName || (PRODUCTS.find(x => x.id === p.type) || {}).label || p.type)) || 'Producto';
+  const blObj = activeIdx === 0 ? 'bl' : 'bl' + activeIdx;
+  const ullSub = activeIdx === 0 ? 'ullageOrigen' : 'ull' + activeIdx;
+  const bl = d[blObj] || {};
   const vef = d.vefOrigen || {};
-  const ull = d.ullageOrigen || {};
+  const ull = d[ullSub] || {};
   const ullTanks = ull.tanks || TANK_NAMES.map(n => ({ name:n, refHeight:'', measured:'', api:'', temp:'', vcf:'', gsv:'', tcv:'' }));
 
   const fmtVal = (v, dec=2) => v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v).toFixed(dec) : '';
@@ -3413,7 +3421,7 @@ function buildDatosOrigen(d, ctx) {
     <tr>
       <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
       <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtVal(bl[field], dec)}"
-          data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="${field}" placeholder="—"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="${field}" placeholder="—"
           onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
@@ -3426,33 +3434,40 @@ function buildDatosOrigen(d, ctx) {
   const ullRow = (t, i) => `
     <tr>
       <td style="width:64px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${t.name||''}" placeholder="TK"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="name"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="name"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.refHeight||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="refHeight" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.measured||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="measured" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="measured" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.1" value="${t.api||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="api" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="api" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.1" value="${t.temp||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="temp" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="temp" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.00001" value="${t.vcf||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="vcf" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.gsv||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="gsv" placeholder="—"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="gsv" placeholder="—"></td>
       <td><input class="tbl-input" type="number" step="0.001" value="${t.fw||''}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="fw" placeholder="0"></td>
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="fw" placeholder="0"></td>
       <td><input class="tbl-input tbl-tcv-${i}" type="number" step="0.001" value="${(t.tcv!==''&&t.tcv!=null)?t.tcv:( (parseFloat(t.gsv)||0)+(parseFloat(t.fw)||0) ? ((parseFloat(t.gsv)||0)+(parseFloat(t.fw)||0)).toFixed(3):'')}"
-          data-action="save-ull-origen" data-ctx="${ctx}" data-idx="${i}" data-field="tcv" placeholder="auto"
+          data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" data-field="tcv" placeholder="auto"
           title="Auto = GSV + FW (editable)"></td>
-      <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="ullageOrigen" data-idx="${i}" title="Quitar tanque">✕</button></td>
+      <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="${ullSub}" data-idx="${i}" title="Quitar tanque">✕</button></td>
     </tr>`;
 
   return `
     <div class="module-title">📦 Datos de Origen</div>
     <div class="module-subtitle">Bill of Lading · Ullage de Origen · VEF</div>
 
+    ${multiP ? `
+    <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600;color:var(--muted)">📦 Producto (B/L + Ullage):</span>
+      ${products.map((p, i) => `<button class="btn ${i === activeIdx ? 'btn-primary' : 'btn-secondary'} btn-sm" data-action="origen-set-product" data-ctx="${ctx}" data-idx="${i}">${prodLabel(p)}</button>`).join('')}
+      <span style="font-size:11px;color:var(--muted);margin-left:6px">El VEF de origen es único (responde al buque).</span>
+    </div>` : ''}
+
     <div class="card">
-      <div class="card-title">Bill of Lading</div>
+      <div class="card-title">Bill of Lading${multiP ? ` <span style="font-size:12px;font-weight:400;color:var(--amber)">· ${prodLabel(products[activeIdx])}</span>` : ''}</div>
       <div class="form-row form-row-3" style="margin-bottom:12px">
         <div class="field">
           <label class="field-label">N° BL</label>
@@ -3498,7 +3513,7 @@ function buildDatosOrigen(d, ctx) {
           <tr>
             <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">NSV @60°F</td>
             <td><input class="tbl-input" type="text" inputmode="decimal" value="${(bl.nsv!==''&&bl.nsv!=null)?parseFloat(bl.nsv).toFixed(2):(blNsvCalc>0?blNsvCalc.toFixed(2):'')}" placeholder="auto"
-                data-action="save-nested" data-ctx="${ctx}" data-obj="bl" data-field="nsv"
+                data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="nsv"
                 onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
             <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
           </tr>
@@ -3517,7 +3532,7 @@ function buildDatosOrigen(d, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">Ullage de Origen — por tanque</div>
+      <div class="card-title">Ullage de Origen — por tanque${multiP ? ` <span style="font-size:12px;font-weight:400;color:var(--amber)">· ${prodLabel(products[activeIdx])}</span>` : ''}</div>
       <div style="overflow-x:auto">
         <table class="data-table" style="min-width:700px">
           <thead><tr>
@@ -3535,9 +3550,9 @@ function buildDatosOrigen(d, ctx) {
           <tbody>${ullTanks.map((t,i) => ullRow(t,i)).join('')}</tbody>
         </table>
       </div>
-      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="ullageOrigen" style="margin:12px 0">＋ Agregar tanque</button>
+      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="${ullSub}" style="margin:12px 0">＋ Agregar tanque</button>
       <textarea class="field-input" style="margin-top:4px;height:60px" placeholder="Notas ullage de origen…"
-        data-action="save-nested" data-ctx="${ctx}" data-obj="ullageOrigen" data-field="notes">${ull.notes||''}</textarea>
+        data-action="save-nested" data-ctx="${ctx}" data-obj="${ullSub}" data-field="notes">${ull.notes||''}</textarea>
     </div>
 
     <div class="card">
@@ -7297,7 +7312,7 @@ function saveNested(ctxStr, obj, field, value) {
   // coincidan con el B/L) se marca override y no se sobrescriben.
   if (field === 'tcv') ref.data[obj]._tcvManual = (value !== '' && value != null);
   if (field === 'nsv') ref.data[obj]._nsvManual = (value !== '' && value != null);
-  if (obj === 'totals' || obj === 'bl') {
+  if (obj === 'totals' || obj.indexOf('bl') === 0) {
     const gsv = parseFloat(ref.data[obj].gsv) || 0;
     const fw  = parseFloat(ref.data[obj].fw)  || 0;
     const bsw = parseFloat(ref.data[obj].bsw) || 0;
@@ -7784,6 +7799,7 @@ function handleClick(e) {
   else if (a === 'dr-add-row') drAddRow(el.dataset.ctx);
   else if (a === 'ull-add-tank') ullAddTank(el.dataset.ctx, el.dataset.sub);
   else if (a === 'ull-recalc') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
+  else if (a === 'origen-set-product') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _r.data._activeProdIdx = parseInt(el.dataset.idx); _r.save(); renderKeepScroll(); } }
   else if (a === 'ull-rm-tank') ullRmTank(el.dataset.ctx, el.dataset.sub, parseInt(el.dataset.idx));
   else if (a === 'dr-rm-row') drRmRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'chk-set') chkSet(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.dataset.val);
@@ -8108,7 +8124,7 @@ function handleChange(e) {
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
-  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, el.dataset.sub || 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') { saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value); const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
   else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
   else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; if(el.dataset.field==='vef'){ computeUllageDerived(_r.data); renderKeepScroll(); } else { _syncUllageTotals(_r.data); } _r.save(); } }
@@ -8302,7 +8318,7 @@ function handleInput(e) {
   const a = el.dataset.action;
   if (a === 'save-field') saveField(el.dataset.ctx, el.dataset.field, el.value);
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
-  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, el.dataset.sub || 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
   else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; _syncUllageTotals(_r.data); _r.save(); } }
