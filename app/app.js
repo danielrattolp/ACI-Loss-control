@@ -3401,6 +3401,69 @@ function buildVEFTableSection(vefData, ctx, sub) {
     </div>`;
 }
 
+// Sección de Ullage estilo AMSPEC (tanques + auto VCF/GOV/GSV + summary + Excel),
+// reutilizable. `ud` = objeto ullage (con .tanks/.summary/.vcfTabla). `sub` = clave
+// donde vive (p.ej. 'ullageOrigen', 'ull1'); los handlers usan data-sub para rutear.
+function buildAmspecUllageSection(ud, ctx, sub, uid) {
+  ud = ud || {};
+  const s = ud.summary || {};
+  const tanks = (ud.tanks && ud.tanks.length) ? ud.tanks : TANK_NAMES.map(n => ({ name: n }));
+  const esc = v => (v == null ? '' : String(v)).replace(/"/g, '&quot;');
+  const sNum = (field, dec = 2) => { const v = s[field]; const disp = (v !== '' && v != null && !isNaN(parseFloat(v))) ? parseFloat(v).toFixed(dec) : (v || ''); return `<input class="field-input" type="text" inputmode="decimal" value="${esc(disp)}" placeholder="—" data-action="save-ull-summary" data-ctx="${ctx}" data-sub="${sub}" data-field="${field}" onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value">`; };
+  const sField = (l, i) => `<div class="field"><label class="field-label">${l}</label>${i}</div>`;
+  const TCOLS = [['measured', 'Ullage Corr. (m)', '0.001'], ['ullageInn', 'Ullage Inn. (m)', '0.001'], ['tov', 'T.O.V. (m³)', '0.001'], ['fwInn', 'FW (m)', '0.001'], ['fw', 'FW Vol (m³)', '0.001'], ['gov', 'G.O.V. (BBL)', '0.001'], ['api', 'API@60', '0.1'], ['temp', 'Temp °F', '0.1'], ['vcf', 'VCF', '0.00001'], ['gsv', 'G.S.V. (BBL)', '0.001']];
+  const tankRow = (t, i) => `<tr>
+    <td style="width:70px"><input class="tbl-input" style="text-align:center;color:var(--amber);font-weight:700" value="${esc(t.name)}" placeholder="TK" data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${sub}" data-idx="${i}" data-field="name"></td>
+    ${TCOLS.map(([f, , step]) => { const auto = ['gov', 'vcf', 'gsv'].includes(f); return `<td><input class="tbl-input" type="number" step="${step}" style="min-width:86px${auto ? ';background:rgba(212,165,74,.08)' : ''}" value="${t[f] != null ? t[f] : ''}" data-action="save-ull-origen" data-ctx="${ctx}" data-sub="${sub}" data-idx="${i}" data-field="${f}" placeholder="—"></td>`; }).join('')}
+    <td style="width:28px"><button class="btn-icon-sm" data-action="ull-rm-tank" data-ctx="${ctx}" data-sub="${sub}" data-idx="${i}" title="Quitar tanque">✕</button></td>
+  </tr>`;
+  return `
+    <div class="card">
+      <div class="card-title">📄 Cargar Ullage desde Excel (plantilla AMSPEC)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Subí el <b>.xlsx</b> del Vessel Ullage Report y lo replico (tanques + summary).</div>
+      <input type="file" accept=".xlsx,.xls" style="font-size:12px" onchange="ullageUploadExcel(this, '${ctx}', 'ull-upl-${uid}', '${sub}')">
+      <span id="ull-upl-${uid}" style="font-size:11px;margin-left:10px"></span>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">Medición por Tanque</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label class="field-label" style="margin:0">Tabla VCF</label>
+          <select class="field-select" style="width:auto" data-action="ull-set-tabla" data-ctx="${ctx}" data-sub="${sub}">
+            ${['6A', '6B', '6C', '6D'].map(tb => `<option value="${tb}" ${(ud.vcfTabla || '6A') === tb ? 'selected' : ''}>${tb}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary btn-sm" data-action="ull-recalc" data-ctx="${ctx}" data-sub="${sub}">🔄 Recalcular</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:6px 0 10px">Las columnas <b>VCF</b>, <b>G.O.V.</b> y <b>G.S.V.</b> (dorado) se calculan por API MPMS 11.1: G.O.V. = (T.O.V.−FW) × 6.289812 · G.S.V. = G.O.V. × VCF.</div>
+      <div style="overflow-x:auto"><table class="data-table" style="min-width:1120px;font-size:12px">
+        <thead><tr><th>Tanque</th>${TCOLS.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead>
+        <tbody>${tanks.map((t, i) => tankRow(t, i)).join('')}</tbody>
+      </table></div>
+      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="${sub}" style="margin-top:12px">＋ Agregar tanque</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Summary — Cantidades</div>
+      <div class="form-row form-row-3">
+        ${sField('Total Observed Volume (BBL)', sNum('tov'))}
+        ${sField('Less Free Water (BBL)', sNum('lessFW'))}
+        ${sField('Gross Observed Volume (BBL)', sNum('gov'))}
+        ${sField('Gross Standard Volume @60°F (BBL)', sNum('gsv60'))}
+        ${sField('Cubic Meters @15°C (m³)', sNum('m3_15'))}
+        ${sField('VEF (API 17.9)', sNum('vef', 4))}
+        ${sField('G.S.V. @60°F con VEF (BBL)', sNum('gsvVef'))}
+        ${sField('Density @15°C', sNum('density15', 5))}
+        ${sField('API Gravity @60°F', sNum('api', 1))}
+        ${sField('Metric Tons in Vacuum', sNum('mtVacuum', 3))}
+        ${sField('Long Tons', sNum('longTons', 3))}
+        ${sField('Metric Tons', sNum('mt', 3))}
+        ${sField('US Barrels @60°F', sNum('usBbl60'))}
+        ${sField('US Gallons @60°F', sNum('usGal60', 0))}
+        ${sField('Cubic Meters @60°F (m³)', sNum('m3_60'))}
+      </div>
+    </div>`;
+}
+
 // ===== MODULE: DATOS DE ORIGEN =====
 function buildDatosOrigen(d, ctx) {
   const _op = getOp(decodeCtx(ctx).opId) || {};
@@ -3531,27 +3594,14 @@ function buildDatosOrigen(d, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">Ullage de Origen — por tanque${multiP ? ` <span style="font-size:12px;font-weight:400;color:var(--amber)">· ${prodLabel(products[activeIdx])}</span>` : ''}</div>
-      <div style="overflow-x:auto">
-        <table class="data-table" style="min-width:700px">
-          <thead><tr>
-            <th>Tanque</th>
-            <th>Alt. Ref. (m)</th>
-            <th>Alt. Medida (m)</th>
-            <th>API @60°F</th>
-            <th>Temp (°C)</th>
-            <th>VCF</th>
-            <th>GSV (BBL)</th>
-            <th>FW (BBL)</th>
-            <th>TCV (BBL)</th>
-            <th></th>
-          </tr></thead>
-          <tbody>${ullTanks.map((t,i) => ullRow(t,i)).join('')}</tbody>
-        </table>
-      </div>
-      <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="${ullSub}" style="margin:12px 0">＋ Agregar tanque</button>
-      <textarea class="field-input" style="margin-top:4px;height:60px" placeholder="Notas ullage de origen…"
-        data-action="save-nested" data-ctx="${ctx}" data-obj="${ullSub}" data-field="notes">${ull.notes||''}</textarea>
+      <div class="card-title">Ullage de Origen${multiP ? ` <span style="font-size:12px;font-weight:400;color:var(--amber)">· ${prodLabel(products[activeIdx])}</span>` : ''}</div>
+      <div style="font-size:12px;color:var(--muted)">Vessel Ullage Report de origen — misma estructura que el Ullage al Arribo (auto-cálculo y carga de Excel).</div>
+    </div>
+    ${buildAmspecUllageSection(d[ullSub], ctx, ullSub, 'orig-' + activeIdx)}
+    <div class="card">
+      <label class="field-label">Notas ullage de origen</label>
+      <textarea class="field-input" style="height:60px" placeholder="Notas ullage de origen…"
+        data-action="save-nested" data-ctx="${ctx}" data-obj="${ullSub}" data-field="notes">${(d[ullSub]&&d[ullSub].notes)||''}</textarea>
     </div>
 
     <div class="card">
@@ -3643,7 +3693,7 @@ function _syncUllageTotals(d) {
 }
 
 // Lee el Vessel Ullage Report (plantilla AMSPEC) y lo replica al módulo.
-async function ullageUploadExcel(input, ctxStr, msgId) {
+async function ullageUploadExcel(input, ctxStr, msgId, sub) {
   const file = input.files && input.files[0];
   const msgEl = msgId ? document.getElementById(msgId) : null;
   if (!file) return;
@@ -3658,10 +3708,11 @@ async function ullageUploadExcel(input, ctxStr, msgId) {
     if (!parsed || !parsed.tanks.length) { if (msgEl) { msgEl.style.color = '#e57373'; msgEl.textContent = 'No reconocí la estructura del reporte (¿es la plantilla AMSPEC?).'; } input.value = ''; return; }
     const ref = getModuleRef(decodeCtx(ctxStr));
     if (!ref) { input.value = ''; return; }
-    ref.data.header = parsed.header;
-    ref.data.tanks = parsed.tanks;
-    ref.data.summary = parsed.summary;
-    _syncUllageTotals(ref.data);
+    const dataObj = sub ? (ref.data[sub] || (ref.data[sub] = {})) : ref.data;
+    dataObj.header = parsed.header;
+    dataObj.tanks = parsed.tanks;
+    dataObj.summary = parsed.summary;
+    _syncUllageTotals(dataObj);
     ref.save();
     if (msgEl) { msgEl.style.color = '#66bb6a'; msgEl.textContent = '✓ Reporte importado: ' + parsed.tanks.length + ' tanques + summary (' + file.name + ')'; }
     input.value = '';
@@ -7830,7 +7881,7 @@ function handleClick(e) {
   }
   else if (a === 'dr-add-row') drAddRow(el.dataset.ctx);
   else if (a === 'ull-add-tank') ullAddTank(el.dataset.ctx, el.dataset.sub);
-  else if (a === 'ull-recalc') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
+  else if (a === 'ull-recalc') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ const _s=el.dataset.sub; computeUllageDerived(_s?(_r.data[_s]||{}):_r.data); _r.save(); renderKeepScroll(); } }
   else if (a === 'origen-set-product') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _r.data._activeProdIdx = parseInt(el.dataset.idx); _r.save(); renderKeepScroll(); } }
   else if (a === 'ullarribo-set-product') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _ullSwitchProduct(_r.data, parseInt(el.dataset.idx)); _r.save(); renderKeepScroll(); } }
   else if (a === 'ull-rm-tank') ullRmTank(el.dataset.ctx, el.dataset.sub, parseInt(el.dataset.idx));
@@ -8157,11 +8208,11 @@ function handleChange(e) {
   else if (a === 'save-tank') saveTank(el.dataset.ctx, parseInt(el.dataset.tank), el.dataset.field, el.value);
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
-  else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, el.dataset.sub || 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
+  else if (a === 'save-ull-origen') { const _s=el.dataset.sub || 'ullageOrigen'; saveUllTank(el.dataset.ctx, _s, parseInt(el.dataset.idx), el.dataset.field, el.value); const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data[_s]||{}); _r.save(); renderKeepScroll(); } }
   else if (a === 'save-ull-arribo') { saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value); const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
   else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
-  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; if(el.dataset.field==='vef'){ computeUllageDerived(_r.data); renderKeepScroll(); } else { _syncUllageTotals(_r.data); } _r.save(); } }
-  else if (a === 'ull-set-tabla') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _r.data.vcfTabla=el.value; computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
+  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ const _s=el.dataset.sub; const _t=_s?(_r.data[_s]||(_r.data[_s]={})):_r.data; if(!_t.summary)_t.summary={}; _t.summary[el.dataset.field]=el.value; if(el.dataset.field==='vef'){ computeUllageDerived(_t); renderKeepScroll(); } else { _syncUllageTotals(_t); } _r.save(); } }
+  else if (a === 'ull-set-tabla') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ const _s=el.dataset.sub; const _t=_s?(_r.data[_s]||(_r.data[_s]={})):_r.data; _t.vcfTabla=el.value; computeUllageDerived(_t); _r.save(); renderKeepScroll(); } }
   else if (a === 'var-state') varState(el.dataset.ctx, el.dataset.block, el.value);
   else if (a === 'var-set') { varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value); renderKeepScroll(); }
   else if (a === 'vsrr-set') vsrrSet(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value, true);
@@ -8354,7 +8405,7 @@ function handleInput(e) {
   else if (a === 'save-ull-origen') saveUllTank(el.dataset.ctx, el.dataset.sub || 'ullageOrigen', parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-arribo') saveUllTank(el.dataset.ctx, null, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-ull-header') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.header)_r.data.header={}; _r.data.header[el.dataset.field]=el.value; _r.save(); } }
-  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ if(!_r.data.summary)_r.data.summary={}; _r.data.summary[el.dataset.field]=el.value; _syncUllageTotals(_r.data); _r.save(); } }
+  else if (a === 'save-ull-summary') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ const _s=el.dataset.sub; const _t=_s?(_r.data[_s]||(_r.data[_s]={})):_r.data; if(!_t.summary)_t.summary={}; _t.summary[el.dataset.field]=el.value; _syncUllageTotals(_t); _r.save(); } }
   else if (a === 'save-slop') saveSlop(el.dataset.ctx, el.dataset.phase, parseInt(el.dataset.idx), el.dataset.field, el.value);
   else if (a === 'save-nested') saveNested(el.dataset.ctx, el.dataset.obj, el.dataset.field, el.value);
   else if (a === 'var-set') varSet(el.dataset.ctx, el.dataset.block, el.dataset.field, el.value);
