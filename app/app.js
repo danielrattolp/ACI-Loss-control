@@ -3507,7 +3507,6 @@ function buildDatosOrigen(d, ctx) {
         </tr></thead>
         <tbody>
           ${row('GSV @60°F','gsv','0.001','BBL')}
-          ${row('TCV','tcv','0.001','BBL')}
           ${row('API Gravity @60°F','api','0.1','°API',1)}
           ${row('BS&W','bsw','0.01','%',3)}
           <tr>
