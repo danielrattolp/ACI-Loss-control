@@ -2145,20 +2145,12 @@ function buildModalNewOp1() {
           </div>
 
           <div class="form-section">
-            <div class="form-section-title">Producto</div>
-            <div class="form-row">
-              <div class="field">
-                <label class="field-label">Tipo de producto <span class="req">*</span></label>
-                <select class="field-select" id="f-product" onchange="onProductChange()">
-                  <option value="">— Seleccionar —</option>
-                  ${PRODUCTS.map(p => `<option value="${p.id}" ${d.product===p.id?'selected':''}>${p.label}</option>`).join('')}
-                </select>
-              </div>
-              <div class="field" id="crude-name-field" style="${d.product==='crude'?'':'display:none'}">
-                <label class="field-label">Nombre del crudo</label>
-                <input class="field-input" id="f-crude-name" placeholder="Ej: Vasconia Blend, Napo..." value="${d.crudeName||''}">
-              </div>
+            <div class="form-section-title">Productos a bordo</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Si la nominación trae más de un producto (operación segregada), agregá cada uno. Cada producto tendrá su B/L, su Ullage de Origen y su Ullage al Arribo.</div>
+            <div id="products-container">
+              ${((d.products && d.products.length) ? d.products : [{ type: d.product || '', crudeName: d.crudeName || '' }]).map((p, i) => buildProductBlock(p, i)).join('')}
             </div>
+            <button class="add-client-btn" data-action="add-product">＋ Agregar producto</button>
           </div>
 
           <div class="form-section">
@@ -7656,6 +7648,18 @@ function handleClick(e) {
   else if (a === 'select-type') { state.modalData.opType=el.dataset.type; render(); }
   else if (a === 'add-client') addClient();
   else if (a === 'remove-client') removeClient(parseInt(el.dataset.idx));
+  else if (a === 'add-product') {
+    const c = document.getElementById('products-container'); if (!c) return;
+    const cur = Array.from(document.querySelectorAll('.product-type')).map(sel => ({ type: sel.value, crudeName: (document.querySelector(`.product-crude[data-idx="${sel.dataset.idx}"]`)?.value || '') }));
+    cur.push({ type: '', crudeName: '' });
+    c.innerHTML = cur.map((p, i) => buildProductBlock(p, i)).join('');
+  }
+  else if (a === 'remove-product') {
+    const idx = parseInt(el.dataset.idx);
+    const c = document.getElementById('products-container'); if (!c) return;
+    const cur = Array.from(document.querySelectorAll('.product-type')).map(sel => ({ type: sel.value, crudeName: (document.querySelector(`.product-crude[data-idx="${sel.dataset.idx}"]`)?.value || '') })).filter((_, i) => i !== idx);
+    c.innerHTML = cur.map((p, i) => buildProductBlock(p, i)).join('');
+  }
   else if (a === 'switch-module') { state.currentModule=el.dataset.module; render(); }
   else if (a === 'switch-alijo') { state.currentAlijoIdx=parseInt(el.dataset.idx); render(); }
   else if (a === 'add-alijo') addAlijo();
@@ -8336,6 +8340,40 @@ function onProductChange() {
   if (field) field.style.display = val === 'crude' ? '' : 'none';
 }
 
+// ── Productos (multi) en el wizard ──
+function buildProductBlock(p, i) {
+  const isCrude = (p.type || '') === 'crude';
+  return `<div class="product-block" id="product-block-${i}" style="border:1px solid var(--line2);border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:700;color:var(--muted)">Producto ${i + 1}</span>
+      ${i > 0 ? `<button class="btn btn-ghost btn-sm" data-action="remove-product" data-idx="${i}">✕ Quitar</button>` : ''}
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label class="field-label">Tipo de producto <span class="req">*</span></label>
+        <select class="field-select product-type" data-idx="${i}" onchange="onProductTypeChange(this,${i})">
+          <option value="">— Seleccionar —</option>
+          ${PRODUCTS.map(pp => `<option value="${pp.id}" ${p.type === pp.id ? 'selected' : ''}>${pp.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field product-crude-field" data-idx="${i}" style="${isCrude ? '' : 'display:none'}">
+        <label class="field-label">Nombre del crudo / grado</label>
+        <input class="field-input product-crude" data-idx="${i}" placeholder="Ej: Vasconia, Napo, Sururu..." value="${(p.crudeName || '').replace(/"/g, '&quot;')}">
+      </div>
+    </div>
+  </div>`;
+}
+function onProductTypeChange(sel, idx) {
+  const f = document.querySelector(`.product-crude-field[data-idx="${idx}"]`);
+  if (f) f.style.display = sel.value === 'crude' ? '' : 'none';
+}
+function collectProducts() {
+  return Array.from(document.querySelectorAll('.product-type')).map((sel, i) => ({
+    type: sel.value,
+    crudeName: (document.querySelector(`.product-crude[data-idx="${sel.dataset.idx}"]`)?.value || '').trim(),
+  })).filter(p => p.type);
+}
+
 // ===== MODAL ACTIONS =====
 function handleModalNext() {
   const d = state.modalData;
@@ -8343,8 +8381,9 @@ function handleModalNext() {
   d.vesselName = document.getElementById('f-vessel')?.value;
   d.voyage = document.getElementById('f-voyage')?.value;
   d.imo = document.getElementById('f-imo')?.value;
-  d.product = document.getElementById('f-product')?.value;
-  d.crudeName = document.getElementById('f-crude-name')?.value;
+  d.products = collectProducts();
+  d.product = d.products[0]?.type || '';
+  d.crudeName = d.products[0]?.crudeName || '';
   d.port = document.getElementById('f-port')?.value;
   d.terminal = document.getElementById('f-terminal')?.value;
   d.inspectionCompany = document.getElementById('f-inscomp')?.value;
@@ -8487,6 +8526,7 @@ function handleModalCreate() {
       country: d.country,
       vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
       product: { type: d.product, crudeName: d.crudeName || '' },
+      products: (d.products && d.products.length) ? d.products : [{ type: d.product, crudeName: d.crudeName || '' }],
       clients: d.clients,
       client: (d.clients[0]?.name || ''),
       port: d.port,
@@ -8516,6 +8556,7 @@ function handleModalCreate() {
       country: d.country,
       vessel: { name: d.vesselName, voyage: d.voyage, imo: d.imo },
       product: { type: d.product, crudeName: d.crudeName || '' },
+      products: (d.products && d.products.length) ? d.products : [{ type: d.product, crudeName: d.crudeName || '' }],
       clients: d.clients,
       client: (d.clients[0]?.name || ''),
       port: d.port,
@@ -8757,6 +8798,7 @@ function editOp(id) {
     imo: op.vessel.imo,
     product: op.product.type,
     crudeName: op.product.crudeName,
+    products: (op.products && op.products.length) ? op.products : [{ type: op.product.type, crudeName: op.product.crudeName || '' }],
     port: op.port,
     terminal: op.terminal,
     inspectionCompany: op.inspectionCompany,
