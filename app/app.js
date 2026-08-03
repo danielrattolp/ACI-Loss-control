@@ -3471,30 +3471,30 @@ function buildDatosOrigen(d, ctx) {
       <div class="form-row form-row-3" style="margin-bottom:12px">
         <div class="field">
           <label class="field-label">N° BL</label>
-          <input class="field-input" value="${d.blNumber||''}" placeholder="Número de BL"
-            data-action="save-field" data-ctx="${ctx}" data-field="blNumber">
+          <input class="field-input" value="${(bl.blNumber!=null?bl.blNumber:(d.blNumber||''))}" placeholder="Número de BL"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="blNumber">
         </div>
         <div class="field">
           <label class="field-label">Fecha BL</label>
-          <input class="field-input" type="date" value="${d.blDate||''}"
-            data-action="save-field" data-ctx="${ctx}" data-field="blDate">
+          <input class="field-input" type="date" value="${(bl.blDate!=null?bl.blDate:(d.blDate||''))}"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="blDate">
         </div>
         <div class="field">
           <label class="field-label">Puerto de carga</label>
-          <input class="field-input" value="${d.loadPort||''}" placeholder="Puerto"
-            data-action="save-field" data-ctx="${ctx}" data-field="loadPort">
+          <input class="field-input" value="${(bl.loadPort!=null?bl.loadPort:(d.loadPort||''))}" placeholder="Puerto"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="loadPort">
         </div>
       </div>
       <div class="form-row form-row-2" style="margin-bottom:0">
         <div class="field">
           <label class="field-label">Terminal</label>
-          <input class="field-input" value="${d.loadTerminal||''}" placeholder="Terminal"
-            data-action="save-field" data-ctx="${ctx}" data-field="loadTerminal">
+          <input class="field-input" value="${(bl.loadTerminal!=null?bl.loadTerminal:(d.loadTerminal||''))}" placeholder="Terminal"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="loadTerminal">
         </div>
         <div class="field">
           <label class="field-label">Berth / Muelle</label>
-          <input class="field-input" value="${d.loadBerth||''}" placeholder="Berth"
-            data-action="save-field" data-ctx="${ctx}" data-field="loadBerth">
+          <input class="field-input" value="${(bl.loadBerth!=null?bl.loadBerth:(d.loadBerth||''))}" placeholder="Berth"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="loadBerth">
         </div>
       </div>
     </div>
@@ -5493,10 +5493,10 @@ function printFullReport(opId, selectedMods) {
 
   const origenSec = sec('1. Datos de Origen — Bill of Lading', `
     <table class="kv">
-      ${kv('N° Bill of Lading', origen.blNumber)}
-      ${kv('Fecha BL', fmtD(origen.blDate))}
-      ${kv('Puerto de Carga', origen.loadPort)}
-      ${kv('Terminal', origen.loadTerminal)}
+      ${kv('N° Bill of Lading', (origen.bl&&origen.bl.blNumber)||origen.blNumber)}
+      ${kv('Fecha BL', fmtD((origen.bl&&origen.bl.blDate)||origen.blDate))}
+      ${kv('Puerto de Carga', (origen.bl&&origen.bl.loadPort)||origen.loadPort)}
+      ${kv('Terminal', (origen.bl&&origen.bl.loadTerminal)||origen.loadTerminal)}
       ${kv('Berth / Muelle', origen.loadBerth)}
     </table>
     <h3>Cantidades BL</h3>
@@ -7912,7 +7912,7 @@ function handleClick(e) {
     const tempBlock = `\n\nTEMPERATURAS (°C):\n- Origen — B/L: ${origen.bl?.temp||'s/d'} · Tierra/Shore: ${shore.temp||'s/d'} · Figura buque: ${shipO.temp||'s/d'}\n- Arribo — promedio de tanques: ${arrAvgTemp!==null?arrAvgTemp+'°C':'s/d'}\n- Arribo por tanque: ${arrTankTemps}${kmAmb?`\n- Condiciones ambientales (Key Meeting): ${kmAmb}`:''}\nUsa estas temperaturas para el análisis de contracción/expansión térmica (Cap. 7 / 11.1). Si alguna figura como "s/d" es porque no fue ingresada; señálalo pero NO afirmes que faltan todas.`;
     const hasPhotos = (arribo.media || []).length > 0;
     const photoNote = hasPhotos ? `\n\nEVIDENCIA FOTOGRÁFICA: Se adjuntan ${arribo.media.length} imagen(es) de la operación de medición. Analiza cada imagen: verifica que la cinta esté correctamente posicionada, que la lectura sea legible y consistente con los valores numéricos declarados, que las condiciones del tanque sean apropiadas, y que el procedimiento sea conforme a API MPMS Cap. 17.` : '';
-    const prompt = `Actúa como QPIC certificado con dominio de API MPMS Cap. 17 y 11.1.\n\nRealiza un análisis comparativo exhaustivo de las cantidades de origen (BL) versus arribo para la operación ${op.code} — ${op.vessel?.name||''}, producto: ${op.product?.crudeName||op.product?.type||'—'}.${photoNote}\n\nDATOS DE ORIGEN (Bill of Lading):\n- GSV @60°F: ${fmt(bl.gsv,'BBL')}\n- TCV: ${fmt(bl.tcv,'BBL')}\n- Free Water: ${fmt(bl.fw,'BBL')}\n- API @60°F: ${bl.api||'—'} °API\n- BS&W: ${bl.bsw||'—'} %\n- Densidad @15°C: ${bl.densityAt15||'—'} kg/m³\n- VEF de origen: ${vefO}\n- Puerto de carga: ${origen.loadPort||'—'}\n- B/L N°: ${origen.blNumber||'—'}\n\nDATOS DE ARRIBO (Ullage Medición):\n- GSV @60°F: ${fmt(tot.gsv,'BBL')}\n- TCV: ${fmt(tot.tcv,'BBL')}\n- Free Water: ${fmt(tot.fw,'BBL')}\n- API @60°F: ${tot.api||'—'} °API\n- BS&W: ${tot.bsw||'—'} %\n- Densidad @15°C: ${tot.densityAt15||'—'} kg/m³\n- VEF de arribo: ${vefA}\n- Trim: ${arribo.trim||'—'} m  |  Lista: ${arribo.list||'—'}°${tempBlock}\n\nDIFERENCIA:\n- ΔGSV: ${dGSV !== null ? dGSV+' BBL ('+pGSV+'%)' : '—'}\n\nNotas ullage arribo: ${arribo.notes||'—'}\n\nPor favor, estructura tu respuesta así:\n\n1. VALIDACIÓN FOTOGRÁFICA (solo si hay imágenes): Describe lo que observas en cada foto — posición de la cinta, lectura, condición del tanque, conformidad con API MPMS.\n2. ANÁLISIS DEL DESVÍO VOLUMÉTRICO: Evalúa si la diferencia está dentro de los rangos normales (±0.5% según API MPMS 17.11). Desglosa posibles causas.\n3. ANÁLISIS DEL VEF: Compara VEF origen vs arribo y su impacto en el volumen.\n4. CALIDAD DEL CARGO: Variaciones de API, BS&W, temperatura entre origen y arribo.\n5. ACCIONES RECOMENDADAS: Letter of Protest, OBQ/ROB, nota al cliente, observaciones para el reporte final.\n6. CONCLUSIÓN TÉCNICA: Dictamen final sobre la operación.`;
+    const prompt = `Actúa como QPIC certificado con dominio de API MPMS Cap. 17 y 11.1.\n\nRealiza un análisis comparativo exhaustivo de las cantidades de origen (BL) versus arribo para la operación ${op.code} — ${op.vessel?.name||''}, producto: ${op.product?.crudeName||op.product?.type||'—'}.${photoNote}\n\nDATOS DE ORIGEN (Bill of Lading):\n- GSV @60°F: ${fmt(bl.gsv,'BBL')}\n- TCV: ${fmt(bl.tcv,'BBL')}\n- Free Water: ${fmt(bl.fw,'BBL')}\n- API @60°F: ${bl.api||'—'} °API\n- BS&W: ${bl.bsw||'—'} %\n- Densidad @15°C: ${bl.densityAt15||'—'} kg/m³\n- VEF de origen: ${vefO}\n- Puerto de carga: ${bl.loadPort||origen.loadPort||'—'}\n- B/L N°: ${bl.blNumber||origen.blNumber||'—'}\n\nDATOS DE ARRIBO (Ullage Medición):\n- GSV @60°F: ${fmt(tot.gsv,'BBL')}\n- TCV: ${fmt(tot.tcv,'BBL')}\n- Free Water: ${fmt(tot.fw,'BBL')}\n- API @60°F: ${tot.api||'—'} °API\n- BS&W: ${tot.bsw||'—'} %\n- Densidad @15°C: ${tot.densityAt15||'—'} kg/m³\n- VEF de arribo: ${vefA}\n- Trim: ${arribo.trim||'—'} m  |  Lista: ${arribo.list||'—'}°${tempBlock}\n\nDIFERENCIA:\n- ΔGSV: ${dGSV !== null ? dGSV+' BBL ('+pGSV+'%)' : '—'}\n\nNotas ullage arribo: ${arribo.notes||'—'}\n\nPor favor, estructura tu respuesta así:\n\n1. VALIDACIÓN FOTOGRÁFICA (solo si hay imágenes): Describe lo que observas en cada foto — posición de la cinta, lectura, condición del tanque, conformidad con API MPMS.\n2. ANÁLISIS DEL DESVÍO VOLUMÉTRICO: Evalúa si la diferencia está dentro de los rangos normales (±0.5% según API MPMS 17.11). Desglosa posibles causas.\n3. ANÁLISIS DEL VEF: Compara VEF origen vs arribo y su impacto en el volumen.\n4. CALIDAD DEL CARGO: Variaciones de API, BS&W, temperatura entre origen y arribo.\n5. ACCIONES RECOMENDADAS: Letter of Protest, OBQ/ROB, nota al cliente, observaciones para el reporte final.\n6. CONCLUSIÓN TÉCNICA: Dictamen final sobre la operación.`;
     // Build multimodal content: images first, then the text prompt
     const media = arribo.media || [];
     const btnLabel = media.length ? `🔍 Analizar con IA (${media.length} foto${media.length>1?'s':''})` : '🔍 Analizar con Consultor IA';
@@ -7982,7 +7982,7 @@ Total explicado: ${n(s.explained)} · Residual sin explicar: ${n(s.residual)} ·
       const tankLines = tanks.map(t => `  ${nn(t.name)}: API ${nn(t.api)} | Temp ${nn(t.temp)}°C | VCF ${nn(t.vcf)} | GSV ${nn(t.gsv)} BBL | FW ${nn(t.fw)} BBL | TCV ${nn(t.tcv)} BBL`).join('\n');
       const originData = `DATOS DE ORIGEN
 Buque: ${op.vessel?.name || '—'} | Producto: ${op.product?.crudeName || op.product?.type || '—'}
-B/L N° ${nn(modData.blNumber)} | Fecha de carga: ${nn(modData.blDate)} | Puerto de carga: ${nn(modData.loadPort)} | Terminal: ${nn(modData.loadTerminal)}
+B/L N° ${nn(bl.blNumber||modData.blNumber)} | Fecha de carga: ${nn(bl.blDate||modData.blDate)} | Puerto de carga: ${nn(bl.loadPort||modData.loadPort)} | Terminal: ${nn(bl.loadTerminal||modData.loadTerminal)}
 Cantidades B/L: GSV=${nn(bl.gsv)} BBL | TCV=${nn(bl.tcv)} | API@60=${nn(bl.api)} | BS&W=${nn(bl.bsw)}% | NSV=${nn(bl.nsv)}
 VEF de origen calculado: ${vs ? vs.vef.toFixed(5) : 'N/D'} (viajes calificantes: ${vs ? vs.qualCount : 0} de ${voyages.length})
 Historial de viajes del VEF:
