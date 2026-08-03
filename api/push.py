@@ -131,7 +131,8 @@ class handler(BaseHTTPRequestHandler):
             e = empresas.get(eid)
             if isinstance(e, dict):
                 emails += e.get('contactos', [])
-        return list(dict.fromkeys(emails))  # únicos, preserva orden
+        # únicos + solo contactos con alertas activadas
+        return [em for em in dict.fromkeys(emails) if self._alerts_on(em)]
 
     def _send_to_emails(self, emails, payload):
         errors = []
@@ -187,6 +188,11 @@ class handler(BaseHTTPRequestHandler):
         c = clients.get(info.get('email'))
         if not isinstance(c, dict) or not c.get('active', True): return None
         return info.get('email')
+
+    def _alerts_on(self, email):
+        clients = kv_get('aci_clients', {}) or {}
+        c = clients.get(email)
+        return isinstance(c, dict) and c.get('active', True) and c.get('alertsOptIn', True)
 
     def _is_employee(self):
         tok = self._cookie_val('aci_session')

@@ -90,7 +90,9 @@ class handler(BaseHTTPRequestHandler):
             for email in (e.get('contactos') or []):
                 c = clients.get(email)
                 if isinstance(c, dict):
-                    contactos.append({'email': email, 'name': c.get('name', email), 'active': c.get('active', True)})
+                    contactos.append({'email': email, 'name': c.get('name', email),
+                                      'active': c.get('active', True),
+                                      'alerts': c.get('alertsOptIn', True)})
             out[eid] = {'id': eid, 'razon_social': e.get('razon_social', ''),
                         'rut': e.get('rut', ''), 'creado_en': e.get('creado_en', ''),
                         'contactos': contactos}
@@ -166,6 +168,30 @@ class handler(BaseHTTPRequestHandler):
             e.setdefault('contactos', []).append(email)
             kv_set('aci_empresas', empresas)
             self._json(200, {'ok': True, 'empresa_id': eid, 'email': email})
+            return
+
+        if action == 'delete_contact':
+            email = (body.get('email') or '').strip().lower()
+            clients = kv_get('aci_clients', {}) or {}
+            clients.pop(email, None)
+            kv_set('aci_clients', clients)
+            empresas = kv_get('aci_empresas', {}) or {}
+            for e in empresas.values():
+                if isinstance(e, dict) and email in (e.get('contactos') or []):
+                    e['contactos'] = [x for x in e['contactos'] if x != email]
+            kv_set('aci_empresas', empresas)
+            self._json(200, {'ok': True})
+            return
+
+        if action == 'set_alerts':
+            email = (body.get('email') or '').strip().lower()
+            enabled = bool(body.get('enabled'))
+            clients = kv_get('aci_clients', {}) or {}
+            if email not in clients:
+                self._json(404, {'error': 'Contacto no encontrado'}); return
+            clients[email]['alertsOptIn'] = enabled
+            kv_set('aci_clients', clients)
+            self._json(200, {'ok': True, 'enabled': enabled})
             return
 
         if action == 'reset_password':

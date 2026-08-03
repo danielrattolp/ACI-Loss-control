@@ -1630,7 +1630,9 @@ function loadEmpresasList() {
         ${(e.contactos || []).length ? (e.contactos).map(c => `
           <div style="font-size:11px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span>${c.name} &lt;${c.email}&gt;${c.active ? '' : ' (inactivo)'}</span>
-            <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px" onclick="resetContactPass('${c.email}')">🔑 Restablecer clave</button>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px;border-color:${c.alerts !== false ? '#66bb6a' : 'var(--line)'};color:${c.alerts !== false ? '#66bb6a' : 'var(--muted)'}" onclick="toggleContactAlerts('${c.email}', ${c.alerts !== false})">${c.alerts !== false ? '🔔 Alertas ON' : '🔕 Alertas OFF'}</button>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px" onclick="resetContactPass('${c.email}')">🔑 Clave</button>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px;color:var(--danger)" onclick="deleteContact('${c.email}','${(c.name||'').replace(/'/g,'')}')">🗑 Eliminar</button>
           </div>`).join('') : '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin contactos</div>'}
         <button class="btn btn-secondary btn-sm" style="margin-top:8px;font-size:11px" onclick="document.getElementById('addc-${e.id}').style.display='block';this.style.display='none'">＋ Agregar contacto</button>
         <div id="addc-${e.id}" style="display:none;margin-top:8px;background:var(--line2);border-radius:8px;padding:10px">
@@ -1661,6 +1663,19 @@ function submitAddContact(empresaId) {
       if (ok && d.ok) { if (msg) { msg.style.color = '#66bb6a'; msg.textContent = '✓ Contacto agregado.'; } loadEmpresasList(); }
       else if (msg) { msg.style.color = '#e57373'; msg.textContent = d.error || 'Error.'; }
     }).catch(() => { if (msg) { msg.style.color = '#e57373'; msg.textContent = 'Error de conexión.'; } });
+}
+function toggleContactAlerts(email, currentlyOn) {
+  const tok = _aciSessionToken();
+  fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify({ action: 'set_alerts', email: email.toLowerCase(), enabled: !currentlyOn }) })
+    .then(r => r.json()).then(d => { if (d.ok) loadEmpresasList(); else alert(d.error || 'Error'); })
+    .catch(() => alert('Error de conexión.'));
+}
+function deleteContact(email, name) {
+  if (!confirm('¿Eliminar el contacto ' + (name || email) + '? Perderá el acceso al portal. Esta acción no se puede deshacer.')) return;
+  const tok = _aciSessionToken();
+  fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify({ action: 'delete_contact', email: email.toLowerCase() }) })
+    .then(r => r.json()).then(d => { if (d.ok) loadEmpresasList(); else alert(d.error || 'Error'); })
+    .catch(() => alert('Error de conexión.'));
 }
 function resetContactPass(email) {
   const p = prompt('Nueva contraseña para ' + email + ' (mín. 6 caracteres):');
