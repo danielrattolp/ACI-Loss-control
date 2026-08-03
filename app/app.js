@@ -3609,6 +3609,26 @@ function computeUllageDerived(d) {
   _syncUllageTotals(d);
 }
 
+// Cambia el producto activo del Ullage al Arribo: guarda el bundle actual en
+// _prodStore[viejo] y carga el de _prodStore[nuevo] en las claves estándar, así
+// todos los handlers (carga Excel, cálculo, fotos) siguen operando sin cambios.
+function _ullSwitchProduct(d, newIdx) {
+  const old = d._activeProdIdx || 0;
+  if (old === newIdx) return;
+  const KEYS = ['header', 'tanks', 'summary', 'totals', 'tankMedia', 'media', 'vcfTabla', 'notes', 'docs'];
+  d._prodStore = d._prodStore || {};
+  const cur = {}; KEYS.forEach(k => { cur[k] = d[k]; });
+  d._prodStore[old] = cur;
+  const nxt = d._prodStore[newIdx] || {};
+  KEYS.forEach(k => { d[k] = nxt[k]; });
+  if (!d.header) d.header = { vessel:'', voyage:'', terminal:'', date:'', port:'', product:'', ourRef:'', yourRef:'' };
+  if (!Array.isArray(d.tanks)) d.tanks = TANK_NAMES.map(n => ({ name:n, measured:'', ullageInn:'', tov:'', fwInn:'', fw:'', gov:'', api:'', temp:'', vcf:'', gsv:'' }));
+  if (!d.summary) d.summary = {};
+  if (!d.totals) d.totals = {};
+  if (!d.docs) d.docs = { vessel:[], surveyor:[], aci:[] };
+  d._activeProdIdx = newIdx;
+}
+
 // Recalcula el objeto `totals` (compat con tracking/reporte/térmico) desde el summary.
 function _syncUllageTotals(d) {
   const s = d.summary || {};
@@ -3692,6 +3712,12 @@ function parseUllageReport(rows) {
 
 // ===== MODULE: ULLAGE ARRIBO (Vessel Ullage Report — Before Discharge) =====
 function buildUllageArribo(d, mod, ctx) {
+  const _op = getOp(decodeCtx(ctx).opId) || {};
+  const products = (_op.products && _op.products.length) ? _op.products : [_op.product || { type: '', crudeName: '' }];
+  const multiP = products.length > 1;
+  let activeIdx = d._activeProdIdx || 0;
+  if (activeIdx >= products.length) activeIdx = 0;
+  const prodLabel = p => (p && (p.crudeName || (PRODUCTS.find(x => x.id === p.type) || {}).label || p.type)) || 'Producto';
   const label = d._label || 'Ullage al Arribo';
   const h = d.header || {};
   const s = d.summary || {};
@@ -3721,8 +3747,15 @@ function buildUllageArribo(d, mod, ctx) {
     </tr>`;
 
   return `
-    <div class="module-title">📐 ${label}</div>
+    <div class="module-title">📐 ${label}${multiP ? ` <span style="font-size:14px;color:var(--amber)">· ${prodLabel(products[activeIdx])}</span>` : ''}</div>
     <div class="module-subtitle">Vessel Ullage Report — Before Discharge · API MPMS 17 / 11.1</div>
+
+    ${multiP ? `
+    <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600;color:var(--muted)">📐 Ullage del producto:</span>
+      ${products.map((p, i) => `<button class="btn ${i === activeIdx ? 'btn-primary' : 'btn-secondary'} btn-sm" data-action="ullarribo-set-product" data-ctx="${ctx}" data-idx="${i}">${prodLabel(p)}</button>`).join('')}
+      <span style="font-size:11px;color:var(--muted);margin-left:6px">Cada producto tiene su propia medición, summary y fotos.</span>
+    </div>` : ''}
 
     <div class="card">
       <div class="card-title">📄 Cargar Ullage desde Excel (plantilla AMSPEC)</div>
@@ -7799,6 +7832,7 @@ function handleClick(e) {
   else if (a === 'ull-add-tank') ullAddTank(el.dataset.ctx, el.dataset.sub);
   else if (a === 'ull-recalc') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ computeUllageDerived(_r.data); _r.save(); renderKeepScroll(); } }
   else if (a === 'origen-set-product') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _r.data._activeProdIdx = parseInt(el.dataset.idx); _r.save(); renderKeepScroll(); } }
+  else if (a === 'ullarribo-set-product') { const _c=decodeCtx(el.dataset.ctx); const _r=getModuleRef(_c); if(_r){ _ullSwitchProduct(_r.data, parseInt(el.dataset.idx)); _r.save(); renderKeepScroll(); } }
   else if (a === 'ull-rm-tank') ullRmTank(el.dataset.ctx, el.dataset.sub, parseInt(el.dataset.idx));
   else if (a === 'dr-rm-row') drRmRow(el.dataset.ctx, parseInt(el.dataset.idx));
   else if (a === 'chk-set') chkSet(el.dataset.ctx, parseInt(el.dataset.si), parseInt(el.dataset.ii), el.dataset.val);
