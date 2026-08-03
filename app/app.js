@@ -1632,8 +1632,35 @@ function loadEmpresasList() {
             <span>${c.name} &lt;${c.email}&gt;${c.active ? '' : ' (inactivo)'}</span>
             <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:10px" onclick="resetContactPass('${c.email}')">🔑 Restablecer clave</button>
           </div>`).join('') : '<div style="font-size:11px;color:var(--muted);margin-top:4px">sin contactos</div>'}
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px;font-size:11px" onclick="document.getElementById('addc-${e.id}').style.display='block';this.style.display='none'">＋ Agregar contacto</button>
+        <div id="addc-${e.id}" style="display:none;margin-top:8px;background:var(--line2);border-radius:8px;padding:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <input class="field-input" id="addc-name-${e.id}" placeholder="Nombre del contacto">
+            <input class="field-input" id="addc-email-${e.id}" type="email" placeholder="email@empresa.cl">
+            <input class="field-input" id="addc-pass-${e.id}" type="text" autocomplete="off" placeholder="Contraseña (mín. 6)">
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+            <button class="btn btn-primary btn-sm" onclick="submitAddContact('${e.id}')">Agregar contacto</button>
+            <span id="addc-msg-${e.id}" style="font-size:11px"></span>
+          </div>
+        </div>
       </div>`).join('');
     }).catch(() => { el.innerHTML = '<div style="color:#e57373;font-size:12px">Error al cargar.</div>'; });
+}
+function submitAddContact(empresaId) {
+  const name = (document.getElementById('addc-name-' + empresaId)?.value || '').trim();
+  const email = (document.getElementById('addc-email-' + empresaId)?.value || '').trim();
+  const password = (document.getElementById('addc-pass-' + empresaId)?.value || '').trim();
+  const msg = document.getElementById('addc-msg-' + empresaId);
+  if (!name || !email || password.length < 6) { if (msg) { msg.style.color = '#e57373'; msg.textContent = 'Completá nombre, email y contraseña (mín. 6).'; } return; }
+  const tok = _aciSessionToken();
+  if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Agregando…'; }
+  fetch('/api/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': tok }, body: JSON.stringify({ action: 'add_contact', empresa_id: empresaId, contact: { name, email, password } }) })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (ok && d.ok) { if (msg) { msg.style.color = '#66bb6a'; msg.textContent = '✓ Contacto agregado.'; } loadEmpresasList(); }
+      else if (msg) { msg.style.color = '#e57373'; msg.textContent = d.error || 'Error.'; }
+    }).catch(() => { if (msg) { msg.style.color = '#e57373'; msg.textContent = 'Error de conexión.'; } });
 }
 function resetContactPass(email) {
   const p = prompt('Nueva contraseña para ' + email + ' (mín. 6 caracteres):');
