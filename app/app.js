@@ -1699,6 +1699,25 @@ function _opVolMetrics(op) {
   const nsv = q => { if (num(q.nsv) != null) return num(q.nsv); const g = num(q.gsv), b = num(q.bsw); return g != null ? g * (1 - (b || 0) / 100) : null; };
   return { blGsv: num(bl.gsv), chGsv: num(tot.gsv), blNsv: nsv(bl), chNsv: nsv(tot), blFw: num(bl.fw), chFw: num(tot.fw) };
 }
+// Métricas de volumen por producto (B/L vs medido en Chile).
+function _opVolMetricsPerProduct(op) {
+  const mods = op.modules || {};
+  const origen = mods['datos-origen'] || {};
+  const products = (op.products && op.products.length) ? op.products : [op.product || { type: '', crudeName: '' }];
+  const arr = mods['ullage-arribo'] || {};
+  const arrActive = arr._activeProdIdx || 0;
+  const num = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const prodLabel = p => (p && (p.crudeName || (PRODUCTS.find(x => x.id === p.type) || {}).label || p.type)) || 'Producto';
+  const arrSummaryFor = i => (i === arrActive) ? (arr.summary || arr.totals || {}) : ((arr._prodStore && arr._prodStore[i] && (arr._prodStore[i].summary || arr._prodStore[i].totals)) || {});
+  const nsvOf = (gsv, bsw) => gsv != null ? gsv * (1 - (bsw || 0) / 100) : null;
+  return products.map((p, i) => {
+    const bl = origen[i === 0 ? 'bl' : 'bl' + i] || {};
+    const as = arrSummaryFor(i);
+    const bsw = num(bl.bsw) || 0;
+    const chGsv = num(as.gsv60 != null ? as.gsv60 : as.gsv);
+    return { label: prodLabel(p), blGsv: num(bl.gsv), chGsv, blNsv: num(bl.nsv), chNsv: nsvOf(chGsv, bsw), blFw: num(bl.fw), chFw: num(as.lessFW != null ? as.lessFW : as.fw) };
+  });
+}
 function _nowLocalDT() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -1784,6 +1803,16 @@ function buildAlertasPanel(op) {
   }).join('');
 
   const fwRow = (label, bl, ch) => `<tr><td style="font-weight:600;color:var(--muted)">${label}</td><td style="text-align:right">${fmt(bl)}</td><td style="text-align:right">${fmt(ch)}</td><td style="text-align:right">${dCell(bl, ch)}</td><td style="text-align:right">—</td></tr>`;
+  // Volúmenes por producto (multi-producto)
+  const perProd = _opVolMetricsPerProduct(op);
+  const volBody = perProd.map(pm => {
+    const mgp = merma(pm.blGsv, pm.chGsv), mnp = merma(pm.blNsv, pm.chNsv);
+    const header = perProd.length > 1 ? `<tr style="background:var(--line2)"><td colspan="5" style="font-weight:700;color:var(--amber);font-size:12px">📦 ${pm.label}</td></tr>` : '';
+    return header
+      + `<tr><td style="font-weight:600">GSV @60°F</td><td style="text-align:right">${fmt(pm.blGsv)}</td><td style="text-align:right">${fmt(pm.chGsv)}</td><td style="text-align:right;font-weight:700">${dCell(pm.blGsv, pm.chGsv)}</td>${mermaCell(mgp)}</tr>`
+      + `<tr><td style="font-weight:600">NSV @60°F</td><td style="text-align:right">${fmt(pm.blNsv)}</td><td style="text-align:right">${fmt(pm.chNsv)}</td><td style="text-align:right;font-weight:700">${dCell(pm.blNsv, pm.chNsv)}</td>${mermaCell(mnp)}</tr>`
+      + fwRow('Free Water (info)', pm.blFw, pm.chFw);
+  }).join('');
 
   return `
     <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1805,11 +1834,7 @@ function buildAlertasPanel(op) {
             <th style="text-align:right">Δ (BL − Chile)</th>
             <th style="text-align:right">Merma %</th>
           </tr></thead>
-          <tbody>
-            <tr><td style="font-weight:600">GSV @60°F</td><td style="text-align:right">${fmt(m.blGsv)}</td><td style="text-align:right">${fmt(m.chGsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blGsv, m.chGsv)}</td>${mermaCell(mg)}</tr>
-            <tr><td style="font-weight:600">NSV @60°F</td><td style="text-align:right">${fmt(m.blNsv)}</td><td style="text-align:right">${fmt(m.chNsv)}</td><td style="text-align:right;font-weight:700">${dCell(m.blNsv, m.chNsv)}</td>${mermaCell(mn)}</tr>
-            ${fwRow('Free Water (info)', m.blFw, m.chFw)}
-          </tbody>
+          <tbody>${volBody}</tbody>
         </table>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
@@ -7756,18 +7781,15 @@ function handleClick(e) {
     const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
     if (!op) return;
     op.tracking = op.tracking || { hitos:{}, tolerance:0.5 };
-    const snap = Object.assign({}, _opVolMetrics(op), { publishedAt: new Date().toISOString() });
-    op.tracking.volsSnapshot = snap;
+    const perProd = _opVolMetricsPerProduct(op);
+    op.tracking.volsSnapshot = { products: perProd, publishedAt: new Date().toISOString() };
     saveOp(op); renderKeepScroll();
-    // Notificar al cliente que hay volúmenes publicados (con todas las cifras)
+    // Notificar al cliente que hay volúmenes publicados (por producto)
     if (op.tracking.alertsActive) {
       const n = v => (v == null || isNaN(v)) ? '—' : Math.round(v).toLocaleString('en-US');
       const pct = (bl, ch) => (bl && ch) ? ((ch - bl) / bl * 100).toFixed(3) + '%' : '—';
-      const line = (lbl, bl, ch) => `${lbl}: BL ${n(bl)} · CL ${n(ch)}` + ((bl && ch) ? ` (${pct(bl, ch)})` : '');
-      const body = '📊 Volúmenes publicados\n'
-        + line('GSV', snap.blGsv, snap.chGsv) + '\n'
-        + line('NSV', snap.blNsv, snap.chNsv) + '\n'
-        + line('FW', snap.blFw, snap.chFw);
+      const body = '📊 Volúmenes publicados\n' + perProd.map(p =>
+        `${perProd.length > 1 ? p.label + ' — ' : ''}GSV BL ${n(p.blGsv)} · CL ${n(p.chGsv)} (${pct(p.blGsv, p.chGsv)})`).join('\n');
       fetch('/api/push', { method:'POST', headers:{'Content-Type':'application/json','X-ACI-Session':_aciSessionToken()},
         body: JSON.stringify({ action:'send', opId: op.id, title: op.vessel?.name || op.code || 'Operación',
           body, url:'/cliente', tag: 'aci-vol-' + op.id }) }).catch(() => {});

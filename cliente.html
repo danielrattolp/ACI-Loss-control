@@ -384,7 +384,9 @@ function renderTracking(){
 function trackingCard(op){
   const tr = op.tracking || {};
   const tol = parseFloat((tr.tolerance != null && tr.tolerance !== '') ? tr.tolerance : 0.5);
-  const m = tr.volsSnapshot || null; // el cliente ve solo lo publicado por el operador
+  const snap = tr.volsSnapshot || null; // el cliente ve solo lo publicado por el operador
+  const volProds = snap ? (snap.products ? snap.products : (snap.blGsv != null ? [{ label: '', blGsv: snap.blGsv, chGsv: snap.chGsv, blNsv: snap.blNsv, chNsv: snap.chNsv, blFw: snap.blFw, chFw: snap.chFw }] : [])) : [];
+  const publishedAt = snap ? snap.publishedAt : null;
   const ref = (op.clients && op.clients[0] && op.clients[0].ref) || '';
   const slots = (tr.slots || []).filter(s => s && s.event);
   const firstPendingIdx = slots.findIndex(s => !s.done);
@@ -392,7 +394,6 @@ function trackingCard(op){
   const reportReady = slots.some(s => s.event === 'lc_finalizado' && s.done);
 
   const merma = (bl, ch) => (bl != null && ch != null && bl !== 0) ? ((bl - ch) / bl * 100) : null;
-  const mg = m ? merma(m.blGsv, m.chGsv) : null, mn = m ? merma(m.blNsv, m.chNsv) : null;
   const dcell = (bl, ch) => (bl != null && ch != null) ? fmt(bl - ch) : '—';
   const mermaCell = v => {
     if (v == null) return '<td style="text-align:right;padding:6px 10px">—</td>';
@@ -435,23 +436,26 @@ function trackingCard(op){
       <span style="font-size:11px;color:var(--accent2);background:#3fb95015;border:1px solid #3fb95040;padding:3px 10px;border-radius:20px">● En curso · ${doneN}/${slots.length}</span>
     </div>
 
-    ${m ? `<div style="overflow-x:auto;margin-bottom:16px">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
-          <th style="text-align:left;padding:6px 10px">Parámetro</th>
-          <th style="text-align:right;padding:6px 10px">B/L</th>
-          <th style="text-align:right;padding:6px 10px">Chile</th>
-          <th style="text-align:right;padding:6px 10px">Δ (BL−Chile)</th>
-          <th style="text-align:right;padding:6px 10px">Merma %</th>
-        </tr></thead>
-        <tbody>
-          <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">GSV @60°F</td>${numCell(m.blGsv)}${numCell(m.chGsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(m.blGsv, m.chGsv)}</td>${mermaCell(mg)}</tr>
-          <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">NSV @60°F</td>${numCell(m.blNsv)}${numCell(m.chNsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(m.blNsv, m.chNsv)}</td>${mermaCell(mn)}</tr>
-          <tr style="border-top:1px solid var(--border);color:var(--muted)"><td style="padding:6px 10px">Free Water (info)</td>${numCell(m.blFw)}${numCell(m.chFw)}<td style="text-align:right;padding:6px 10px">${dcell(m.blFw, m.chFw)}</td><td style="text-align:right;padding:6px 10px">—</td></tr>
-        </tbody>
-      </table>
-      ${m.publishedAt ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">Publicado ${fmtDT(m.publishedAt)}</div>` : ''}
-    </div>` : `<div style="background:var(--surface);border:1px dashed var(--border);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted)">📊 Volúmenes en preparación — se publicarán cuando estén verificados.</div>`}
+    ${volProds.length ? volProds.map(pm => {
+      const mg = merma(pm.blGsv, pm.chGsv), mn = merma(pm.blNsv, pm.chNsv);
+      return `<div style="overflow-x:auto;margin-bottom:12px">
+        ${pm.label ? `<div style="font-size:12px;font-weight:700;color:var(--warn);margin-bottom:4px">📦 ${pm.label}</div>` : ''}
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
+            <th style="text-align:left;padding:6px 10px">Parámetro</th>
+            <th style="text-align:right;padding:6px 10px">B/L</th>
+            <th style="text-align:right;padding:6px 10px">Chile</th>
+            <th style="text-align:right;padding:6px 10px">Δ (BL−Chile)</th>
+            <th style="text-align:right;padding:6px 10px">Merma %</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">GSV @60°F</td>${numCell(pm.blGsv)}${numCell(pm.chGsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(pm.blGsv, pm.chGsv)}</td>${mermaCell(mg)}</tr>
+            <tr style="border-top:1px solid var(--border)"><td style="padding:6px 10px;font-weight:600">NSV @60°F</td>${numCell(pm.blNsv)}${numCell(pm.chNsv)}<td style="text-align:right;padding:6px 10px;font-weight:700">${dcell(pm.blNsv, pm.chNsv)}</td>${mermaCell(mn)}</tr>
+            <tr style="border-top:1px solid var(--border);color:var(--muted)"><td style="padding:6px 10px">Free Water (info)</td>${numCell(pm.blFw)}${numCell(pm.chFw)}<td style="text-align:right;padding:6px 10px">${dcell(pm.blFw, pm.chFw)}</td><td style="text-align:right;padding:6px 10px">—</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+    }).join('') + (publishedAt ? `<div style="font-size:10px;color:var(--muted);margin:-4px 0 12px">Publicado ${fmtDT(publishedAt)}</div>` : '') : `<div style="background:var(--surface);border:1px dashed var(--border);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted)">📊 Volúmenes en preparación — se publicarán cuando estén verificados.</div>`}
 
     <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Línea de tiempo</div>
     ${timeline}
