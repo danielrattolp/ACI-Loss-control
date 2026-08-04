@@ -2533,7 +2533,8 @@ function buildModuleContentInner(data, mod, ctx) {
     html = `<div class="module-title">${meta.label}</div><div class="text-muted">Módulo en desarrollo.</div>`;
   }
 
-  if (!NO_IA_PANEL.has(mod)) html += buildModuleIAPanel(data, mod, ctx, ctxStr);
+  // Consultor IA solo en Datos de Origen (el Reporte Evolutivo tiene su propio análisis integral).
+  if (mod === 'datos-origen') html += buildModuleIAPanel(data, mod, ctx, ctxStr);
   return html;
 }
 
@@ -3987,20 +3988,6 @@ function buildUllageArribo(d, mod, ctx) {
       </div>
       <button class="btn btn-secondary btn-sm" data-action="ull-add-tank" data-ctx="${ctx}" data-sub="" style="margin-top:14px">＋ Agregar tanque</button>
       <span style="font-size:11px;color:var(--muted);margin-left:8px">Agrega un tanque (Slops, adicionales) a la medición y a las fotos.</span>
-    </div>
-
-    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
-      <div class="card-title">🤖 Análisis Comparativo IA — Origen vs Arribo</div>
-      <div class="info-box" style="margin-bottom:12px">El Consultor IA analiza los datos del BL de origen versus arribo <strong>y las fotos de evidencia</strong>. Evalúa desvíos volumétricos, validez de la medición y posibles causas según API MPMS.</div>
-      ${(d.media||[]).length ? `<div style="font-size:12px;color:var(--accent);margin-bottom:10px">📷 ${d.media.length} imagen(es) incluida(s) en el análisis</div>` : '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Sin imágenes — el análisis usará solo los datos numéricos</div>'}
-      ${d.iaAnalysis ? `
-        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13px;white-space:pre-wrap;line-height:1.7;margin-bottom:12px;max-height:400px;overflow-y:auto">${d.iaAnalysis}</div>
-        ${d.iaDate ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Generado: ${new Date(d.iaDate).toLocaleString('es-CL')}</div>` : ''}
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" style="flex:1" data-action="ia-analizar-arribo" data-ctx="${ctx}">🔄 Re-analizar</button>
-          <button class="btn btn-ghost btn-sm" data-action="ia-clear-arribo" data-ctx="${ctx}">✕ Limpiar</button>
-        </div>
-      ` : `<button class="btn btn-primary" style="width:100%" data-action="ia-analizar-arribo" data-ctx="${ctx}">🔍 Analizar con Consultor IA</button>`}
     </div>`;
 }
 
