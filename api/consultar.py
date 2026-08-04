@@ -149,7 +149,7 @@ class handler(BaseHTTPRequestHandler):
             client = anthropic.Anthropic(api_key=api_key)
             response = client.messages.create(
                 model="claude-opus-4-8",
-                max_tokens=2048,
+                max_tokens=8000,
                 system=SYSTEM_PROMPT,
                 messages=seq,
             )
