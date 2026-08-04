@@ -3489,10 +3489,19 @@ function buildDatosOrigen(d, ctx) {
       <td style="color:var(--muted);font-size:11px">${unit}</td>
     </tr>`;
 
-  const blTcvCalc = (parseFloat(bl.gsv)||0) + (parseFloat(bl.fw)||0);
-  const blTcvDisplay = blTcvCalc > 0 ? blTcvCalc.toFixed(2) : (bl.tcv || '—');
   const blNsvCalc = (parseFloat(bl.gsv)||0) * (1 - (parseFloat(bl.bsw)||0) / 100);
-  const blNsvDisplay = blNsvCalc > 0 ? blNsvCalc.toFixed(2) : (bl.nsv || '—');
+  // Fila Gross / Net del B/L (tabla ASTM 60A)
+  const blGN = (label, gField, nField, unit, dec = 2) => `
+    <tr>
+      <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">${label}</td>
+      <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtVal(bl[gField], dec)}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="${gField}" placeholder="—"
+          onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
+      <td><input class="tbl-input" type="text" inputmode="decimal" value="${fmtVal(bl[nField], dec)}"
+          data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="${nField}" placeholder="—"
+          onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(${dec}):this.value"></td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
 
   const ullRow = (t, i) => `
     <tr>
@@ -3563,28 +3572,35 @@ function buildDatosOrigen(d, ctx) {
     </div>
 
     <div class="card">
-      <div class="card-title">Cantidades BL</div>
-      <table class="data-table" style="width:100%">
-        <thead><tr>
-          <th style="width:180px">Parámetro</th><th>Valor</th><th style="width:80px">Unidad</th>
-        </tr></thead>
-        <tbody>
-          ${row('GSV @60°F','gsv','0.001','BBL')}
-          ${row('API Gravity @60°F','api','0.1','°API',1)}
-          ${row('BS&W','bsw','0.01','%',3)}
-          <tr>
-            <td style="font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap">NSV @60°F</td>
-            <td><input class="tbl-input" type="text" inputmode="decimal" value="${(bl.nsv!==''&&bl.nsv!=null)?parseFloat(bl.nsv).toFixed(2):(blNsvCalc>0?blNsvCalc.toFixed(2):'')}" placeholder="auto"
-                data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="nsv"
-                onblur="this.value=this.value&&!isNaN(parseFloat(this.value))?parseFloat(this.value).toFixed(2):this.value"></td>
-            <td style="color:var(--muted);font-size:11px">BBL <span style="font-size:10px;color:var(--sea)">auto/edit</span></td>
-          </tr>
-          ${row('Densidad @60°F','densityAt60','0.0001','kg/m³')}
-          ${row('GSV m³ @15°C','m3At15','0.001','m³')}
-          ${row('Toneladas largas','longTons','0.001','LT',3)}
-          ${row('Toneladas métricas','metricTons','0.001','MT',3)}
-        </tbody>
-      </table>
+      <div class="card-title">Cantidades BL — Tabla ASTM 60A (Gross / Net)</div>
+      <div class="form-row form-row-2" style="margin-bottom:12px">
+        <div class="field"><label class="field-label">API Gravity @60°F</label>
+          <input class="field-input" type="number" step="0.1" value="${bl.api||''}"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="api" placeholder="—"></div>
+        <div class="field"><label class="field-label">BS&W (%)</label>
+          <input class="field-input" type="number" step="0.01" value="${bl.bsw||''}"
+            data-action="save-nested" data-ctx="${ctx}" data-obj="${blObj}" data-field="bsw" placeholder="—"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:520px">
+          <thead><tr>
+            <th style="width:200px">Parámetro</th>
+            <th style="text-align:right">GROSS</th>
+            <th style="text-align:right">NET</th>
+            <th style="width:70px">Unidad</th>
+          </tr></thead>
+          <tbody>
+            ${blGN('Liters @20°C','liters20_g','liters20_n','L',0)}
+            ${blGN('Metric Tons (Vacuum)','mtVac_g','mtVac_n','MT',3)}
+            ${blGN('Metric Tons (Air)','metricTons','mtAir_n','MT',3)}
+            ${blGN('Long Tons (Air)','longTons','longTons_n','LT',3)}
+            ${blGN('US Bbls @60°F','gsv','nsv','BBL',2)}
+            ${blGN('US Gallons @60°F','usGal_g','usGal_n','gal',2)}
+            ${blGN('Cubic Meters @20°C','m3_20_g','m3_20_n','m³',3)}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">GROSS = GSV (bruto) · NET = NSV (neto, descontado S&W). Cargá ambos tal como figuran en el B/L. Las US Bbls @60°F Gross/Net alimentan el tracking y el análisis.</div>
     </div>
 
     <div class="card">
