@@ -5355,6 +5355,54 @@ function buildReporteEvolutivo(op, ctx) {
     </tr>`;
   };
 
+  // ── Comparativo integral: B/L Origen · Buque Origen (zarpe) · Buque Arribo (Chile) ──
+  const ullO = (origen.ullageOrigen && origen.ullageOrigen.summary) || {};
+  const arrSum = (firstArribo && firstArribo.summary) || {};
+  const _N = v => { const x = parseFloat(v); return isNaN(x) ? null : x; };
+  const _bsw = _N(bl.bsw) || 0;
+  const _nsvFrom = gsv => gsv != null ? gsv * (1 - _bsw / 100) : null;
+  const _divVef = (val, vef) => (val != null && vef) ? val / vef : val;   // API 17.9: tierra teórica = buque ÷ VEF
+  const nf = (v, dd = 2) => v == null ? '—' : parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: dd, maximumFractionDigits: dd });
+  // [label, unidad, B/L, Buque Origen, Buque Arribo, aplicaVEF]
+  const CMP = [
+    ['GSV @60°F', 'BBL', _N(bl.gsv), _N(ullO.gsv60), _N(arrSum.gsv60), true],
+    ['NSV @60°F', 'BBL', _N(bl.nsv), _nsvFrom(_N(ullO.gsv60)), _nsvFrom(_N(arrSum.gsv60)), true],
+    ['Free Water', 'BBL', _N(bl.fw), _N(ullO.lessFW), _N(arrSum.lessFW), false],
+    ['API @60°F', '°API', _N(bl.api), _N(ullO.api), _N(arrSum.api), false],
+    ['BS&W', '%', _N(bl.bsw), (_bsw || null), (_bsw || null), false],
+    ['Metric Tons (Air)', 'MT', _N(bl.metricTons), _N(ullO.mt), _N(arrSum.mt), true],
+    ['US Gallons @60°F', 'gal', _N(bl.usGal_g), _N(ullO.usGal60), _N(arrSum.usGal60), true],
+  ];
+  const cmpRows = CMP.map(([lbl, unit, blv, ov, av, aVef]) => {
+    const ovv = aVef ? _divVef(ov, vefO) : ov;
+    const avv = aVef ? _divVef(av, vefA) : av;
+    return `<tr>
+      <td style="font-weight:600;font-size:12px">${lbl}</td>
+      <td style="text-align:right">${nf(blv)}</td>
+      <td style="text-align:right">${nf(ov)}</td>
+      <td style="text-align:right;color:var(--sea)">${aVef ? nf(ovv) : '—'}</td>
+      <td style="text-align:right">${nf(av)}</td>
+      <td style="text-align:right;color:var(--sea)">${aVef ? nf(avv) : '—'}</td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+  }).join('');
+  const mermaRows = CMP.filter(r => r[5]).map(([lbl, unit, blv, ov, av]) => {
+    const dSin = (blv != null && av != null) ? av - blv : null;
+    const pSin = (blv && dSin != null) ? (dSin / blv * 100) : null;
+    const avv = _divVef(av, vefA);
+    const dCon = (blv != null && avv != null) ? avv - blv : null;
+    const pCon = (blv && dCon != null) ? (dCon / blv * 100) : null;
+    const col = v => v == null ? '' : v < 0 ? 'color:#c62828' : 'color:#2e7d32';
+    return `<tr>
+      <td style="font-weight:600;font-size:12px">${lbl}</td>
+      <td style="text-align:right;${col(dSin)}">${dSin != null ? (dSin > 0 ? '+' : '') + nf(dSin) : '—'}</td>
+      <td style="text-align:right;${col(dSin)};font-size:11px">${pSin != null ? (pSin > 0 ? '+' : '') + pSin.toFixed(3) + '%' : '—'}</td>
+      <td style="text-align:right;${col(dCon)}">${dCon != null ? (dCon > 0 ? '+' : '') + nf(dCon) : '—'}</td>
+      <td style="text-align:right;${col(dCon)};font-size:11px">${pCon != null ? (pCon > 0 ? '+' : '') + pCon.toFixed(3) + '%' : '—'}</td>
+      <td style="color:var(--muted);font-size:11px">${unit}</td>
+    </tr>`;
+  }).join('');
+
   // Collect all IA analyses flagged for inclusion in the report
   const analyses = (op.moduleOrder||[]).map(k => {
     const m = mods[k];
@@ -5381,35 +5429,58 @@ function buildReporteEvolutivo(op, ctx) {
     <div class="module-subtitle">${opCode} · ${vesselName} · ${product} · Generado: ${now}</div>
 
     <div class="card">
-      <div class="card-title">Balance de Cantidades — Origen vs Arribo</div>
-      ${(bl.gsv || tot.gsv) ? (() => {
-        const _blNsv  = (parseFloat(bl.gsv)||0)  > 0 ? ((parseFloat(bl.gsv)||0)  * (1 - (parseFloat(bl.bsw)||0)  / 100)).toFixed(2) : '';
-        const _totNsv = (parseFloat(tot.gsv)||0) > 0 ? ((parseFloat(tot.gsv)||0) * (1 - (parseFloat(tot.bsw)||0) / 100)).toFixed(2) : '';
-        return `
+      <div class="card-title">Comparativo de Cantidades — B/L Origen · Buque Origen (zarpe) · Buque Arribo (Chile)</div>
+      ${(bl.gsv || ullO.gsv60 || arrSum.gsv60) ? `
       <div style="overflow-x:auto">
-        <table class="data-table" style="width:100%">
+        <table class="data-table" style="width:100%;min-width:760px;font-size:12px">
           <thead><tr>
             <th>Parámetro</th>
-            <th style="text-align:right">Origen (BL)</th>
-            <th style="text-align:right">Arribo</th>
-            <th style="text-align:right">Δ Diferencia</th>
-            <th style="text-align:right">Δ %</th>
+            <th style="text-align:right">B/L Origen</th>
+            <th style="text-align:right">Buque Origen</th>
+            <th style="text-align:right;color:var(--sea)">Origen ÷VEF</th>
+            <th style="text-align:right">Buque Arribo</th>
+            <th style="text-align:right;color:var(--sea)">Arribo ÷VEF</th>
             <th>Unidad</th>
           </tr></thead>
+          <tbody>${cmpRows}</tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">VEF Origen = ${vefO ? vefO.toFixed(5) : '—'} · VEF Arribo = ${vefA ? vefA.toFixed(5) : '—'} · "÷VEF" = figura de tierra teórica (API 17.9). El VEF NO aplica al Free Water, API ni BS&W.</div>
+      <div style="font-size:12px;font-weight:700;color:var(--ink);margin:16px 0 8px">Merma vs B/L Origen — con VEF y sin VEF</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:620px;font-size:12px">
+          <thead><tr>
+            <th>Parámetro</th>
+            <th style="text-align:right">Δ sin VEF</th>
+            <th style="text-align:right">%</th>
+            <th style="text-align:right">Δ con VEF</th>
+            <th style="text-align:right">%</th>
+            <th>Unidad</th>
+          </tr></thead>
+          <tbody>${mermaRows}</tbody>
+        </table>
+      </div>` : `<div class="info-box">Completá el B/L en Datos de Origen y el Ullage al Arribo para ver el comparativo.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌡️ Condiciones Ambientales — Carga · Arribo · Medición</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:520px">
+          <thead><tr><th>Momento / Lugar</th><th style="text-align:center">Temp. Mar (°C)</th><th style="text-align:center">Temp. Ambiente (°C)</th></tr></thead>
           <tbody>
-            ${diffRow('GSV @60°F',    bl.gsv,        tot.gsv,        'BBL')}
-            ${diffRow('NSV @60°F',    _blNsv,        _totNsv,        'BBL')}
-            ${diffRow('TCV (GSV+FW)', bl.tcv,        tot.tcv,        'BBL')}
-            ${diffRow('Free Water',   bl.fw,         tot.fw,         'BBL')}
-            ${diffRow('API @60°F',    bl.api,        tot.api,        '°API')}
-            ${diffRow('BS&W',         bl.bsw,        tot.bsw,        '%')}
-            ${diffRow('Densidad @15°C',bl.densityAt15,tot.densityAt15,'kg/m³')}
-            ${diffRow('GSV m³ @15°C', bl.m3At15,     tot.m3At15,     'm³')}
-            ${diffRow('Ton. métricas',bl.metricTons,  tot.metricTons, 'MT')}
+            <tr><td style="font-weight:600">Puerto de carga</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadSeaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadAmbTemp" placeholder="—"></td></tr>
+            <tr><td style="font-weight:600">Arribo a Chile</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.seaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="seaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.ambTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="ambTemp" placeholder="—"></td></tr>
+            <tr><td style="font-weight:600">Al momento de la medición</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.measSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measSeaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.measAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measAmbTemp" placeholder="—"></td></tr>
           </tbody>
         </table>
-      </div>`;
-      })() : `<div class="info-box">Completa Datos de Origen y Ullage Arribo para ver el balance.</div>`}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Cargá las temperaturas para que el Análisis Integral IA compare carga vs arribo vs medición y estime la afectación volumétrica.</div>
     </div>
 
     ${(vefO || vefA) ? `
@@ -5434,6 +5505,16 @@ function buildReporteEvolutivo(op, ctx) {
     </div>` : ''}
 
     ${buildThermalAnalysis(op, ctx)}
+
+    <div class="card" style="background:linear-gradient(135deg,var(--paper),var(--line2))">
+      <div class="card-title">🧠 Análisis Integral de la Operación (IA)</div>
+      <div class="info-box" style="margin-bottom:12px">El Consultor IA analiza <b>toda la operación</b> con la base de conocimiento normativa: B/L ↔ ullage origen ↔ ullage arribo (con y sin VEF), cumplimiento <b>API MPMS 17.9</b> del VEF, temperaturas de <b>carga · arribo · medición</b> y su afectación volumétrica, comparativa de <b>termómetros</b>, alturas origen/destino y errores sistemáticos según norma.</div>
+      ${re.integralIA ? `
+        <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13px;white-space:pre-wrap;line-height:1.7;margin-bottom:12px;max-height:520px;overflow-y:auto">${re.integralIA}</div>
+        ${re.integralIADate ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Generado: ${new Date(re.integralIADate).toLocaleString('es-CL')}</div>` : ''}
+        <button class="btn btn-secondary" style="width:100%" data-action="re-integral-ia" data-ctx="${ctx}">🔄 Regenerar análisis integral</button>
+      ` : `<button class="btn btn-primary" style="width:100%" data-action="re-integral-ia" data-ctx="${ctx}">🔍 Generar análisis integral</button>`}
+    </div>
 
     ${analyses.length ? `
     <div class="card">
@@ -8110,6 +8191,61 @@ Observaciones generales del operador: ${nn(modData.notes || ull.notes)}`;
           saveOp(op); render();
         } else { el.disabled=false; el.textContent=btnLabel; alert(res.error||'Error del servidor.'); }
       }).catch(()=>{ el.disabled=false; el.textContent=btnLabel; alert('Sin conexión al servidor.'); });
+  }
+  else if (a === 're-integral-ia') {
+    const c = decodeCtx(el.dataset.ctx); const op = getOp(c.opId);
+    if (!op) return;
+    const mods = op.modules || {};
+    const origen = mods['datos-origen'] || {};
+    const bl = origen.bl || {};
+    const ullO = (origen.ullageOrigen && origen.ullageOrigen.summary) || {};
+    const arrKeys = (op.moduleOrder || []).filter(k => k === 'ullage-arribo' || k.startsWith('ullage-ini') || k.startsWith('ullage-fin'));
+    const arrMod = arrKeys.map(k => mods[k]).find(m => m && m.summary && m.summary.gsv60) || {};
+    const arrS = arrMod.summary || {};
+    const vefO = origen.vefOrigen?.voyages?.length ? computeVEFStats(origen.vefOrigen.voyages).vef : null;
+    const vefOStats = origen.vefOrigen?.voyages?.length ? computeVEFStats(origen.vefOrigen.voyages) : null;
+    const vefA = mods['vef-comparativo']?.voyages?.length ? computeVEFStats(mods['vef-comparativo'].voyages).vef : null;
+    const re = mods['reporte-evolutivo'] || {};
+    const nn = v => (v == null || v === '') ? 'N/D' : v;
+    const div = (v, vef) => (v != null && v !== '' && vef) ? (parseFloat(v) / vef).toFixed(2) : nn(v);
+    const oTanks = (origen.ullageOrigen?.tanks || []).filter(t => t && (t.gsv || t.temp || t.api));
+    const aTanks = (arrMod.tanks || []).filter(t => t && (t.gsv || t.temp || t.api));
+    const term = mods['termometros'] || {};
+    const heightLines = (() => {
+      const byName = {}; oTanks.forEach(t => { if (t.name) byName[String(t.name).trim().toUpperCase()] = t; });
+      return aTanks.map(t => { const o = byName[String(t.name).trim().toUpperCase()] || {}; return `  ${nn(t.name)}: alt origen ${nn(o.measured)} → arribo ${nn(t.measured)} m | temp origen ${nn(o.temp)}°F → arribo ${nn(t.temp)}°F | VCF ${nn(o.vcf)}→${nn(t.vcf)}`; }).join('\n');
+    })();
+    const data = `OPERACIÓN ${op.code||''} — ${op.vessel?.name||''} (IMO ${op.vessel?.imo||''}) · Producto ${op.product?.crudeName||op.product?.type||''}
+Puerto de carga: ${nn(bl.loadPort||origen.loadPort)} → Puerto de descarga: ${nn(op.port)}
+
+CANTIDADES (BBL salvo indicado) — B/L Origen | Buque Origen | Buque Origen÷VEF | Buque Arribo | Buque Arribo÷VEF:
+GSV: ${nn(bl.gsv)} | ${nn(ullO.gsv60)} | ${div(ullO.gsv60,vefO)} | ${nn(arrS.gsv60)} | ${div(arrS.gsv60,vefA)}
+NSV: ${nn(bl.nsv)} | (calc) | — | (calc) | —
+Free Water: ${nn(bl.fw)} | ${nn(ullO.lessFW)} | (VEF n/a) | ${nn(arrS.lessFW)} | (VEF n/a)
+API@60: ${nn(bl.api)} | ${nn(ullO.api)} | — | ${nn(arrS.api)} | —
+BS&W%: ${nn(bl.bsw)}
+Metric Tons(Air): ${nn(bl.metricTons)} | ${nn(ullO.mt)} | ${div(ullO.mt,vefO)} | ${nn(arrS.mt)} | ${div(arrS.mt,vefA)}
+US Gallons@60: ${nn(bl.usGal_g)} | ${nn(ullO.usGal60)} | ${div(ullO.usGal60,vefO)} | ${nn(arrS.usGal60)} | ${div(arrS.usGal60,vefA)}
+
+VEF Origen: ${vefO?vefO.toFixed(5):'N/D'} (viajes calificantes ${vefOStats?vefOStats.qualCount:0}) · VEF Arribo: ${vefA?vefA.toFixed(5):'N/D'}
+
+TEMPERATURAS (°C):
+Puerto de carga → Mar ${nn(re.loadSeaTemp)} · Ambiente ${nn(re.loadAmbTemp)}
+Arribo a Chile → Mar ${nn(re.seaTemp)} · Ambiente ${nn(re.ambTemp)}
+Al momento de la medición → Mar ${nn(re.measSeaTemp)} · Ambiente ${nn(re.measAmbTemp)}
+(Las temperaturas por tanque del ullage están en °F.)
+
+ALTURAS Y TEMPERATURAS POR TANQUE (origen → arribo):
+${heightLines || '  (sin datos de tanques)'}
+
+TERMÓMETROS (verificación de equipos): ${JSON.stringify(term).slice(0, 1500)}`;
+    const prompt = `Eres un QPIC / Inspector Senior de Loss Control con 25+ años y dominio total de API MPMS (Cap. 7, 9.1, 10, 11.1, 12, 17.1/17.6/17.9). Realizá un ANÁLISIS INTEGRAL de esta operación completa usando SOLO estos datos (citá cifras; si falta algo, decilo; no inventes).\n\n${data}\n\nEntregá, en secciones numeradas:\n1. CONCILIACIÓN DE CANTIDADES: compará B/L origen vs buque origen vs buque arribo, CON VEF y SIN VEF, en cantidad y %. ¿La pérdida/ganancia neta está dentro de tolerancia (±0.5% referencia)? Distinguí la parte física (contracción térmica) de una posible pérdida real.\n2. CUMPLIMIENTO DEL VEF (API 17.9): ¿el VEF es válido (≥5 viajes calificantes, banda ±0.3%, sin gross error, sin alijes)? ¿El buque cumple 17.9? Efecto del VEF en el cierre.\n3. TEMPERATURAS: coherencia entre temp de carga, temp al arribo y temp de medición, y con el agua/ambiente de cada puerto. Estimá la contracción esperada por el ΔT del viaje y su magnitud en volumen.\n4. ALTURAS Y MEDICIÓN: compará alturas y temperaturas por tanque origen→arribo; señalá anomalías.\n5. TERMÓMETROS: analizá la comparativa/verificación de termómetros (tolerancia ≤0.5°F entre equipos, Cap. 7). ¿Un sesgo de temperatura podría explicar parte del diferencial? Cuantificá aprox.\n6. ERRORES SISTEMÁTICOS según norma y su dirección.\n7. VERIFICACIÓN DEL B/L: ¿está correctamente ejecutado y consistente?\n8. DICTAMEN Y ACCIONES: LOP, VSRR, notas al cliente. Sé específico y numérico. Prohibido responder en genérico.`;
+    el.disabled = true; el.textContent = '⏳ Generando análisis integral…';
+    fetch('/api/consultar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() }, body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }) })
+      .then(r => r.json()).then(res => {
+        if (res.reply) { if (!op.modules['reporte-evolutivo']) op.modules['reporte-evolutivo'] = {}; op.modules['reporte-evolutivo'].integralIA = res.reply; op.modules['reporte-evolutivo'].integralIADate = new Date().toISOString(); saveOp(op); render(); }
+        else { el.disabled = false; el.textContent = '🔍 Generar análisis integral'; alert(res.error || 'Error del servidor.'); }
+      }).catch(() => { el.disabled = false; el.textContent = '🔍 Generar análisis integral'; alert('Sin conexión al servidor.'); });
   }
   else if (a === 'print-full-report') {
     showPDFSelector(el.dataset.opid);
