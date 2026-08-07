@@ -5260,14 +5260,7 @@ function buildThermalAnalysis(op, ctx) {
   return `
     <div class="card">
       <div class="card-title">🌡️ Análisis Térmico — Alturas y Temperaturas (Origen vs Arribo)</div>
-      <div class="form-row form-row-2" style="margin-bottom:12px">
-        <div class="field"><label class="field-label">Temp. del mar en arribo (°C)</label>
-          <input class="field-input" type="number" step="0.1" value="${re.seaTemp || ''}" placeholder="ej. 13.0"
-            data-action="save-field" data-ctx="${ctx}" data-field="seaTemp"></div>
-        <div class="field"><label class="field-label">Temp. ambiente en arribo (°C)</label>
-          <input class="field-input" type="number" step="0.1" value="${re.ambTemp || ''}" placeholder="ej. 16.0"
-            data-action="save-field" data-ctx="${ctx}" data-field="ambTemp"></div>
-      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Usa la temperatura de mar (${sea == null || isNaN(sea) ? '—' : sea + '°C'}) y ambiente (${amb == null || isNaN(amb) ? '—' : amb + '°C'}) al arribo cargadas arriba en <b>Condiciones Ambientales</b>.</div>
       <div style="overflow-x:auto">
         <table class="data-table" style="width:100%;min-width:760px;font-size:12px">
           <thead><tr>
@@ -5487,27 +5480,6 @@ function buildReporteEvolutivo(op, ctx) {
       </div>` : `<div class="info-box">Completá el B/L en Datos de Origen y el Ullage al Arribo para ver el comparativo.</div>`}
     </div>
 
-    <div class="card">
-      <div class="card-title">🌡️ Condiciones Ambientales — Carga · Arribo · Medición</div>
-      <div style="overflow-x:auto">
-        <table class="data-table" style="width:100%;min-width:520px">
-          <thead><tr><th>Momento / Lugar</th><th style="text-align:center">Temp. Mar (°C)</th><th style="text-align:center">Temp. Ambiente (°C)</th></tr></thead>
-          <tbody>
-            <tr><td style="font-weight:600">Puerto de carga</td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadSeaTemp" placeholder="—"></td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadAmbTemp" placeholder="—"></td></tr>
-            <tr><td style="font-weight:600">Arribo a Chile</td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.seaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="seaTemp" placeholder="—"></td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.ambTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="ambTemp" placeholder="—"></td></tr>
-            <tr><td style="font-weight:600">Al momento de la medición</td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.measSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measSeaTemp" placeholder="—"></td>
-              <td><input class="tbl-input" type="number" step="0.1" value="${re.measAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measAmbTemp" placeholder="—"></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Cargá las temperaturas para que el Análisis Integral IA compare carga vs arribo vs medición y estime la afectación volumétrica.</div>
-    </div>
-
     ${(vefO || vefA) ? `
     <div class="card">
       <div class="card-title">VEF Comparativo</div>
@@ -5528,6 +5500,27 @@ function buildReporteEvolutivo(op, ctx) {
         </div>
       </div>
     </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">🌡️ Condiciones Ambientales — Carga · Arribo · Medición</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;min-width:520px">
+          <thead><tr><th>Momento / Lugar</th><th style="text-align:center">Temp. Mar (°C)</th><th style="text-align:center">Temp. Ambiente (°C)</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:600">Puerto de carga</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadSeaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.loadAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="loadAmbTemp" placeholder="—"></td></tr>
+            <tr><td style="font-weight:600">Arribo a Chile</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.seaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="seaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.ambTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="ambTemp" placeholder="—"></td></tr>
+            <tr><td style="font-weight:600">Al momento de la medición</td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.measSeaTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measSeaTemp" placeholder="—"></td>
+              <td><input class="tbl-input" type="number" step="0.1" value="${re.measAmbTemp||''}" data-action="save-field" data-ctx="${ctx}" data-field="measAmbTemp" placeholder="—"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Cargá las temperaturas para que el Análisis Térmico y el Análisis Integral IA comparen carga vs arribo vs medición y estimen la afectación volumétrica.</div>
+    </div>
 
     ${buildThermalAnalysis(op, ctx)}
 
