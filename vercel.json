@@ -10,7 +10,7 @@
     { "source": "/cliente/(.*)",        "destination": "/cliente.html" }
   ],
   "functions": {
-    "api/consultar.py": { "maxDuration": 60 }
+    "api/consultar.py": { "maxDuration": 120 }
   },
   "headers": [
     {

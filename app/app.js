@@ -8257,10 +8257,17 @@ TERMÓMETROS (verificación de equipos): ${JSON.stringify(term).slice(0, 1500)}`
     const prompt = `Eres un QPIC / Inspector Senior de Loss Control con 25+ años y dominio total de API MPMS (Cap. 7, 9.1, 10, 11.1, 12, 17.1/17.6/17.9). Realizá un ANÁLISIS INTEGRAL de esta operación completa usando SOLO estos datos (citá cifras; si falta algo, decilo; no inventes).\n\n${data}\n\nEntregá, en secciones numeradas:\n1. CONCILIACIÓN DE CANTIDADES: compará B/L origen vs buque origen vs buque arribo, CON VEF y SIN VEF, en cantidad y %. ¿La pérdida/ganancia neta está dentro de tolerancia (±0.5% referencia)? Distinguí la parte física (contracción térmica) de una posible pérdida real.\n2. CUMPLIMIENTO DEL VEF (API 17.9): ¿el VEF es válido (≥5 viajes calificantes, banda ±0.3%, sin gross error, sin alijes)? ¿El buque cumple 17.9? Efecto del VEF en el cierre.\n3. TEMPERATURAS: coherencia entre temp de carga, temp al arribo y temp de medición, y con el agua/ambiente de cada puerto. Estimá la contracción esperada por el ΔT del viaje y su magnitud en volumen.\n4. ALTURAS Y MEDICIÓN: compará alturas y temperaturas por tanque origen→arribo; señalá anomalías.\n5. TERMÓMETROS: analizá la comparativa/verificación de termómetros (tolerancia ≤0.5°F entre equipos, Cap. 7). ¿Un sesgo de temperatura podría explicar parte del diferencial? Cuantificá aprox.\n6. ERRORES SISTEMÁTICOS según norma y su dirección.\n7. VERIFICACIÓN DEL B/L: ¿está correctamente ejecutado y consistente?\n8. DICTAMEN Y ACCIONES: LOP, VSRR, notas al cliente. Sé específico y numérico. Prohibido responder en genérico.`;
     el.disabled = true; el.textContent = '⏳ Generando análisis integral…';
     fetch('/api/consultar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ACI-Session': _aciSessionToken() }, body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }) })
-      .then(r => r.json()).then(res => {
+      .then(async r => {
+        const txt = await r.text();
+        let res; try { res = JSON.parse(txt); } catch {
+          // Respuesta no-JSON: casi siempre timeout de la función (504) o error del gateway.
+          throw new Error(r.status === 504 || r.status === 502 ? 'El análisis tardó demasiado y el servidor lo cortó. Reintentá: suele completarse al segundo intento.' : ('Respuesta inesperada del servidor (' + r.status + ').'));
+        }
+        return res;
+      }).then(res => {
         if (res.reply) { if (!op.modules['reporte-evolutivo']) op.modules['reporte-evolutivo'] = {}; op.modules['reporte-evolutivo'].integralIA = res.reply; op.modules['reporte-evolutivo'].integralIADate = new Date().toISOString(); saveOp(op); render(); }
         else { el.disabled = false; el.textContent = '🔍 Generar análisis integral'; alert(res.error || 'Error del servidor.'); }
-      }).catch(() => { el.disabled = false; el.textContent = '🔍 Generar análisis integral'; alert('Sin conexión al servidor.'); });
+      }).catch(err => { el.disabled = false; el.textContent = '🔍 Generar análisis integral'; alert(err && err.message ? err.message : 'Sin conexión al servidor.'); });
   }
   else if (a === 'print-full-report') {
     showPDFSelector(el.dataset.opid);
