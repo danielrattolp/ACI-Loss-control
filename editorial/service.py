@@ -63,6 +63,8 @@ class Service:
             admin = admin_email()
             editor = state['editor']
             role = None
+            if admin and email == admin and not os.environ.get('CMS_ADMIN_PASSWORD_HASH'):
+                fail(503, 'Falta habilitar CMS_ADMIN_PASSWORD_HASH para este entorno de Vercel y volver a desplegar.')
             if admin and email == admin and matches(body.get('password'), os.environ.get('CMS_ADMIN_PASSWORD_HASH', '')):
                 role = 'admin'
             elif email == EMAIL and editor and not editor['revoked'] and now < editor['expires'] and matches(body.get('password'), editor['hash']):

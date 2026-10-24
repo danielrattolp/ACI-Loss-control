@@ -7,7 +7,7 @@ async function api(action, data = {}) {
     method:'POST', headers:{'Content-Type':'application/json','X-CMS-Request':'1'},body:JSON.stringify({action,version:state?.version,...data})
   });
   const result = await response.json();
-  if (!response.ok) throw Error(result.error || 'No se pudo completar la acción.');
+  if (!response.ok) throw Error((result.error || 'No se pudo completar la acción.') + (result.code ? ` [${result.code}]` : ''));
   return result;
 }
 function preview() { $('preview').contentWindow.postMessage({type:'cms-preview',content},location.origin); }

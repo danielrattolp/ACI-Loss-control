@@ -2,11 +2,12 @@
 from http.server import BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 import json
+import logging
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from editorial.service import Service, Rejected
-from editorial.storage import Store
+from editorial.storage import Store, StorageUnavailable
 
 def dispatch(method, headers, payload, service, secure=True):
     if len(payload)>450000: return 413,{'error':'Contenido demasiado grande.'},{}
@@ -34,8 +35,13 @@ def dispatch(method, headers, payload, service, secure=True):
         if action=='logout': extra['Set-Cookie']='aci_editorial='+flags+'; Max-Age=0'
         return 200,result,extra
     except Rejected as exc: return exc.status,{'error':exc.message},extra
+    except StorageUnavailable as exc:
+        logging.getLogger(__name__).warning('Editorial unavailable: %s',exc.code)
+        return 503,{'error':exc.message,'code':exc.code},extra
     except (ValueError,TypeError): return 400,{'error':'Solicitud inválida.'},extra
-    except Exception: return 503,{'error':'Servicio editorial no disponible. Ningún cambio fue confirmado.'},extra
+    except Exception as exc:
+        logging.getLogger(__name__).error('Editorial unavailable: CMS_INTERNAL (%s)',type(exc).__name__)
+        return 503,{'error':'Servicio editorial no disponible. Ningún cambio fue confirmado.','code':'CMS_INTERNAL'},extra
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self): self.respond(b'')

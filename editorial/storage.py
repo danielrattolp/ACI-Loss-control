@@ -3,8 +3,15 @@ import hashlib
 import json
 import os
 import sqlite3
+import urllib.error
 import urllib.request
 from editorial.service import initial
+
+class StorageUnavailable(RuntimeError):
+    """Only fixed, non-secret diagnostics may reach logs or HTTP responses."""
+    def __init__(self, code, message):
+        self.code, self.message = code, message
+        super().__init__(code)
 
 class Store:
     def __init__(self, local=False):
@@ -14,19 +21,32 @@ class Store:
         if environment=='production':
             return 'aci:editorial:v1'
         if environment not in {'preview','development'}:
-            raise RuntimeError('Entorno editorial remoto no identificado')
+            raise StorageUnavailable('CMS_ENV_MISSING', 'Vercel no identifica el entorno. Habilita sus variables de sistema y vuelve a desplegar.')
         branch=os.environ.get('VERCEL_GIT_COMMIT_REF') or os.environ.get('VERCEL_URL')
         if not branch:
-            raise RuntimeError('Vista previa editorial no identificada')
+            raise StorageUnavailable('CMS_PREVIEW_MISSING', 'Falta identificar la rama de prueba. Habilita las variables de sistema de Vercel y vuelve a desplegar.')
         identity=hashlib.sha256(branch.encode()).hexdigest()[:24]
         return f'aci:editorial:v1:{environment}:{identity}'
     def command(self, args):
         url=os.environ.get('KV_REST_API_URL','')
         token=os.environ.get('KV_REST_API_TOKEN','')
-        if not url.startswith('https://') or not token: raise RuntimeError('Almacenamiento editorial no configurado')
+        if not url or not token:
+            raise StorageUnavailable('CMS_STORAGE_MISSING', 'Falta configurar KV_REST_API_URL y KV_REST_API_TOKEN para este entorno de Vercel.')
+        if not url.startswith('https://'):
+            raise StorageUnavailable('CMS_STORAGE_URL', 'La dirección del almacenamiento editorial debe usar HTTPS.')
         req=urllib.request.Request(url,data=json.dumps(args).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
-        with urllib.request.urlopen(req,timeout=8) as response: result=json.load(response)
-        if 'error' in result: raise RuntimeError('Error del almacenamiento editorial')
+        try:
+            with urllib.request.urlopen(req,timeout=8) as response: result=json.load(response)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401,403}:
+                raise StorageUnavailable('CMS_STORAGE_AUTH', 'El almacenamiento rechazó el acceso. Revisa su conexión y los permisos del token.') from None
+            raise StorageUnavailable('CMS_STORAGE_UNAVAILABLE', 'El almacenamiento no está disponible. Revisa su estado antes de reintentar.') from None
+        except (urllib.error.URLError,TimeoutError,OSError):
+            raise StorageUnavailable('CMS_STORAGE_CONNECTION', 'No se pudo conectar con el almacenamiento editorial.') from None
+        except (ValueError,UnicodeError):
+            raise StorageUnavailable('CMS_STORAGE_RESPONSE', 'El almacenamiento devolvió una respuesta inválida.') from None
+        if not isinstance(result,dict) or 'error' in result or 'result' not in result:
+            raise StorageUnavailable('CMS_STORAGE_RESPONSE', 'El almacenamiento no confirmó la operación. Revisa que su conexión permita GET, EVAL y SET.')
         return result['result']
     def db(self):
         from pathlib import Path

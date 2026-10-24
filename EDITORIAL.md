@@ -58,3 +58,15 @@ El propietario debe configurar el hash de su contraseña administrativa y verifi
 El aislamiento de datos es automático: producción usa `aci:editorial:v1`; Preview y Development añaden el entorno y un identificador derivado de la rama. Por ello, las publicaciones, activaciones y revocaciones de una vista previa no modifican producción. Vercel debe exponer sus variables de sistema `VERCEL_ENV` y `VERCEL_GIT_COMMIT_REF` (o `VERCEL_URL`); si no se puede identificar el entorno remoto, el editor rechaza las operaciones. Las activaciones de prueba no se transfieren a producción. La prueba local no verifica la conectividad del KV de producción ni el empaquetado del despliegue remoto.
 
 El almacenamiento usa compare-and-set atómico para rechazar sobrescrituras simultáneas; ante un 409, recargar y revisar antes de volver a guardar. El contenido publicado se consulta al abrir la página; una sesión ya abierta requiere recargar para ver nuevas publicaciones. Ante un fallo de lectura, la página muestra su contenido estático original. Conservar respaldos del KV según la política de ACI; el historial está dentro del mismo almacenamiento y no sustituye un respaldo independiente.
+
+## Diagnóstico del despliegue
+
+`Servicio editorial no disponible` no confirma una contraseña incorrecta: se consulta el almacenamiento antes de validar credenciales. Los errores de almacenamiento devuelven 503 y un código fijo, sin registrar valores de variables, tokens, contraseñas ni respuestas del proveedor.
+
+- `CMS_STORAGE_MISSING`: falta `KV_REST_API_URL` o `KV_REST_API_TOKEN` en el entorno del despliegue (Preview y Production son independientes).
+- `CMS_STORAGE_AUTH`: el proveedor rechazó el token o sus permisos.
+- `CMS_STORAGE_CONNECTION` / `CMS_STORAGE_UNAVAILABLE`: fallo de conexión o indisponibilidad del proveedor.
+- `CMS_STORAGE_RESPONSE`: respuesta inválida o comando no permitido; comprobar permisos GET/EVAL/SET.
+- `CMS_ENV_MISSING` / `CMS_PREVIEW_MISSING`: faltan las variables de sistema de Vercel que identifican el entorno o la rama.
+
+Si falta únicamente `CMS_ADMIN_PASSWORD_HASH`, el inicio de sesión del administrador indica ese requisito explícitamente. No generar otra contraseña antes de comprobar el alcance Preview/Production del binding existente. Los cambios de variables se aplican mediante un nuevo despliegue del entorno afectado; abrir la URL del despliegue nuevo, no la de uno anterior.
