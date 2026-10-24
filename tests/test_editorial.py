@@ -32,12 +32,13 @@ class EditorialTests(unittest.TestCase):
     def test_configured_owner_requires_password_and_retains_admin_role(self):
         with patch.dict(os.environ):
             os.environ.pop('CMS_ADMIN_EMAIL', None)
-            self.reject(401,lambda:self.s.execute('login',{'email':'danieratto@acilatam.cl','password':'incorrect-password'}))
-            token=self.s.execute('login',{'email':'danieratto@acilatam.cl','password':'admin-password-for-tests'})['token']
+            self.reject(401,lambda:self.s.execute('login',{'email':'danielratto@acilatam.cl','password':'incorrect-password'}))
+            self.reject(401,lambda:self.s.execute('login',{'email':'danieratto@acilatam.cl','password':'admin-password-for-tests'}))
+            token=self.s.execute('login',{'email':'danielratto@acilatam.cl','password':'admin-password-for-tests'})['token']
             self.assertEqual(self.action('state',token)['role'],'admin')
             self.action('activate',token,password='editor-password-for-tests')
             self.action('revoke',token)
-            self.assertEqual(self.action('state',token)['email'],'danieratto@acilatam.cl')
+            self.assertEqual(self.action('state',token)['email'],'danielratto@acilatam.cl')
 
     def test_missing_admin_binding_is_not_a_wrong_password(self):
         with patch.dict(os.environ, {'CMS_ADMIN_PASSWORD_HASH': ''}):

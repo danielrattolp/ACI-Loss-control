@@ -6,7 +6,7 @@ El editor se abre en `/editor`. No se han creado cuentas, enviado invitaciones n
 
 Configurar una cuenta **propia** de administración con estas variables del servidor:
 
-- `CMS_ADMIN_EMAIL`: administrador configurado por defecto: `danieratto@acilatam.cl`. Esta variable permite reemplazarlo explícitamente. Debe ser distinto del correo de Francisco. El correo por sí solo no habilita el acceso: se requiere la contraseña administrativa.
+- `CMS_ADMIN_EMAIL`: administrador configurado por defecto: `danielratto@acilatam.cl`. Esta variable permite reemplazarlo explícitamente. Si ya estaba configurada con el correo anterior sin la letra «l», corregirla también en Vercel. Debe ser distinto del correo de Francisco. El correo por sí solo no habilita el acceso: se requiere la contraseña administrativa.
 - `CMS_ADMIN_PASSWORD_HASH`: hash scrypt generado con `python tools/hash_editor_password.py`. La herramienta solicita la contraseña sin mostrarla. Guardar el hash completo como valor protegido en la configuración del servidor; nunca incluir contraseña ni hash en Git.
 - En Vercel: conectar la base recuperada con **Custom Environment Variable Prefix: `ACI_REDIS`**. Esta integración nativa genera `ACI_REDIS_KV_REST_API_URL` y `ACI_REDIS_KV_REST_API_TOKEN`; ambas deben estar disponibles en Preview y Production. Así se conservan las variables `KV_*` de la integración anterior sin sobrescribirlas. El editor da prioridad a esa pareja nativa; también reconoce la pareja manual `ACI_REDIS_REST_API_URL`/`ACI_REDIS_REST_API_TOKEN` y, en ausencia de ambas, la pareja original `KV_REST_API_URL`/`KV_REST_API_TOKEN`. No mezcla URL y token de conexiones diferentes ni usa la conexión antigua como respaldo ante un fallo de la nueva.
 - El servicio necesita GET y EVAL/SET. Usa la clave independiente `aci:editorial:v1`, nunca las claves operacionales. Si falta el almacenamiento o falla, las escrituras devuelven 503 y no se confirman. Restaurar el respaldo existente en la base nueva antes de habilitarla para uso real. Esta selección de conexión corresponde al editor; las APIs operacionales existentes aún utilizan `KV_*` y su migración debe revisarse aparte después de comprobar la restauración.
@@ -36,7 +36,7 @@ Flask guarda el estado editorial en `.editorial-local.sqlite3` (ignorado en Git)
 Ejemplo en PowerShell, desde la carpeta del repositorio y con las dependencias de `requirements.txt` instaladas en `.venv`:
 
 ```powershell
-$env:CMS_ADMIN_EMAIL = 'danieratto@acilatam.cl'
+$env:CMS_ADMIN_EMAIL = 'danielratto@acilatam.cl'
 $env:CMS_ADMIN_PASSWORD_HASH = & .\.venv\Scripts\python.exe tools\hash_editor_password.py
 .\.venv\Scripts\python.exe app.py
 ```

@@ -11,7 +11,7 @@ import time
 FIELDS = json.loads(Path(__file__).with_name('fields.json').read_text())
 IMAGES = json.loads(Path(__file__).with_name('images.json').read_text())
 EMAIL = 'francisco.montenegro@acilatam.cl'
-DEFAULT_ADMIN_EMAIL = 'danieratto@acilatam.cl'
+DEFAULT_ADMIN_EMAIL = 'danielratto@acilatam.cl'
 
 def admin_email():
     return os.environ.get('CMS_ADMIN_EMAIL', DEFAULT_ADMIN_EMAIL).strip().lower()
