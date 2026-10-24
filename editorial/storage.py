@@ -28,10 +28,12 @@ class Store:
         identity=hashlib.sha256(branch.encode()).hexdigest()[:24]
         return f'aci:editorial:v1:{environment}:{identity}'
     def command(self, args):
-        url=os.environ.get('KV_REST_API_URL','')
-        token=os.environ.get('KV_REST_API_TOKEN','')
+        recovered=('ACI_REDIS_REST_API_URL','ACI_REDIS_REST_API_TOKEN')
+        names=recovered if any(os.environ.get(name) for name in recovered) else ('KV_REST_API_URL','KV_REST_API_TOKEN')
+        url=os.environ.get(names[0],'')
+        token=os.environ.get(names[1],'')
         if not url or not token:
-            raise StorageUnavailable('CMS_STORAGE_MISSING', 'Falta configurar KV_REST_API_URL y KV_REST_API_TOKEN para este entorno de Vercel.')
+            raise StorageUnavailable('CMS_STORAGE_MISSING', f'Falta configurar {names[0]} y {names[1]} para este entorno de Vercel.')
         if not url.startswith('https://'):
             raise StorageUnavailable('CMS_STORAGE_URL', 'La dirección del almacenamiento editorial debe usar HTTPS.')
         req=urllib.request.Request(url,data=json.dumps(args).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})

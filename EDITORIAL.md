@@ -8,7 +8,8 @@ Configurar una cuenta **propia** de administración con estas variables del serv
 
 - `CMS_ADMIN_EMAIL`: administrador configurado por defecto: `danieratto@acilatam.cl`. Esta variable permite reemplazarlo explícitamente. Debe ser distinto del correo de Francisco. El correo por sí solo no habilita el acceso: se requiere la contraseña administrativa.
 - `CMS_ADMIN_PASSWORD_HASH`: hash scrypt generado con `python tools/hash_editor_password.py`. La herramienta solicita la contraseña sin mostrarla. Guardar el hash completo como valor protegido en la configuración del servidor; nunca incluir contraseña ni hash en Git.
-- En Vercel: `KV_REST_API_URL` y `KV_REST_API_TOKEN`, bindings del Redis/Upstash existente. El servicio necesita GET y EVAL/SET. Usa la clave independiente `aci:editorial:v1`, nunca las claves operacionales. Si falta el almacenamiento o falla, las escrituras devuelven 503 y no se confirman.
+- En Vercel: conectar la base recuperada con **Custom Environment Variable Prefix: `ACI_REDIS`**. La integración proporciona `ACI_REDIS_REST_API_URL` y `ACI_REDIS_REST_API_TOKEN`; ambas deben estar disponibles en Preview y Production. Así se conservan las variables `KV_*` de la integración anterior sin sobrescribirlas. El editor da prioridad a la pareja `ACI_REDIS_*`; si no existe, mantiene compatibilidad con `KV_REST_API_URL` y `KV_REST_API_TOKEN`. No mezcla URL y token de conexiones diferentes ni usa la conexión antigua como respaldo ante un fallo de la nueva.
+- El servicio necesita GET y EVAL/SET. Usa la clave independiente `aci:editorial:v1`, nunca las claves operacionales. Si falta el almacenamiento o falla, las escrituras devuelven 503 y no se confirman. Restaurar el respaldo existente en la base nueva antes de habilitarla para uso real. Esta selección de conexión corresponde al editor; las APIs operacionales existentes aún utilizan `KV_*` y su migración debe revisarse aparte después de comprobar la restauración.
 
 Tras desplegar y comprobar el almacenamiento, el administrador inicia sesión, define una contraseña editorial exclusiva y pulsa **Activar por 30 días**. La cuenta se limita a `francisco.montenegro@acilatam.cl`. Comunicar la contraseña por un canal privado; no hay envío automático de correo ni invitación. No reutilizar claves de operaciones ni de hosting.
 
@@ -63,7 +64,7 @@ El almacenamiento usa compare-and-set atómico para rechazar sobrescrituras simu
 
 `Servicio editorial no disponible` no confirma una contraseña incorrecta: se consulta el almacenamiento antes de validar credenciales. Los errores de almacenamiento devuelven 503 y un código fijo, sin registrar valores de variables, tokens, contraseñas ni respuestas del proveedor.
 
-- `CMS_STORAGE_MISSING`: falta `KV_REST_API_URL` o `KV_REST_API_TOKEN` en el entorno del despliegue (Preview y Production son independientes).
+- `CMS_STORAGE_MISSING`: falta una variable de la pareja seleccionada `ACI_REDIS_REST_API_URL`/`ACI_REDIS_REST_API_TOKEN` o de la pareja compatible `KV_REST_API_URL`/`KV_REST_API_TOKEN` en el entorno del despliegue (Preview y Production son independientes).
 - `CMS_STORAGE_AUTH`: el proveedor rechazó el token o sus permisos.
 - `CMS_STORAGE_CONNECTION` / `CMS_STORAGE_UNAVAILABLE`: fallo de conexión o indisponibilidad del proveedor.
 - `CMS_STORAGE_RESPONSE`: respuesta inválida o comando no permitido; comprobar permisos GET/EVAL/SET.

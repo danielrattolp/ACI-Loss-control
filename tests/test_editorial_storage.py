@@ -63,6 +63,35 @@ class StorageDiagnostics(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body, {'content': {}, 'revision': None})
 
+    def test_recovered_connection_takes_precedence_over_archived_binding(self):
+        os.environ.update({'ACI_REDIS_REST_API_URL':'https://recovered.example.invalid',
+                           'ACI_REDIS_REST_API_TOKEN':'recovered-test-token'})
+        with patch('editorial.storage.urllib.request.urlopen', return_value=io.BytesIO(b'{"result":null}')) as request:
+            status, body, _ = self.call()
+        self.assertEqual(status, 200)
+        outgoing=request.call_args.args[0]
+        self.assertEqual(outgoing.full_url,'https://recovered.example.invalid')
+        self.assertEqual(outgoing.get_header('Authorization'),'Bearer recovered-test-token')
+        self.assertNotIn('recovered-test-token',json.dumps(body))
+
+    def test_partial_recovered_binding_does_not_mix_with_legacy_token(self):
+        os.environ['ACI_REDIS_REST_API_URL']='https://recovered.example.invalid'
+        with patch('editorial.storage.urllib.request.urlopen') as request, self.assertLogs('api.editorial'):
+            status, body, _ = self.call()
+        self.assertEqual(status,503)
+        self.assertEqual(body['code'],'CMS_STORAGE_MISSING')
+        self.assertIn('ACI_REDIS_REST_API_TOKEN',body['error'])
+        request.assert_not_called()
+
+    def test_recovered_failure_never_falls_back_to_archived_database(self):
+        os.environ.update({'ACI_REDIS_REST_API_URL':'https://recovered.example.invalid',
+                           'ACI_REDIS_REST_API_TOKEN':'recovered-test-token'})
+        with patch('editorial.storage.urllib.request.urlopen',side_effect=urllib.error.URLError('offline')) as request, self.assertLogs('api.editorial'):
+            status, body, _ = self.call()
+        self.assertEqual(status,503)
+        self.assertEqual(body['code'],'CMS_STORAGE_CONNECTION')
+        request.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()
