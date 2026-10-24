@@ -101,4 +101,26 @@ class EditorialTests(unittest.TestCase):
             a,b=Store(True),Store(True);state,tag=a.load();other,stale=b.load()
             self.assertTrue(a.save(tag,state));self.assertFalse(b.save(stale,other))
 
+    def test_remote_preview_and_production_storage_are_isolated(self):
+        store=Store()
+        with patch.dict(os.environ,{'VERCEL_ENV':'production'}):
+            production=store.key()
+        with patch.dict(os.environ,{'VERCEL_ENV':'preview','VERCEL_GIT_COMMIT_REF':'editor-branch'}):
+            preview=store.key()
+            with patch.object(store,'command',side_effect=[None,1]) as command:
+                state,tag=store.load()
+                self.assertTrue(store.save(tag,state))
+                self.assertEqual(command.call_args_list[0].args[0],['GET',preview])
+                self.assertEqual(command.call_args_list[1].args[0][3],preview)
+        with patch.dict(os.environ,{'VERCEL_ENV':'preview','VERCEL_GIT_COMMIT_REF':'another-branch'}):
+            self.assertNotEqual(preview,store.key())
+        self.assertEqual(production,'aci:editorial:v1')
+        self.assertNotEqual(production,preview)
+
+    def test_unidentified_remote_environment_fails_closed(self):
+        with patch.dict(os.environ,clear=True):
+            with self.assertRaises(RuntimeError):Store().key()
+        with patch.dict(os.environ,{'VERCEL_ENV':'preview'},clear=True):
+            with self.assertRaises(RuntimeError):Store().key()
+
 if __name__=='__main__':unittest.main()
