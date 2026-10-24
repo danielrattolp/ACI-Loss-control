@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Edición · ACI LATAM</title><link rel="stylesheet" href="/editor.css"></head>
+<body><header><h1>Edición de la página pública</h1><p>Los cambios se guardan en borrador. La publicación requiere aprobación del administrador.</p></header>
+<p id="message" role="status" aria-live="polite"></p>
+<form id="login"><label>Correo<input name="email" type="email" autocomplete="username" required></label><label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label><button>Ingresar</button></form>
+<main id="workspace" hidden><p id="identity"></p><button id="logout">Cerrar sesión</button>
+<section id="admin" hidden><h2>Acceso temporal de Francisco</h2><p id="access"></p><form id="activation"><label>Contraseña temporal (mínimo 14 caracteres)<input type="password" name="password" minlength="14" maxlength="256" autocomplete="new-password" required></label><button>Activar por 30 días</button></form><button id="revoke">Revocar acceso ahora</button><p>Entrega la contraseña por un canal privado. Activar nuevamente reemplaza la contraseña e invalida sus sesiones anteriores.</p></section>
+<section><h2>Versiones</h2><select id="versions" aria-label="Versión a revisar"></select><button id="load">Cargar versión</button><button id="publish" hidden>Publicar versión seleccionada</button><p>Para recuperar una publicación anterior, selecciónala, revísala y publícala nuevamente.</p><div id="changes"></div></section>
+<div class="columns"><form id="draft"><h2>Contenido</h2><p>Las imágenes disponibles pertenecen a la biblioteca del sitio. El encuadre ajusta su posición horizontal.</p><div id="fields"></div><button>Guardar borrador</button></form><section><h2>Vista previa</h2><iframe id="preview" src="/public-preview" title="Vista previa de la página pública"></iframe></section></div>
+<section id="history" hidden><h2>Registro de actividad</h2><ul id="audit"></ul></section></main><script src="/editor.js" defer></script></body></html>

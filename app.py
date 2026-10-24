@@ -901,6 +901,30 @@ def serve_site_js():
     return send_from_directory(".", "site.js")
 
 
+# Editorial development routes; production uses the isolated Vercel endpoint.
+@app.route("/editor")
+def editorial_page():
+    return send_from_directory(".", "editor.html")
+
+@app.route("/public-preview")
+def editorial_public_preview():
+    return send_from_directory(".", "index.html")
+
+@app.route("/editor.js")
+@app.route("/editor.css")
+@app.route("/public-content.js")
+def editorial_asset():
+    return send_from_directory(".", request.path.lstrip("/"))
+
+@app.route("/api/editorial", methods=["GET", "POST"])
+def editorial_api():
+    from api.editorial import dispatch
+    from editorial.service import Service
+    from editorial.storage import Store
+    status, data, headers = dispatch(request.method, request.headers, request.get_data(), Service(Store(local=True)), secure=request.is_secure)
+    return jsonify(data), status, {"Cache-Control": "no-store", **headers}
+
+
 @app.route("/favicon.ico")
 def serve_favicon_ico():
     return send_from_directory(".", "favicon.ico")

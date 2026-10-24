@@ -18,3 +18,6 @@ read_summary.js
 read_ullage.js
 read_excel_tmp.py
 .env
+
+# Local editorial data (accounts and drafts)
+.editorial-local.sqlite3*
