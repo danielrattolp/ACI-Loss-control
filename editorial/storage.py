@@ -28,8 +28,12 @@ class Store:
         identity=hashlib.sha256(branch.encode()).hexdigest()[:24]
         return f'aci:editorial:v1:{environment}:{identity}'
     def command(self, args):
-        recovered=('ACI_REDIS_REST_API_URL','ACI_REDIS_REST_API_TOKEN')
-        names=recovered if any(os.environ.get(name) for name in recovered) else ('KV_REST_API_URL','KV_REST_API_TOKEN')
+        connections=(
+            ('ACI_REDIS_KV_REST_API_URL','ACI_REDIS_KV_REST_API_TOKEN'),
+            ('ACI_REDIS_REST_API_URL','ACI_REDIS_REST_API_TOKEN'),
+            ('KV_REST_API_URL','KV_REST_API_TOKEN'),
+        )
+        names=next((pair for pair in connections if any(os.environ.get(name) for name in pair)),connections[0])
         url=os.environ.get(names[0],'')
         token=os.environ.get(names[1],'')
         if not url or not token:

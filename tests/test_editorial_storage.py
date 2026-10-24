@@ -92,6 +92,29 @@ class StorageDiagnostics(unittest.TestCase):
         self.assertEqual(body['code'],'CMS_STORAGE_CONNECTION')
         request.assert_called_once()
 
+    def test_vercel_generated_recovered_names_have_priority(self):
+        os.environ.update({
+            'ACI_REDIS_KV_REST_API_URL':'https://native-recovered.example.invalid',
+            'ACI_REDIS_KV_REST_API_TOKEN':'native-recovered-test-token',
+            'ACI_REDIS_REST_API_URL':'https://manually-configured.example.invalid',
+            'ACI_REDIS_REST_API_TOKEN':'manually-configured-token',
+        })
+        with patch('editorial.storage.urllib.request.urlopen',return_value=io.BytesIO(b'{"result":null}')) as request:
+            status, _, _ = self.call()
+        self.assertEqual(status,200)
+        outgoing=request.call_args.args[0]
+        self.assertEqual(outgoing.full_url,'https://native-recovered.example.invalid')
+        self.assertEqual(outgoing.get_header('Authorization'),'Bearer native-recovered-test-token')
+
+    def test_partial_vercel_generated_binding_does_not_use_older_connection(self):
+        os.environ['ACI_REDIS_KV_REST_API_URL']='https://native-recovered.example.invalid'
+        with patch('editorial.storage.urllib.request.urlopen') as request, self.assertLogs('api.editorial'):
+            status, body, _ = self.call()
+        self.assertEqual(status,503)
+        self.assertEqual(body['code'],'CMS_STORAGE_MISSING')
+        self.assertIn('ACI_REDIS_KV_REST_API_TOKEN',body['error'])
+        request.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
