@@ -99,6 +99,18 @@ const serviceDetails = {
   },
 };
 
+// Only known service text fields can be replaced; content is rendered via textContent.
+window.addEventListener('aci-public-content', event => {
+  for (const [key, value] of Object.entries(event.detail || {})) {
+    const [prefix, service, part, index] = key.split(':');
+    if (prefix !== 'service' || !Object.hasOwn(serviceDetails, service) || typeof value !== 'string') continue;
+    const target = serviceDetails[service];
+    if (!Object.hasOwn(target, part)) continue;
+    if (Array.isArray(target[part]) && /^\d+$/.test(index || '') && Number(index) < target[part].length) target[part][Number(index)] = value;
+    else if (typeof target[part] === 'string' && index === undefined) target[part] = value;
+  }
+});
+
 const serviceDialog = document.querySelector("#serviceDialog");
 const dialogTitle = document.querySelector("#serviceDialogTitle");
 const dialogIntro = document.querySelector("#serviceDialogIntro");

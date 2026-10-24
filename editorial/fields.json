@@ -1,0 +1,752 @@
+{
+  "text-1": {
+    "kind": "text",
+    "label": "Empresa",
+    "value": "Empresa"
+  },
+  "text-2": {
+    "kind": "text",
+    "label": "Servicios",
+    "value": "Servicios"
+  },
+  "text-3": {
+    "kind": "text",
+    "label": "Cobertura",
+    "value": "Cobertura"
+  },
+  "text-4": {
+    "kind": "text",
+    "label": "Manuales",
+    "value": "Manuales"
+  },
+  "text-5": {
+    "kind": "text",
+    "label": "Contacto",
+    "value": "Contacto"
+  },
+  "text-6": {
+    "kind": "text",
+    "label": "Operaciones",
+    "value": "Operaciones"
+  },
+  "text-7": {
+    "kind": "text",
+    "label": "Portal Cliente",
+    "value": "Portal Cliente"
+  },
+  "text-8": {
+    "kind": "text",
+    "label": "Loss control petrolero y expediting",
+    "value": "Loss control petrolero y expediting"
+  },
+  "text-9": {
+    "kind": "text",
+    "label": "ACI LATAM",
+    "value": "ACI LATAM"
+  },
+  "text-10": {
+    "kind": "text",
+    "label": "Protegemos los intereses de nuestros principales durante operaciones de carga,\n           ",
+    "value": "Protegemos los intereses de nuestros principales durante operaciones de carga,\n            descarga, transferencia y almacenamiento de mercancias petroleras mediante presencia\n            tecnica, control de cantidades, control de calidad y reportabilidad trazable."
+  },
+  "text-11": {
+    "kind": "text",
+    "label": "Solicitar cobertura",
+    "value": "Solicitar cobertura"
+  },
+  "text-12": {
+    "kind": "text",
+    "label": "Ver servicios",
+    "value": "Ver servicios"
+  },
+  "text-13": {
+    "kind": "text",
+    "label": "Presencia regional",
+    "value": "Presencia regional"
+  },
+  "text-14": {
+    "kind": "text",
+    "label": "Chile, Argentina, Ecuador, Colombia, Peru, Caribe y Estados Unidos",
+    "value": "Chile, Argentina, Ecuador, Colombia, Peru, Caribe y Estados Unidos"
+  },
+  "text-15": {
+    "kind": "text",
+    "label": "Foco critico",
+    "value": "Foco critico"
+  },
+  "text-16": {
+    "kind": "text",
+    "label": "Control de merma, cantidad, calidad y tiempos operacionales",
+    "value": "Control de merma, cantidad, calidad y tiempos operacionales"
+  },
+  "text-17": {
+    "kind": "text",
+    "label": "Contacto",
+    "value": "Contacto"
+  },
+  "text-18": {
+    "kind": "text",
+    "label": "contacto@acilatam.cl",
+    "value": "contacto@acilatam.cl"
+  },
+  "text-19": {
+    "kind": "text",
+    "label": "Quienes somos",
+    "value": "Quienes somos"
+  },
+  "text-20": {
+    "kind": "text",
+    "label": "Una compania creada para operaciones donde cada barril importa.",
+    "value": "Una compania creada para operaciones donde cada barril importa."
+  },
+  "text-21": {
+    "kind": "text",
+    "label": "ACI LATAM ejecuta servicios de loss control petrolero bajo estandares operacionales\n      ",
+    "value": "ACI LATAM ejecuta servicios de loss control petrolero bajo estandares operacionales\n            exigentes, con reportabilidad clara, presencia en terreno y capacidad de respuesta\n            nacional en mercados clave de la costa pacifica sudamericana."
+  },
+  "text-22": {
+    "kind": "text",
+    "label": "Actuamos como los ojos tecnicos del cliente en terminales, buques, plantas y patios,\n     ",
+    "value": "Actuamos como los ojos tecnicos del cliente en terminales, buques, plantas y patios,\n            verificando cantidades, calidad, seguridad documental y trazabilidad de los eventos que\n            pueden generar perdidas, controversias o reclamos."
+  },
+  "text-23": {
+    "kind": "text",
+    "label": "Mision",
+    "value": "Mision"
+  },
+  "text-24": {
+    "kind": "text",
+    "label": "Proteger los intereses operacionales y economicos de nuestros clientes mediante servicios\n",
+    "value": "Proteger los intereses operacionales y economicos de nuestros clientes mediante servicios\n            independientes de loss control, expediting, inspeccion y control documental."
+  },
+  "text-25": {
+    "kind": "text",
+    "label": "Vision",
+    "value": "Vision"
+  },
+  "text-26": {
+    "kind": "text",
+    "label": "Ser la empresa latinoamericana de referencia en loss control petrolero para operaciones\n  ",
+    "value": "Ser la empresa latinoamericana de referencia en loss control petrolero para operaciones\n            de alto requisito, reconocida por cobertura regional y confiabilidad tecnica."
+  },
+  "text-27": {
+    "kind": "text",
+    "label": "Proposito",
+    "value": "Proposito"
+  },
+  "text-28": {
+    "kind": "text",
+    "label": "Dar certeza a operaciones criticas, reduciendo perdidas, disputas y riesgos mediante\n     ",
+    "value": "Dar certeza a operaciones criticas, reduciendo perdidas, disputas y riesgos mediante\n            presencia experta, evidencia verificable y decisiones informadas."
+  },
+  "text-29": {
+    "kind": "text",
+    "label": "Servicios",
+    "value": "Servicios"
+  },
+  "text-30": {
+    "kind": "text",
+    "label": "Control integral desde la programacion hasta el informe final.",
+    "value": "Control integral desde la programacion hasta el informe final."
+  },
+  "text-31": {
+    "kind": "text",
+    "label": "01",
+    "value": "01"
+  },
+  "text-32": {
+    "kind": "text",
+    "label": "Loss control y expediting",
+    "value": "Loss control y expediting"
+  },
+  "text-33": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga, control de tiempos, seguimiento de eventos y alertas tempr",
+    "value": "Asistencia en carga y descarga, control de tiempos, seguimiento de eventos y alertas tempranas."
+  },
+  "text-34": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-35": {
+    "kind": "text",
+    "label": "02",
+    "value": "02"
+  },
+  "text-36": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal",
+    "value": "Reconciliacion nave/terminal"
+  },
+  "text-37": {
+    "kind": "text",
+    "label": "Comparacion de cantidades, tiempos, documentos, mediciones y diferencias operacionales.",
+    "value": "Comparacion de cantidades, tiempos, documentos, mediciones y diferencias operacionales."
+  },
+  "text-38": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-39": {
+    "kind": "text",
+    "label": "03",
+    "value": "03"
+  },
+  "text-40": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad",
+    "value": "Control de cantidad y calidad"
+  },
+  "text-41": {
+    "kind": "text",
+    "label": "Supervision de mediciones, muestreo, temperatura, aforo y documentacion de laboratorio.",
+    "value": "Supervision de mediciones, muestreo, temperatura, aforo y documentacion de laboratorio."
+  },
+  "text-42": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-43": {
+    "kind": "text",
+    "label": "04",
+    "value": "04"
+  },
+  "text-44": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga",
+    "value": "Asistencia en carga y descarga"
+  },
+  "text-45": {
+    "kind": "text",
+    "label": "Presencia tecnica durante la operacion, control de eventos y seguimiento de desviaciones.",
+    "value": "Presencia tecnica durante la operacion, control de eventos y seguimiento de desviaciones."
+  },
+  "text-46": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-47": {
+    "kind": "text",
+    "label": "05",
+    "value": "05"
+  },
+  "text-48": {
+    "kind": "text",
+    "label": "Soporte a reclamos",
+    "value": "Soporte a reclamos"
+  },
+  "text-49": {
+    "kind": "text",
+    "label": "Consolidacion de evidencias, lineas de tiempo, documentos criticos y respaldo tecnico.",
+    "value": "Consolidacion de evidencias, lineas de tiempo, documentos criticos y respaldo tecnico."
+  },
+  "text-50": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-51": {
+    "kind": "text",
+    "label": "06",
+    "value": "06"
+  },
+  "text-52": {
+    "kind": "text",
+    "label": "Informes y trazabilidad",
+    "value": "Informes y trazabilidad"
+  },
+  "text-53": {
+    "kind": "text",
+    "label": "Reportes preliminares, bitacoras, dossier documental e informe final con hallazgos.",
+    "value": "Reportes preliminares, bitacoras, dossier documental e informe final con hallazgos."
+  },
+  "text-54": {
+    "kind": "text",
+    "label": "+",
+    "value": "+"
+  },
+  "text-55": {
+    "kind": "text",
+    "label": "Detalle del servicio",
+    "value": "Detalle del servicio"
+  },
+  "text-56": {
+    "kind": "text",
+    "label": "&times;",
+    "value": "×"
+  },
+  "text-57": {
+    "kind": "text",
+    "label": "Trabajo que realizamos",
+    "value": "Trabajo que realizamos"
+  },
+  "text-58": {
+    "kind": "text",
+    "label": "Entregables y resultado",
+    "value": "Entregables y resultado"
+  },
+  "text-59": {
+    "kind": "text",
+    "label": "Solicitar este servicio",
+    "value": "Solicitar este servicio"
+  },
+  "text-60": {
+    "kind": "text",
+    "label": "Cobertura",
+    "value": "Cobertura"
+  },
+  "text-61": {
+    "kind": "text",
+    "label": "Cobertura regional y soporte internacional para mercados estrategicos.",
+    "value": "Cobertura regional y soporte internacional para mercados estrategicos."
+  },
+  "text-62": {
+    "kind": "text",
+    "label": "Chile",
+    "value": "Chile"
+  },
+  "text-63": {
+    "kind": "text",
+    "label": "Operacion nacional para puertos, terminales, refinerias, plantas y rutas de abastecimiento",
+    "value": "Operacion nacional para puertos, terminales, refinerias, plantas y rutas de abastecimiento."
+  },
+  "text-64": {
+    "kind": "text",
+    "label": "Argentina",
+    "value": "Argentina"
+  },
+  "text-65": {
+    "kind": "text",
+    "label": "Cobertura para operaciones de carga, descarga y transferencia en puertos y terminales del ",
+    "value": "Cobertura para operaciones de carga, descarga y transferencia en puertos y terminales del litoral atlantico y patagonia."
+  },
+  "text-66": {
+    "kind": "text",
+    "label": "Ecuador",
+    "value": "Ecuador"
+  },
+  "text-67": {
+    "kind": "text",
+    "label": "Cobertura para operaciones portuarias, terminales de almacenamiento y suministro de combus",
+    "value": "Cobertura para operaciones portuarias, terminales de almacenamiento y suministro de combustibles."
+  },
+  "text-68": {
+    "kind": "text",
+    "label": "Colombia",
+    "value": "Colombia"
+  },
+  "text-69": {
+    "kind": "text",
+    "label": "Presencia para operaciones costeras e interiores con soporte tecnico y documental.",
+    "value": "Presencia para operaciones costeras e interiores con soporte tecnico y documental."
+  },
+  "text-70": {
+    "kind": "text",
+    "label": "Peru",
+    "value": "Peru"
+  },
+  "text-71": {
+    "kind": "text",
+    "label": "Soporte para terminales, puertos y operaciones de abastecimiento en la costa pacifica.",
+    "value": "Soporte para terminales, puertos y operaciones de abastecimiento en la costa pacifica."
+  },
+  "text-72": {
+    "kind": "text",
+    "label": "Caribe",
+    "value": "Caribe"
+  },
+  "text-73": {
+    "kind": "text",
+    "label": "Coordinacion operativa para cargas, descargas y transferencias en rutas energeticas region",
+    "value": "Coordinacion operativa para cargas, descargas y transferencias en rutas energeticas regionales."
+  },
+  "text-74": {
+    "kind": "text",
+    "label": "Estados Unidos",
+    "value": "Estados Unidos"
+  },
+  "text-75": {
+    "kind": "text",
+    "label": "Apoyo tecnico y documental para operaciones internacionales con alto requerimiento de traz",
+    "value": "Apoyo tecnico y documental para operaciones internacionales con alto requerimiento de trazabilidad."
+  },
+  "text-76": {
+    "kind": "text",
+    "label": "Manuales internos",
+    "value": "Manuales internos"
+  },
+  "text-77": {
+    "kind": "text",
+    "label": "Base documental para operar con estandar corporativo.",
+    "value": "Base documental para operar con estandar corporativo."
+  },
+  "text-78": {
+    "kind": "text",
+    "label": "ACI estructura manuales, procedimientos y registros para ejecutar loss control con\n       ",
+    "value": "ACI estructura manuales, procedimientos y registros para ejecutar loss control con\n            trazabilidad, consistencia tecnica y mejora continua."
+  },
+  "text-79": {
+    "kind": "text",
+    "label": "Manual operacional de loss control y expediting.",
+    "value": "Manual operacional de loss control y expediting."
+  },
+  "text-80": {
+    "kind": "text",
+    "label": "Formatos de bitacora, reporte preliminar e informe final.",
+    "value": "Formatos de bitacora, reporte preliminar e informe final."
+  },
+  "text-81": {
+    "kind": "text",
+    "label": "Control documental, evidencias y trazabilidad.",
+    "value": "Control documental, evidencias y trazabilidad."
+  },
+  "text-82": {
+    "kind": "text",
+    "label": "Competencia del personal y revision tecnica de informes.",
+    "value": "Competencia del personal y revision tecnica de informes."
+  },
+  "text-83": {
+    "kind": "text",
+    "label": "Solicitar cobertura",
+    "value": "Solicitar cobertura"
+  },
+  "text-84": {
+    "kind": "text",
+    "label": "Envie su requerimiento a ACI.",
+    "value": "Envie su requerimiento a ACI."
+  },
+  "text-85": {
+    "kind": "text",
+    "label": "contacto@acilatam.cl",
+    "value": "contacto@acilatam.cl"
+  },
+  "text-86": {
+    "kind": "text",
+    "label": "Enviar solicitud",
+    "value": "Enviar solicitud"
+  },
+  "text-87": {
+    "kind": "text",
+    "label": "ACI LATAM | Loss Control Experts | Chile, Argentina, Ecuador, Colombia, Peru, Caribe y Est",
+    "value": "ACI LATAM | Loss Control Experts | Chile, Argentina, Ecuador, Colombia, Peru, Caribe y Estados Unidos"
+  },
+  "text-88": {
+    "kind": "text",
+    "label": "contacto@acilatam.cl",
+    "value": "contacto@acilatam.cl"
+  },
+  "hero-image": {
+    "kind": "image",
+    "label": "Imagen principal",
+    "value": "/assets/oil-tanker-hero.png"
+  },
+  "hero-position": {
+    "kind": "position",
+    "label": "Encuadre horizontal de imagen principal (%)",
+    "value": "50"
+  },
+  "service:loss-control:title": {
+    "kind": "text",
+    "label": "Loss control y expediting · title",
+    "value": "Loss control y expediting"
+  },
+  "service:loss-control:intro": {
+    "kind": "text",
+    "label": "Loss control y expediting · intro",
+    "value": "Representamos tecnicamente los intereses del cliente durante toda la operacion, con seguimiento continuo y comunicacion temprana de cualquier condicion que pueda afectar cantidad, calidad, tiempo o costo."
+  },
+  "service:loss-control:activities:0": {
+    "kind": "text",
+    "label": "Loss control y expediting · activities 1",
+    "value": "Revision previa de instrucciones, nominaciones, ventanas operacionales y documentos disponibles."
+  },
+  "service:loss-control:activities:1": {
+    "kind": "text",
+    "label": "Loss control y expediting · activities 2",
+    "value": "Coordinacion con nave, terminal, inspector independiente y representantes involucrados."
+  },
+  "service:loss-control:activities:2": {
+    "kind": "text",
+    "label": "Loss control y expediting · activities 3",
+    "value": "Seguimiento de hitos, tiempos, demoras, interrupciones, restricciones y eventos relevantes."
+  },
+  "service:loss-control:activities:3": {
+    "kind": "text",
+    "label": "Loss control y expediting · activities 4",
+    "value": "Emision de alertas tempranas y recomendaciones tecnicas durante la operacion."
+  },
+  "service:loss-control:deliverables:0": {
+    "kind": "text",
+    "label": "Loss control y expediting · deliverables 1",
+    "value": "Actualizaciones operacionales y registro cronologico de eventos."
+  },
+  "service:loss-control:deliverables:1": {
+    "kind": "text",
+    "label": "Loss control y expediting · deliverables 2",
+    "value": "Identificacion oportuna de desviaciones y riesgos de perdida."
+  },
+  "service:loss-control:deliverables:2": {
+    "kind": "text",
+    "label": "Loss control y expediting · deliverables 3",
+    "value": "Bitacora consolidada y reporte tecnico de cierre."
+  },
+  "service:loss-control:deliverables:3": {
+    "kind": "text",
+    "label": "Loss control y expediting · deliverables 4",
+    "value": "Mayor visibilidad para la toma de decisiones del cliente."
+  },
+  "service:reconciliacion:title": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · title",
+    "value": "Reconciliacion nave/terminal"
+  },
+  "service:reconciliacion:intro": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · intro",
+    "value": "Analizamos y comparamos las cifras reportadas por la nave, el terminal y las partes relacionadas para explicar diferencias y determinar en que etapa de la operacion pudieron originarse."
+  },
+  "service:reconciliacion:activities:0": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · activities 1",
+    "value": "Revision de mediciones iniciales y finales de nave y terminal."
+  },
+  "service:reconciliacion:activities:1": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · activities 2",
+    "value": "Comparacion de volumenes observados y corregidos, temperaturas, densidades y factores aplicados."
+  },
+  "service:reconciliacion:activities:2": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · activities 3",
+    "value": "Validacion de documentos, tablas, certificados y secuencia de mediciones."
+  },
+  "service:reconciliacion:activities:3": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · activities 4",
+    "value": "Analisis de diferencias, tolerancias, remanentes y posibles causas operacionales."
+  },
+  "service:reconciliacion:deliverables:0": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · deliverables 1",
+    "value": "Cuadro de reconciliacion de cantidades nave/terminal/planta."
+  },
+  "service:reconciliacion:deliverables:1": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · deliverables 2",
+    "value": "Explicacion tecnica de diferencias identificadas."
+  },
+  "service:reconciliacion:deliverables:2": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · deliverables 3",
+    "value": "Listado de inconsistencias documentales o de medicion."
+  },
+  "service:reconciliacion:deliverables:3": {
+    "kind": "text",
+    "label": "Reconciliacion nave/terminal · deliverables 4",
+    "value": "Conclusiones respaldadas para cierre o investigacion posterior."
+  },
+  "service:cantidad-calidad:title": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · title",
+    "value": "Control de cantidad y calidad"
+  },
+  "service:cantidad-calidad:intro": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · intro",
+    "value": "Supervisamos los puntos de medicion y muestreo que determinan la cantidad y especificacion del producto, verificando que la informacion utilizada sea consistente, trazable y representativa."
+  },
+  "service:cantidad-calidad:activities:0": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · activities 1",
+    "value": "Observacion de aforos, lecturas de nivel, temperatura, agua libre y medicion de tanques."
+  },
+  "service:cantidad-calidad:activities:1": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · activities 2",
+    "value": "Revision de equipos, certificados de calibracion y condiciones de medicion."
+  },
+  "service:cantidad-calidad:activities:2": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · activities 3",
+    "value": "Supervision de muestreo, sellado, identificacion y cadena de custodia."
+  },
+  "service:cantidad-calidad:activities:3": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · activities 4",
+    "value": "Revision de certificados de calidad y resultados de laboratorio disponibles."
+  },
+  "service:cantidad-calidad:deliverables:0": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · deliverables 1",
+    "value": "Registro de mediciones y condiciones observadas."
+  },
+  "service:cantidad-calidad:deliverables:1": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · deliverables 2",
+    "value": "Trazabilidad de muestras y documentos de calidad."
+  },
+  "service:cantidad-calidad:deliverables:2": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · deliverables 3",
+    "value": "Reporte de desviaciones o inconsistencias detectadas."
+  },
+  "service:cantidad-calidad:deliverables:3": {
+    "kind": "text",
+    "label": "Control de cantidad y calidad · deliverables 4",
+    "value": "Respaldo tecnico de las cifras utilizadas en la operacion."
+  },
+  "service:carga-descarga:title": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · title",
+    "value": "Asistencia en carga y descarga"
+  },
+  "service:carga-descarga:intro": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · intro",
+    "value": "Mantenemos presencia tecnica en terreno durante la ejecucion fisica de la transferencia, observando la secuencia operacional y documentando cualquier desviacion respecto del plan acordado."
+  },
+  "service:carga-descarga:activities:0": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · activities 1",
+    "value": "Asistencia a reuniones previas y revision de la secuencia de transferencia."
+  },
+  "service:carga-descarga:activities:1": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · activities 2",
+    "value": "Control de inicio, detenciones, reinicios, cambios de tanque y termino de operacion."
+  },
+  "service:carga-descarga:activities:2": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · activities 3",
+    "value": "Seguimiento de caudales, presiones, stripping, drenajes y remanentes cuando corresponda."
+  },
+  "service:carga-descarga:activities:3": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · activities 4",
+    "value": "Registro fotografico y documental de condiciones o eventos relevantes."
+  },
+  "service:carga-descarga:deliverables:0": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · deliverables 1",
+    "value": "Bitacora horaria de la carga o descarga."
+  },
+  "service:carga-descarga:deliverables:1": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · deliverables 2",
+    "value": "Registro de demoras, interrupciones y desviaciones operacionales."
+  },
+  "service:carga-descarga:deliverables:2": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · deliverables 3",
+    "value": "Evidencia fotografica organizada y referenciada."
+  },
+  "service:carga-descarga:deliverables:3": {
+    "kind": "text",
+    "label": "Asistencia en carga y descarga · deliverables 4",
+    "value": "Reporte de operacion con observaciones y hechos verificables."
+  },
+  "service:reclamos:title": {
+    "kind": "text",
+    "label": "Soporte a reclamos · title",
+    "value": "Soporte a reclamos"
+  },
+  "service:reclamos:intro": {
+    "kind": "text",
+    "label": "Soporte a reclamos · intro",
+    "value": "Ordenamos y analizamos la evidencia tecnica disponible para ayudar al cliente a sustentar una diferencia, responder una controversia o evaluar la viabilidad de un reclamo operacional."
+  },
+  "service:reclamos:activities:0": {
+    "kind": "text",
+    "label": "Soporte a reclamos · activities 1",
+    "value": "Recopilacion de reportes, certificados, comunicaciones, fotografias y registros de tiempo."
+  },
+  "service:reclamos:activities:1": {
+    "kind": "text",
+    "label": "Soporte a reclamos · activities 2",
+    "value": "Construccion de una linea de tiempo verificable de la operacion."
+  },
+  "service:reclamos:activities:2": {
+    "kind": "text",
+    "label": "Soporte a reclamos · activities 3",
+    "value": "Revision de calculos, diferencias, protestas y documentos emitidos por las partes."
+  },
+  "service:reclamos:activities:3": {
+    "kind": "text",
+    "label": "Soporte a reclamos · activities 4",
+    "value": "Identificacion de vacios documentales, contradicciones y hechos tecnicamente relevantes."
+  },
+  "service:reclamos:deliverables:0": {
+    "kind": "text",
+    "label": "Soporte a reclamos · deliverables 1",
+    "value": "Dossier ordenado de evidencia y documentos criticos."
+  },
+  "service:reclamos:deliverables:1": {
+    "kind": "text",
+    "label": "Soporte a reclamos · deliverables 2",
+    "value": "Cronologia consolidada de hechos y comunicaciones."
+  },
+  "service:reclamos:deliverables:2": {
+    "kind": "text",
+    "label": "Soporte a reclamos · deliverables 3",
+    "value": "Informe tecnico de hallazgos y puntos de sustento."
+  },
+  "service:reclamos:deliverables:3": {
+    "kind": "text",
+    "label": "Soporte a reclamos · deliverables 4",
+    "value": "Base documental para revision comercial, legal o aseguradora."
+  },
+  "service:informes:title": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · title",
+    "value": "Informes y trazabilidad"
+  },
+  "service:informes:intro": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · intro",
+    "value": "Transformamos la informacion generada en terreno en reportes claros, consistentes y defendibles, manteniendo trazabilidad desde el primer evento hasta las conclusiones finales."
+  },
+  "service:informes:activities:0": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · activities 1",
+    "value": "Emision de reportes preliminares y actualizaciones durante la operacion."
+  },
+  "service:informes:activities:1": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · activities 2",
+    "value": "Consolidacion de bitacoras, mediciones, documentos, fotografias y comunicaciones."
+  },
+  "service:informes:activities:2": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · activities 3",
+    "value": "Revision tecnica y control de consistencia antes de la entrega."
+  },
+  "service:informes:activities:3": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · activities 4",
+    "value": "Organizacion del expediente digital con identificacion y versionamiento documental."
+  },
+  "service:informes:deliverables:0": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · deliverables 1",
+    "value": "Reporte preliminar de eventos y desviaciones relevantes."
+  },
+  "service:informes:deliverables:1": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · deliverables 2",
+    "value": "Informe final con cronologia, hallazgos y conclusiones."
+  },
+  "service:informes:deliverables:2": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · deliverables 3",
+    "value": "Anexos documentales y fotograficos trazables."
+  },
+  "service:informes:deliverables:3": {
+    "kind": "text",
+    "label": "Informes y trazabilidad · deliverables 4",
+    "value": "Expediente operacional preparado para consulta y auditoria."
+  }
+}

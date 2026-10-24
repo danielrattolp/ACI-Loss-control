@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/editor", "destination": "/editor.html" },
+    { "source": "/public-preview", "destination": "/index.html" },
     { "source": "/app.js",              "destination": "/app/app.js"  },
     { "source": "/app.css",             "destination": "/app/app.css" },
     { "source": "/brochure",            "destination": "/assets/ACI-LATAM-Brochure-Corporativo.pdf" },
@@ -10,9 +12,14 @@
     { "source": "/cliente/(.*)",        "destination": "/cliente.html" }
   ],
   "functions": {
+    "api/editorial.py": { "includeFiles": "editorial/**" },
     "api/consultar.py": { "maxDuration": 120 }
   },
   "headers": [
+    {"source": "/editor", "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "X-Frame-Options", "value": "SAMEORIGIN"}, {"key": "X-Content-Type-Options", "value": "nosniff"}, {"key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'"}]},
+    {"source": "/editor.html", "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "X-Frame-Options", "value": "SAMEORIGIN"}, {"key": "X-Content-Type-Options", "value": "nosniff"}, {"key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'"}]},
+    {"source": "/api/editorial", "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "X-Frame-Options", "value": "SAMEORIGIN"}, {"key": "X-Content-Type-Options", "value": "nosniff"}]},
+    {"source": "/public-preview", "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "X-Frame-Options", "value": "SAMEORIGIN"}, {"key": "X-Content-Type-Options", "value": "nosniff"}]},
     {
       "source": "/app.js",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
