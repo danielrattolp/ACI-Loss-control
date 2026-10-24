@@ -71,3 +71,5 @@ El almacenamiento usa compare-and-set atómico para rechazar sobrescrituras simu
 - `CMS_ENV_MISSING` / `CMS_PREVIEW_MISSING`: faltan las variables de sistema de Vercel que identifican el entorno o la rama.
 
 Si falta únicamente `CMS_ADMIN_PASSWORD_HASH`, el inicio de sesión del administrador indica ese requisito explícitamente. No generar otra contraseña antes de comprobar el alcance Preview/Production del binding existente. Los cambios de variables se aplican mediante un nuevo despliegue del entorno afectado; abrir la URL del despliegue nuevo, no la de uno anterior.
+
+`CMS_ADMIN_HASH_FORMAT` indica que el valor guardado no coincide con una huella scrypt completa (168 caracteres); el servidor no muestra ni registra ese valor. Los espacios y saltos de línea accidentales alrededor de una huella válida se ignoran. El texto de la contraseña se verifica sin recortarlo ni modificarlo. Una huella con formato válido y contraseña diferente sigue devolviendo 401.

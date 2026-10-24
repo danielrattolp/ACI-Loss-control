@@ -46,6 +46,23 @@ class EditorialTests(unittest.TestCase):
                 'email': 'owner@example.com', 'password': 'admin-password-for-tests'}))
         self.assertEqual(self.store.state['attempts'], {})
 
+    def test_pasted_hash_whitespace_does_not_change_password_or_session(self):
+        encoded=os.environ['CMS_ADMIN_PASSWORD_HASH']
+        with patch.dict(os.environ,{'CMS_ADMIN_PASSWORD_HASH':' \r\n'+encoded+'\r\n '}):
+            token=self.s.execute('login',{'email':'owner@example.com','password':'admin-password-for-tests'})['token']
+            self.assertEqual(self.action('state',token)['role'],'admin')
+        self.assertEqual(self.action('state',token)['role'],'admin')
+
+    def test_invalid_admin_hash_is_diagnosed_without_echoing_value(self):
+        for invalid in ['plain-test-value-not-a-hash', 'python -c "test-command"', 'scrypt$truncated$hash']:
+            with self.subTest(invalid=invalid), patch.dict(os.environ,{'CMS_ADMIN_PASSWORD_HASH':invalid}):
+                with self.assertRaises(Rejected) as error:
+                    self.s.execute('login',{'email':'owner@example.com','password':'admin-password-for-tests'})
+                self.assertEqual(error.exception.status,503)
+                self.assertIn('CMS_ADMIN_HASH_FORMAT',error.exception.message)
+                self.assertNotIn(invalid,error.exception.message)
+        self.assertEqual(self.store.state['attempts'],{})
+
     def test_editor_draft_requires_owner_publication_and_keeps_history(self):
         token=self.activate();self.content['text-1']='Corrección áéíóú <script>alert(1)</script>'
         self.action('draft',token,content=self.content)

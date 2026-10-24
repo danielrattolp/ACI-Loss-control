@@ -5,6 +5,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import time
 
@@ -21,6 +22,14 @@ DAY = 86400
 class Rejected(Exception):
     def __init__(self, status, message):
         self.status, self.message = status, message
+
+def admin_password_hash():
+    encoded = os.environ.get('CMS_ADMIN_PASSWORD_HASH', '').strip()
+    if not encoded:
+        raise Rejected(503, 'Falta habilitar CMS_ADMIN_PASSWORD_HASH para este entorno de Vercel y volver a desplegar.')
+    if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}', encoded):
+        raise Rejected(503, 'CMS_ADMIN_PASSWORD_HASH tiene un formato inválido. Guarda la huella scrypt completa de 168 caracteres. [CMS_ADMIN_HASH_FORMAT]')
+    return encoded
 
 def password_hash(password, salt=None):
     if not isinstance(password, str) or not 14 <= len(password) <= 256:
@@ -63,9 +72,8 @@ class Service:
             admin = admin_email()
             editor = state['editor']
             role = None
-            if admin and email == admin and not os.environ.get('CMS_ADMIN_PASSWORD_HASH'):
-                fail(503, 'Falta habilitar CMS_ADMIN_PASSWORD_HASH para este entorno de Vercel y volver a desplegar.')
-            if admin and email == admin and matches(body.get('password'), os.environ.get('CMS_ADMIN_PASSWORD_HASH', '')):
+            admin_encoded = admin_password_hash() if admin and email == admin else ''
+            if admin and email == admin and matches(body.get('password'), admin_encoded):
                 role = 'admin'
             elif email == EMAIL and editor and not editor['revoked'] and now < editor['expires'] and matches(body.get('password'), editor['hash']):
                 role = 'editor'
@@ -75,7 +83,7 @@ class Service:
                 fail(401, 'Credenciales incorrectas o acceso vencido.')
             raw = secrets.token_urlsafe(32)
             state['sessions'] = {k:v for k,v in state['sessions'].items() if v['expires'] > now}
-            state['sessions'][hashlib.sha256(raw.encode()).hexdigest()] = {'role':role,'email':email,'expires':now+8*3600,'generation':editor['generation'] if role=='editor' else hashlib.sha256(os.environ.get('CMS_ADMIN_PASSWORD_HASH','').encode()).hexdigest()}
+            state['sessions'][hashlib.sha256(raw.encode()).hexdigest()] = {'role':role,'email':email,'expires':now+8*3600,'generation':editor['generation'] if role=='editor' else hashlib.sha256(admin_encoded.encode()).hexdigest()}
             state['attempts'].pop(bucket, None)
             save()
             return {'token':raw}
@@ -84,7 +92,7 @@ class Service:
         if not session or session['expires'] <= now: fail(401, 'Inicia sesión nuevamente.')
         role, actor = session['role'], session['email']
         editor = state['editor']
-        if role == 'admin' and (actor != admin_email() or session['generation'] != hashlib.sha256(os.environ.get('CMS_ADMIN_PASSWORD_HASH','').encode()).hexdigest()):
+        if role == 'admin' and (actor != admin_email() or session['generation'] != hashlib.sha256(os.environ.get('CMS_ADMIN_PASSWORD_HASH','').strip().encode()).hexdigest()):
             fail(401, 'La cuenta administradora cambió. Inicia sesión nuevamente.')
         if role == 'editor' and (not editor or editor['revoked'] or now >= editor['expires'] or editor['generation'] != session['generation']):
             fail(403, 'El acceso editorial venció o fue revocado.')
